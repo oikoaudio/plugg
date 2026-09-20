@@ -27,6 +27,11 @@ def manifest(root, build, output):
                     for dep in info('dependencies')]
     options = {item['name']: item['value'] for item in info('buildoptions')
                if item['name'] in ('buildtype', 'bitbridge', 'clap', 'vst3', 'wrap_mode', 'cpp_std', 'build.cpp_std', 'b_lto', 'force_fallback_for')}
+    # Compiler and linker arguments per machine, so a build made with a
+    # packager's environment flags is visible in the record. The host machine
+    # is the Wine side; `-march` there is what diagnostics/host-stack found.
+    arguments = {item.get('machine', 'host') + '.' + item['name']: item['value'] for item in info('buildoptions')
+                 if item['name'] in ('c_args', 'cpp_args', 'c_link_args', 'cpp_link_args')}
     source = root / 'vendor/yabridge'
     subprojects = []
     for item in info('projectinfo').get('subprojects', []):
@@ -53,7 +58,7 @@ def manifest(root, build, output):
         'patches': {str(p.relative_to(root)): digest(p) for p in (root / 'patches' / name for name in names)},
         'files': {name: digest(output / name) for name in ARTIFACTS},
         'build_inputs': {
-            'compilers': compilers, 'dependencies': dependencies, 'options': options,
+            'compilers': compilers, 'dependencies': dependencies, 'options': options, 'arguments': arguments,
             'subprojects': subprojects,
             'wine_version': subprocess.check_output(['wine', '--version'], text=True).strip(),
             'meson_version': subprocess.check_output(['meson', '--version'], text=True).strip(),

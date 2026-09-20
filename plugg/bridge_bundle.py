@@ -33,9 +33,32 @@ def inspect(directory, expected_manifest=None):
             path = directory / name
             if path.is_symlink() or not path.is_file() or digest(path) != expected:
                 raise ValueError('missing, linked or changed artifact: ' + name)
+        reject_host_target_flags(manifest)
         return {'directory': str(directory), 'manifest_sha256': fingerprint}
     except (OSError, ValueError) as exc:
         raise HostError('Cannot use native bridge at ' + str(directory) + ': ' + str(exc)) from exc
+
+
+def reject_host_target_flags(manifest):
+    """A Windows host built for anything above the x86-64 baseline is not usable.
+
+    Built with `-march=native` on a packager's machine, the host overflows its
+    stack while plug-ins initialise, and every bridged plug-in dies in the DAW
+    with only a timeout to show for it (diagnostics/host-stack). The build
+    script keeps such flags out; this keeps such a build out of a library.
+    Manifests from before the arguments were recorded say nothing, and pass.
+    """
+    inputs = manifest.get('build_inputs') if isinstance(manifest, dict) else None
+    arguments = inputs.get('arguments') if isinstance(inputs, dict) else None
+    if not isinstance(arguments, dict):
+        return
+    for key, values in arguments.items():
+        if not isinstance(key, str) or not key.startswith('host.') or not isinstance(values, list):
+            continue
+        for value in values:
+            if isinstance(value, str) and value.startswith('-march='):
+                raise ValueError('the Windows host was built with ' + value
+                                 + '; the bridge must be built for the x86-64 baseline (see diagnostics/host-stack)')
 
 
 #: What a release holds that something executes: the three files every

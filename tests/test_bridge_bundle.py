@@ -44,6 +44,16 @@ class BridgeSelectionTest(unittest.TestCase):
         with self.assertRaisesRegex(core.HostError, 'manifest changed'):
             core.Store(store.root).bridge()
 
+    def test_a_host_built_for_the_packagers_cpu_is_refused(self):
+        manifest = json.loads((self.bundle / 'build.json').read_text())
+        manifest['build_inputs'] = {'arguments': {'host.cpp_args': ['-O3', '-march=native'], 'build.cpp_args': ['-march=native']}}
+        (self.bundle / 'build.json').write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(core.HostError, '-march=native'):
+            self.create()
+        manifest['build_inputs']['arguments']['host.cpp_args'] = ['-O3']
+        (self.bundle / 'build.json').write_text(json.dumps(manifest))
+        self.assertEqual(self.create().bridge_source(), self.bundle)
+
     def test_failed_selection_does_not_create_library(self):
         (self.bundle / 'COPYING.yabridge').unlink()
         with self.assertRaises(core.HostError):

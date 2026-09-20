@@ -74,16 +74,16 @@ The download data is already in the native entries of the bundled recipe leads. 
 
 **PACE and iLok.** `plugg ilok create` installs the unmodified PACE MSI on the `plugg-1` runtime, which carries source fixes for the two Wine gaps that stopped it. Activation works. Reboots, PACE updates and more vendors are still untested, and setup is command-line only. The app has no guided flow for it yet. Recipes can't provision PACE. See [iLok and PACE](docs/recipes/pace.md) and [the runtime](docs/runtime.md).
 
-**Running Windows code somewhere it was never run before.** Plug-ins start in a
-Proton container through `start.exe /exec`, not under a plain Wine loader, and
-things that hold everywhere else stop holding. The threads a plug-in runs on got
-the executable's one megabyte stack rather than the Unix eight, so any plug-in
-that worked while initialising killed the host process; upstream yabridge never
-meets this because it starts the host differently. Wine 10.0 then could not even
-report the overflow. Both are fixed ([the diagnosis](diagnostics/host-stack/README.md)),
-and the lesson stands: differences from an ordinary Wine setup surface as
-failures with no obvious cause, so the launch path deserves its own tests rather
-than trust.
+**Building Windows code with the packager's flags.** Every bridged plug-in
+died while initialising on 2026-09-20, and the Windows host had been built by
+`makepkg` with this machine's `CFLAGS`, `-march=native` among them. A host
+compiled for anything above the x86-64 baseline overflows its main thread's
+stack inside the plug-in's `initialize`; the same source with yabridge's own
+flags loads. The bridge build now ignores the environment's compiler flags and
+records what it used ([the diagnosis](diagnostics/host-stack/README.md)). Wine
+10.0 could not even report the overflow, which is its own note. The lesson
+stands: the bridge runs in a launch path no one else uses, so what breaks it
+gets found by measurement, one variable at a time, not by argument.
 
 **Claiming an installer by hash.** A recipe binds to an installer by SHA-256, which is an unauthenticated claim about someone else's binary. Validation cannot fix this. Tiering and disclosure handle it instead. See [recipe trust](docs/recipe-trust.md).
 

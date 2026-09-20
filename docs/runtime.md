@@ -49,9 +49,9 @@ Wine 11.7). Without it, Wine cannot report a crash that takes this path: the
 report recurses until the process dies, and nothing is printed.
 
 It fixes reporting, not plug-ins. The plug-in failures of 2026-09-20 were a
-one megabyte thread stack in the Windows host, fixed in the bridge; see
-[the diagnosis](../diagnostics/host-stack/README.md). `plugg-2` is what makes
-the next failure of this kind legible.
+Windows host built with the packager's `-march=native`, fixed in the bridge
+build; see [the diagnosis](../diagnostics/host-stack/README.md). `plugg-2` is
+what makes the next failure of this kind legible.
 
 It is a draft: its modules have not been built and recorded, so Plugg refuses to
 assemble or select it. Building them records the hashes:

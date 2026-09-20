@@ -39,6 +39,9 @@ prepare() {
 
 build() {
     cd plugg
+    # A fresh configure every time: makepkg keeps $srcdir between runs, and the
+    # bridge build refuses a directory configured with an earlier environment.
+    rm -rf "$srcdir/bridge-build" "$srcdir/bridge"
     PLUGG_BUILD_DIR="$srcdir/bridge-build" PLUGG_BRIDGE_OUTPUT="$srcdir/bridge" \
         PLUGG_BUILD_JOBS="${PLUGG_BUILD_JOBS:-2}" scripts/build-bridge.sh
     python scripts/build-powershell-forwarder.py

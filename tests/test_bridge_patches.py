@@ -1,13 +1,11 @@
-"""The bridge patch series, and the one thing in it that is easy to lose.
+"""The bridge patch series, and the build rule that is easy to lose.
 
-The Windows host runs plug-in code on threads yabridge creates. Started the way
-Plugg starts it, through Proton inside the runtime container, those threads get
-the executable's default stack of one megabyte rather than the Unix stack of
-about eight. Plug-ins that work while initialising then overflow it and take
-the host process down, and the DAW waits on a process that no longer exists.
-
-Upstream has no reason to set a size, so a future rebase onto upstream would
-drop this without anything else noticing.
+The Windows host must be built with yabridge's own flags. A packaging
+environment exports the flags of the machine it runs on, Meson passes them to
+the Wine cross build, and a host compiled with `-march=native` overflows its
+stack while a plug-in initialises. Every bridged plug-in then dies in the DAW
+with nothing but a timeout. The build script clears those flags, and nothing
+else would notice if that line went missing.
 """
 import json
 from pathlib import Path
@@ -16,7 +14,6 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[1]
 SERIES = json.loads((REPO / 'patches/yabridge-series.json').read_text())
-STACK_PATCH = '0005-wine-host-plugin-thread-stack.patch'
 
 
 class SeriesTests(unittest.TestCase):
@@ -54,31 +51,30 @@ class PatchFormatTests(unittest.TestCase):
                                         name + ' should patch paths under src/: ' + line)
 
 
-class PluginThreadStackTests(unittest.TestCase):
+class HostBuildFlagsTests(unittest.TestCase):
     def setUp(self):
-        self.patch = (REPO / 'patches' / STACK_PATCH).read_text()
+        self.script = (REPO / 'scripts/build-bridge.sh').read_text()
 
-    def test_the_stack_patch_is_applied_to_the_bridge(self):
-        self.assertIn(STACK_PATCH, SERIES)
+    def test_the_build_clears_the_environment_flags_before_configuring(self):
+        match = re.search(r'(?m)^unset (.*)$', self.script)
+        self.assertIsNotNone(match, 'build-bridge.sh should unset the environment flags')
+        for variable in ('CFLAGS', 'CXXFLAGS', 'CPPFLAGS', 'LDFLAGS'):
+            self.assertIn(variable, match.group(1).split())
+        self.assertLess(match.start(), self.script.index('meson setup'),
+                        'the flags must be cleared before Meson records them')
 
-    def test_it_replaces_the_default_stack_size_in_createthread(self):
-        self.assertIn('src/wine-host/utils.h', self.patch)
-        self.assertIn('-                      0,', self.patch)
-        self.assertIn('+                      stack_size,', self.patch)
+    def test_a_build_directory_configured_with_march_is_refused(self):
+        self.assertIn("grep -q -- '-march=' \"$build_dir/compile_commands.json\"", self.script)
+        self.assertLess(self.script.index("'-march='"), self.script.index('ninja -C'))
 
-    def test_the_size_is_larger_than_the_one_megabyte_default(self):
-        match = re.search(r'stack_size = (\d+) \* 1024 \* 1024', self.patch)
-        self.assertIsNotNone(match, 'the patch should define stack_size in megabytes')
-        self.assertGreaterEqual(int(match.group(1)), 8)
-
-    def test_it_records_why_upstream_does_not_need_this(self):
-        for phrase in ('start.exe', 'one megabyte', 'diagnostics/host-stack'):
-            self.assertIn(phrase, self.patch)
+    def test_the_manifest_records_the_arguments_each_build_used(self):
+        self.assertIn("'arguments': arguments", (REPO / 'scripts/bridge-manifest.py').read_text())
 
     def test_the_diagnosis_is_kept_with_the_evidence(self):
         notes = (REPO / 'diagnostics/host-stack/README.md').read_text()
         self.assertIn('0x20000-0x120000', notes)
-        self.assertIn('patches/0005-wine-host-plugin-thread-stack.patch', notes)
+        self.assertIn('-march=native', notes)
+        self.assertIn('scripts/build-bridge.sh', notes)
 
 
 if __name__ == '__main__':

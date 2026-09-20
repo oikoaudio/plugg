@@ -26,7 +26,7 @@ plugg use-current-bridge --apply    # move it
 Class identities and publication paths do not change, so saved projects still
 find their plug-ins. Restart the DAW afterwards.
 
-The build script fetches the pinned yabridge sources and applies the recorded patch series from [`patches/`](../patches). Its manifest records artifact hashes and the compiler and dependency versions it observed. System build dependencies are not fully pinned yet. See [the build tooling decision](decisions/0002-build-tooling.md). Git holds no binaries, runtime downloads or test environments.
+The build script fetches the pinned yabridge sources and applies the recorded patch series from [`patches/`](../patches). It ignores any `CFLAGS`, `CXXFLAGS` and `LDFLAGS` in the environment: the Windows host must be built with yabridge's own flags, because a host compiled with `-march=native` or another non-baseline target overflows its stack while plug-ins initialise ([the diagnosis](../diagnostics/host-stack/README.md)). The manifest records the arguments each build used. Its manifest records artifact hashes and the compiler and dependency versions it observed. System build dependencies are not fully pinned yet. See [the build tooling decision](decisions/0002-build-tooling.md). Git holds no binaries, runtime downloads or test environments.
 
 To use separate build and output directories:
 

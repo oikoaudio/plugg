@@ -31,7 +31,8 @@ class BuildManifestTest(unittest.TestCase):
                 'compilers': {'build': {'cpp': {'id': 'gcc', 'version': 'test', 'exelist': ['/private/path/c++']}}},
                 'dependencies': [{'name': 'asio', 'type': 'pkgconfig', 'version': 'system-version', 'compile_args': ['/private/path']}],
                 'projectinfo': {'subprojects': [{'name': 'asio', 'version': 'declared-version'}]},
-                'buildoptions': [{'name': 'force_fallback_for', 'value': ['asio']}, {'name': 'wrap_mode', 'value': 'default'}, {'name': 'prefix', 'value': '/private/path'}],
+                'buildoptions': [{'name': 'force_fallback_for', 'value': ['asio']}, {'name': 'wrap_mode', 'value': 'default'}, {'name': 'prefix', 'value': '/private/path'},
+                                 {'name': 'cpp_args', 'machine': 'host', 'value': ['-march=native']}, {'name': 'cpp_link_args', 'machine': 'build', 'value': []}],
             }
             subproject = root / 'vendor/yabridge/subprojects/asio'
             (subproject / '.git').mkdir(parents=True)
@@ -46,6 +47,7 @@ class BuildManifestTest(unittest.TestCase):
             self.assertEqual(result['build_inputs']['subprojects'][0]['git_revision'], 'fixture-version')
             self.assertEqual(result['build_inputs']['subprojects'][0]['meson_version'], 'declared-version')
             self.assertEqual(result['build_inputs']['options']['force_fallback_for'], ['asio'])
+            self.assertEqual(result['build_inputs']['arguments'], {'host.cpp_args': ['-march=native'], 'build.cpp_link_args': []})
             self.assertNotIn('/private/path', json.dumps(result))
             (output / 'plugg-scan').unlink()
             with patch.object(manifest.subprocess, 'check_output', return_value='fixture-version\n'):

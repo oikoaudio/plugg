@@ -8,6 +8,12 @@ if [ ! -d vendor/yabridge/.git ]; then
 fi
 test "$(git -C vendor/yabridge rev-parse HEAD)" = "$revision"
 python3 scripts/prepare-bridge-source.py
+# The bridge is built with yabridge's own flags only. Packaging environments
+# export CFLAGS/CXXFLAGS/LDFLAGS for the machine they run on, and Meson passes
+# them to the Wine host build; a host compiled with `-march=native` (or any
+# `-march` above the x86-64 baseline) overflows its stack while a plug-in
+# initialises. See diagnostics/host-stack.
+unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
 output="${PLUGG_BRIDGE_OUTPUT:-bundle/bridge}"
 mkdir -p "$output"
 output="$(readlink -f "$output")"
@@ -18,6 +24,10 @@ mkdir -p "$build_dir"
 build_dir="$(readlink -f "$build_dir")"
 if [ ! -f "$build_dir/build.ninja" ]; then
     meson setup "$build_dir" vendor/yabridge --cross-file vendor/yabridge/cross-wine.conf --buildtype=release -Dclap=false -Dbitbridge=false
+fi
+if grep -q -- '-march=' "$build_dir/compile_commands.json"; then
+    echo "The build directory $build_dir was configured with -march flags; remove it and build again." >&2
+    exit 1
 fi
 ninja -C "$build_dir" -j "${PLUGG_BUILD_JOBS:-4}" libyabridge-vst3.so libyabridge-chainloader-vst3.so yabridge-host
 mkdir -p "$output"
