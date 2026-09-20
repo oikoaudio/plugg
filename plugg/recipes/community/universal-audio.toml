@@ -1,0 +1,10 @@
+schema = 1
+id = "plugg.universal-audio"
+revision = 1
+kind = "vendor"
+name = "Universal Audio / UA Connect"
+vendor = "Universal Audio"
+documentation_only = true
+existing_setup = "ua-connect"
+requires = ["plugg.pace-license-support@1", "plugg.windows-archive-tools@2", "plugg.ua-helper-compatibility@1", "plugg.ole32-foreign-window-guard@1"]
+notes = "Documents the working local setup: shared PACE/iLok services, archive extraction, UA Connect helper handling and the LA-2A editor-close runtime fix. Fresh PACE/runtime provisioning is not available. A guarded setup-existing adapter can assemble UA Connect in a prepared PACE environment; isolated service and payload tests do not yet prove a fresh login/product-install session. Open the existing UA Connect from Helpers. Viewing this definition does not modify the installation. Running setup-existing is an explicit guarded operation; it preserves machine identity and refuses different existing files. See docs/recipes/universal-audio.md."

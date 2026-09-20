@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+ <Product Id="*" Name="Plugg version diagnostic" Language="1033" Version="1.0.0" Manufacturer="Plugg" UpgradeCode="D55AA7E4-121E-47D2-94AA-CC0E3BE67729">
+  <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" />
+  <Directory Id="TARGETDIR" Name="SourceDir" />
+  <Feature Id="Empty" Title="Diagnostic" Level="1" />
+  <Binary Id="ProbeBinary" SourceFile="Probe.CA.dll" />
+  <CustomAction Id="ReportVersion" BinaryKey="ProbeBinary" DllEntry="Report" Execute="immediate" Return="check" />
+  <InstallExecuteSequence><Custom Action="ReportVersion" Before="LaunchConditions">1</Custom></InstallExecuteSequence>
+ </Product>
+</Wix>

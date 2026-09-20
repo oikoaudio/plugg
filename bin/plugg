@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$(readlink -f "$0")")/.."
+exec python3 -m plugg "$@"

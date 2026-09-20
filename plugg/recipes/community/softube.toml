@@ -1,0 +1,10 @@
+schema = 1
+id = "plugg.softube"
+revision = 1
+kind = "vendor"
+name = "Softube Central"
+vendor = "Softube"
+documentation_only = true
+existing_setup = "softube"
+requires = ["plugg.pace-license-support@1", "plugg.graphics-dxvk@1", "plugg.softube-helper-compatibility@1"]
+notes = "Central login and product sync passed in a fresh trial. The existing shared PACE environment now has Central and a separately registered Softube installer service, with PACE binaries and identity preserved. Login through its managed launcher passed, with --disable-gpu resolving the pointer offset and most clipping; slight top clipping remains. Central close cleanup passed. Saturation Knob 2.6.41 installed interactively, activated and passed Bitwig audio, controls and editor close/reopen. Disable its Use OpenGL setting to avoid flicker; DXVK remains the default. Fix Phaser subsequently installed successfully through Central and was published automatically on close; the earlier Saturation Knob stall is not a universal installation failure. Fresh PACE provisioning remains unavailable. Use recipe setup-existing with the downloaded installer to join an existing protected PACE environment; the adapter checks prerequisites and preserves licensing. Open the configured Central from Helpers. See docs/recipes/softube.md."

@@ -1,0 +1,12 @@
+{
+  "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+  "release": "UMU-Proton-10.0-4",
+  "source_sha256": "c4109981a732da9a575f5090f198bcd47540136e0aaec7a430661c89d68e4342",
+  "ole32-guard.dll_sha256": "920c6467a441ea27ccf300ec6a810407da02280d5ac3de7db312232f32858c59",
+  "ole32-control.dll_sha256": "21741904de6565d02d85ed64db6b3dc8c517ed51aa8e8ec1b6eb5b5d3e2adaca",
+  "patch_sha256": "e6d35627ae5235d4e11bc0f641ab46527b1f2fde93c33f642f5d5a0eb30aeba5",
+  "validation": {
+    "control": "Run exit 10\nfixture-parent.txt OleInitialize: 0x0\nnormal register/revoke cycles passed: 0x64\nRegisterDragDrop: 0x0\nchild exit: 0xc0000005\nowner RevokeDragDrop: 0x0\nremaining refs: 0x1\n\nfixture-child.txt OleInitialize: 0x0\nchild pid: 0x170\nwindow owner: 0x128\nforeign property: 0x500000000000\n\n",
+    "guard": "Run exit 0\nfixture-parent.txt OleInitialize: 0x0\nnormal register/revoke cycles passed: 0x64\nRegisterDragDrop: 0x0\nchild exit: 0x0\nowner RevokeDragDrop: 0x0\nremaining refs: 0x1\n\nfixture-child.txt OleInitialize: 0x0\nchild pid: 0x170\nwindow owner: 0x128\nforeign property: 0x500000000000\nforeign RevokeDragDrop result: 0x80040102\n\n"
+  }
+}

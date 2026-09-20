@@ -1,0 +1,13 @@
+schema = 1
+id = "plugg.ole32-foreign-window-guard"
+revision = 1
+kind = "component"
+name = "OLE32 foreign-window revocation guard"
+purpose = "Stops a crash when a plug-in editor with drag-and-drop support is closed, by requiring a runtime whose ole32 has the validated fix."
+notes = "Exact locally validated UMU-Proton 10.0-4 build. Checks the runtime and installed DLL; does not patch or install files. The change that produces this DLL is patches/0004-ole32-revoke-foreign-drop-target.patch, with its build provenance beside it. See diagnostics/dragdrop and docs/compatibility/universal-audio.md."
+
+[required_files.runtime]
+"files/lib/wine/x86_64-windows/ole32.dll" = "920c6467a441ea27ccf300ec6a810407da02280d5ac3de7db312232f32858c59"
+
+[required_files.prefix]
+"windows/system32/ole32.dll" = "920c6467a441ea27ccf300ec6a810407da02280d5ac3de7db312232f32858c59"

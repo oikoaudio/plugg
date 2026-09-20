@@ -1,0 +1,92 @@
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (Python ${{ matrix.python }})
+    # Private repositories pay for Actions minutes; run once the repository is public.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      # No Wine, no vendor accounts, no network: the unit suite and the recipe
+      # catalogue check are the parts that can run anywhere.
+      - name: Unit tests and recipe catalogue
+        run: python3 scripts/check-contribution.py
+
+  recipes:
+    name: Recipe review
+    # Private repositories pay for Actions minutes; run once the repository is public.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Every submitted recipe gets the same bird's-eye view a user sees, and
+      # is refused outright if it declares more than its directory allows.
+      - name: Review changed recipes
+        run: |
+          python3 scripts/review-recipe.py --markdown --changed \
+            "origin/${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}"
+
+      - name: Check the contributed catalogue loads
+        run: |
+          python3 -m plugg recipe check \
+            --recipe-dir recipes/community --recipe-dir recipes/reviewed
+
+  audit:
+    name: Guardrail audit
+    # Private repositories pay for Actions minutes; run once the repository is public.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # These assert the security contract itself: that every prefix-writing
+      # operation is guarded, and that no built-in download source is loosened.
+      - name: Licensing and download guardrails
+        run: |
+          python3 -m unittest -v \
+            tests.test_licensing_coverage tests.test_artifacts tests.test_recipe_report
+        env:
+          # tests/ too: the suite's modules import their siblings by bare name,
+          # which unittest discovery arranges and naming modules directly does not.
+          PYTHONPATH: .:tests
+
+  interface:
+    name: Interface smoke test
+    # Private repositories pay for Actions minutes; run once the repository is public.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # GTK from the distribution, with the system Python that has PyGObject:
+      # the interface is the one part with no unit coverage, and it broke
+      # repeatedly without anyone noticing because nothing ever ran it.
+      - name: Install GTK 4
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-1 gir1.2-gtk-4.0 python3-gi python3-gi-cairo xvfb
+      - name: Build the window and exercise its controls
+        run: xvfb-run -a python3 scripts/test-ui.py

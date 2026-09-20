@@ -1,0 +1,19 @@
+schema = 1
+id = "plugg.klevgrand"
+revision = 1
+kind = "vendor"
+name = "Klevgrand Helper"
+vendor = "Klevgrand"
+requires = ["plugg.graphics-dxvk@1", "plugg.windows-archive-tools@2"]
+notes = "Installs the exact tested Helper into a fresh environment using the managed Proton runtime. Helper launch clears SteamAppId and uses the existing window-handling adapter; closing Helper refreshes VST3s. Sign-in and product authorization remain user actions. Existing Klevgrand installations are preserved."
+[helper]
+name = "Klevgrand Helper"
+executable = "Program Files (x86)/Klevgrand/Klevgrand Helper/Klevgrand Helper.exe"
+archive_tools = false
+arguments = ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/TASKS="]
+installer_sha256 = "52cecdfe4e18a45832a0962fe8c29f52a75ee3d050352f593d4b9ba913149532"
+[licensing]
+vendor = "Klevgrand"
+recovery = "deactivate-first"
+note = "Uninstall products through Helper before rebuilding or moving this environment."
+deactivate_at = "by uninstalling the products in the Klevgrand Helper"

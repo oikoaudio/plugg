@@ -1,0 +1,48 @@
+--- a/src/wine-host/editor.h
++++ b/src/wine-host/editor.h
+@@ -197,6 +197,9 @@
+         std::optional<fu2::unique_function<void()>> timer_proc = std::nullopt,
+         std::optional<Size> initial_size = std::nullopt);
+ 
++    // Detach Wine before member destruction removes its X11 parent.
++    ~Editor() noexcept;
++
+     /**
+      * Resize the `wrapper_window_` to this new size. We need to manually call
+      * this whenever the plugin requests a resize, or when the host resizes the
+--- a/src/wine-host/editor.cpp
++++ b/src/wine-host/editor.cpp
+@@ -397,6 +397,33 @@
+     xcb_flush(x11_connection_.get());
+ 
+     do_reparent(wine_window_, wrapper_window_.window_);
++}
++
++Editor::~Editor() noexcept {
++    // wrapper_window_ is destroyed before win32_window_. XDestroyWindow also
++    // destroys children belonging to other clients, so the deferred Win32
++    // destructor cannot rescue the Wine window after that point.
++    try {
++        const auto window = get_x11_handle(win32_window_.handle_);
++        const auto root = get_root_window(*x11_connection_, window);
++        // Keep the detached window invisible during deferred WM_CLOSE.
++        auto cookie = xcb_unmap_window_checked(x11_connection_.get(), window);
++        auto* error = xcb_request_check(x11_connection_.get(), cookie);
++        if (error) {
++            free(error);
++            return;
++        }
++        cookie = xcb_reparent_window_checked(x11_connection_.get(), window,
++                                             root, 0, 0);
++        error = xcb_request_check(x11_connection_.get(), cookie);
++        if (error) {
++            std::cerr << "Editor detach failed: X11 error "
++                      << static_cast<int>(error->error_code) << std::endl;
++            free(error);
++        }
++    } catch (const std::runtime_error&) {
++        // The plugin or host may already have destroyed this window.
++    }
+ }
+ 
+ void Editor::resize(uint16_t width, uint16_t height) {

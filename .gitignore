@@ -1,0 +1,61 @@
+# Generated builds and downloaded third-party implementation/runtime files
+/build/
+/bundle/
+/vendor/
+/dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Local experiments contain real installations, licenses and vendor account data.
+# In particular, .test-klevgrand-proton is active user data: never clean it away.
+/.test-*/
+/.scratch/
+*.log
+*.sqlite3
+*.sqlite3-*
+*.db
+*.dmp
+core.[0-9]*
+
+# Never commit installers, plug-in/runtime binaries or downloaded packages.
+*.exe
+*.msi
+*.bin
+*.dll
+*.so
+*.so.*
+*.o
+*.obj
+*.a
+*.zip
+*.7z
+*.tar
+*.tar.*
+*.vst3/
+*.aaxplugin/
+
+# Local settings and authorization material
+.env
+.env.*
+*.kledi
+*.key
+*.pem
+.DS_Store
+
+# Per-environment licensing records and identity recovery points are user state.
+licensing.json
+licensing-backups/
+
+# Local licensing key.
+.licensing-key
+
+# makepkg working directories and output
+packaging/arch/src/
+packaging/arch/pkg/
+packaging/arch/plugg/
+packaging/arch/yabridge/
+packaging/arch/*.pkg.tar.*

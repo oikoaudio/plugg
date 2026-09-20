@@ -1,0 +1,11 @@
+schema = 1
+id = "local.example-graphics"
+revision = 1
+kind = "vendor"
+name = "Example vendor graphics profile"
+vendor = "Example Audio"
+requires = ["plugg.graphics-dxvk@1"]
+notes = "Template recipe. Replace the module paths with the plug-ins you tested, and record your evidence in the pull request."
+
+[graphics.plugins]
+"Program Files/Common Files/VST3/Example.vst3" = "wined3d"

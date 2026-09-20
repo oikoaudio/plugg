@@ -1,0 +1,9 @@
+schema = 1
+id = "plugg.graphics-dxvk"
+revision = 1
+kind = "component"
+name = "DXVK graphics"
+purpose = "Draws plug-in interfaces through DXVK, which most tested plug-ins need to render at all."
+
+[graphics]
+default = "dxvk"

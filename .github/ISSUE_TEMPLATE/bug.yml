@@ -1,0 +1,31 @@
+name: Bug in the manager
+description: The application itself misbehaves
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a plug-in that does not work, use the compatibility report instead.
+
+        If an environment holding your licences is involved, say so. Don't
+        recreate or move it while we look at the problem.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations: {required: true}
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `plugg doctor`
+      render: json

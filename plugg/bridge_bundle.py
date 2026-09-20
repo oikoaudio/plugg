@@ -1,0 +1,99 @@
+"""Validate a native bridge build without executing it, and keep the releases bundles link to."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import tempfile
+
+ARTIFACTS = ('libyabridge-vst3.so', 'libyabridge-chainloader-vst3.so',
+             'yabridge-host.exe', 'yabridge-host.exe.so', 'plugg-scan', 'COPYING.yabridge')
+
+
+def inspect(directory, expected_manifest=None):
+    from .core import HostError, digest
+    directory = Path(directory).expanduser().resolve(strict=True)
+    try:
+        with (directory / 'build.json').open('rb') as stream:
+            raw = stream.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            raise ValueError('build manifest is too large')
+        fingerprint = hashlib.sha256(raw).hexdigest()
+        if expected_manifest is not None and fingerprint != expected_manifest:
+            raise ValueError('build manifest changed since this library was created')
+        manifest = json.loads(raw)
+        files = manifest.get('files') if isinstance(manifest, dict) else None
+        if not isinstance(files, dict) or set(files) != set(ARTIFACTS):
+            raise ValueError('build manifest must list the six bridge artifacts')
+        for name in ARTIFACTS:
+            expected = files[name]
+            if not isinstance(expected, str) or not re.fullmatch('[0-9a-f]{64}', expected):
+                raise ValueError('invalid artifact hash: ' + name)
+            path = directory / name
+            if path.is_symlink() or not path.is_file() or digest(path) != expected:
+                raise ValueError('missing, linked or changed artifact: ' + name)
+        return {'directory': str(directory), 'manifest_sha256': fingerprint}
+    except (OSError, ValueError) as exc:
+        raise HostError('Cannot use native bridge at ' + str(directory) + ': ' + str(exc)) from exc
+
+
+#: What a release holds that something executes: the three files every
+#: published bundle links to, the chainloader a bundle is copied from, and the
+#: scanner. The release is named after these, and nothing else in it.
+RELEASE_FILES = ('libyabridge-vst3.so', 'libyabridge-chainloader-vst3.so',
+                 'yabridge-host.exe', 'yabridge-host.exe.so', 'plugg-scan')
+#: Carried along for provenance and licence notice, not part of the identity.
+RELEASE_NOTES = ('build.json', 'COPYING.yabridge')
+
+
+def release_name(directory):
+    """A release is named for the bytes it runs, so the same build is one release."""
+    from .core import digest
+    directory = Path(directory)
+    lines = []
+    for name in RELEASE_FILES:
+        path = directory / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('missing or linked bridge file: ' + name)
+        lines.append(name + ' ' + digest(path))
+    return hashlib.sha256('\n'.join(lines).encode()).hexdigest()[:16], dict(x.split(' ') for x in lines)
+
+
+def install_release(source, releases):
+    """Copy a bridge build into the library, where published bundles can rely on it.
+
+    A published bundle links its bridge files rather than copying them, so
+    whatever it links to has to outlive the build it came from. A checkout
+    gets moved, renamed or rebuilt in place while a DAW has the old files
+    mapped; the library does not. Releases are never changed after they are
+    made and never removed here: a bundle's link is the only record that
+    something still needs one.
+    """
+    from .core import HostError, digest
+    source = Path(source)
+    releases = Path(releases)
+    try:
+        name, files = release_name(source)
+    except (OSError, ValueError) as exc:
+        raise HostError('Cannot use native bridge at ' + str(source) + ': ' + str(exc)) from exc
+    target = releases / name
+    if not target.exists():
+        releases.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix='.release-', dir=releases))
+        try:
+            for item in RELEASE_FILES + RELEASE_NOTES:
+                if (source / item).is_file():
+                    shutil.copy2(source / item, staging / item)
+            os.chmod(staging, 0o755)
+            os.rename(staging, target)
+        except OSError:
+            shutil.rmtree(staging, ignore_errors=True)
+            # Someone else finished the same release first.
+            if not target.is_dir():
+                raise
+    for item, expected in files.items():
+        path = target / item
+        if path.is_symlink() or not path.is_file() or digest(path) != expected:
+            raise HostError('The library bridge release ' + str(target) + ' has been changed: ' + item)
+    return target

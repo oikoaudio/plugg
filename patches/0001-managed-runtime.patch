@@ -1,0 +1,156 @@
+diff --git a/src/chainloader/utils.cpp b/src/chainloader/utils.cpp
+index f4f56f3b..f0f48e47 100644
+--- a/src/chainloader/utils.cpp
++++ b/src/chainloader/utils.cpp
+@@ -31,6 +31,12 @@ namespace fs = ghc::filesystem;
+ void* find_plugin_library(const std::string& name) {
+     // Just using a goto for this would probably be cleaner, but yeah...
+     const auto impl = [&name]() -> void* {
++        // Managed publications must never silently load the system bridge.
++        const auto local = get_this_file_location().parent_path();
++        if (fs::exists(local / ".plugg-managed")) {
++            return dlopen((local / name).c_str(), RTLD_LAZY | RTLD_LOCAL);
++        }
++
+         // If `name` exists right next to the Wine plugin host binary, then
+         // we'll try loading that. Otherwise we'll fall back to regular
+         // `dlopen()` for distro packaged versions of yabridge
+diff --git a/src/common/utils.cpp b/src/common/utils.cpp
+index 7d054ff4..7423b2aa 100644
+--- a/src/common/utils.cpp
++++ b/src/common/utils.cpp
+@@ -19,6 +19,11 @@
+ #include <stdlib.h>
+ 
+ #include <sched.h>
++#include <sys/stat.h>
++#include <sys/vfs.h>
++#include <unistd.h>
++#include <cerrno>
++#include <stdexcept>
+ #include <xmmintrin.h>
+ 
+ namespace fs = ghc::filesystem;
+@@ -40,15 +45,26 @@ constexpr char disable_watchdog_timer_env_var[] = "YABRIDGE_NO_WATCHDOG";
+ constexpr char temp_dir_override_env_var[] = "YABRIDGE_TEMP_DIR";
+ 
+ fs::path get_temporary_directory() {
+-    // NOLINTNEXTLINE(concurrency-mt-unsafe)
+-    if (const auto directory = getenv(temp_dir_override_env_var)) {
+-        return fs::path(directory);
+-        // NOLINTNEXTLINE(concurrency-mt-unsafe)
+-    } else if (const auto directory = getenv("XDG_RUNTIME_DIR")) {
+-        return fs::path(directory);
+-    } else {
+-        return fs::temp_directory_path();
+-    }
++    // Plugg's private bridge uses RAM-backed storage visible on both sides
++    // of pressure-vessel. Do not inherit the DAW's unrelated runtime directory.
++    static const fs::path directory = [] {
++        const auto override = getenv(temp_dir_override_env_var);
++        const fs::path path = override ? fs::path(override)
++            : fs::path("/dev/shm") / ("plugg-" + std::to_string(getuid()));
++        if (!path.is_absolute())
++            throw std::runtime_error("Plugg IPC path must be absolute");
++        if (mkdir(path.c_str(), 0700) != 0 && errno != EEXIST)
++            throw std::runtime_error("Could not create Plugg IPC directory");
++        struct stat status{};
++        struct statfs filesystem{};
++        if (lstat(path.c_str(), &status) != 0 || !S_ISDIR(status.st_mode)
++            || status.st_uid != getuid() || (status.st_mode & 0077)
++            || statfs(path.c_str(), &filesystem) != 0
++            || filesystem.f_type != 0x01021994 /* TMPFS_MAGIC */)
++            throw std::runtime_error("Plugg IPC requires a private RAM-backed directory");
++        return path;
++    }();
++    return directory;
+ }
+ 
+ std::optional<int> get_realtime_priority() noexcept {
+diff --git a/src/plugin/utils.cpp b/src/plugin/utils.cpp
+index 86fac91f..dbcdba25 100644
+--- a/src/plugin/utils.cpp
++++ b/src/plugin/utils.cpp
+@@ -18,6 +18,7 @@
+ 
+ #include <unistd.h>
+ #include <sstream>
++#include <fstream>
+ 
+ // Generated inside of the build directory
+ #include <config.h>
+@@ -55,7 +56,29 @@ PluginInfo::PluginInfo(PluginType plugin_type,
+       plugin_arch_(find_dll_architecture(windows_library_path_)),
+       windows_plugin_path_(
+           normalize_plugin_path(windows_library_path_, plugin_type)),
+-      wine_prefix_(find_wine_prefix(windows_plugin_path_)) {}
++      wine_prefix_(find_wine_prefix(windows_plugin_path_)) {
++    // Resolve the real Windows module, not the publication symlink. A managed
++    // prefix owns its runtime and must not inherit a DAW-wide WINEPREFIX.
++    auto parent = fs::canonical(windows_library_path_).parent_path();
++    while (!parent.empty()) {
++        const auto marker = parent / ".plugg-runtime";
++        if (fs::exists(marker)) {
++            std::ifstream stream(marker.string());
++            std::string launcher;
++            std::getline(stream, launcher);
++            if (launcher.empty() || !fs::path(launcher).is_absolute() ||
++                access(launcher.c_str(), X_OK) != 0) {
++                throw std::runtime_error("Plugg runtime is missing; open Plugg to repair it");
++            }
++            managed_loader_ = fs::path(launcher);
++            wine_prefix_ = parent;
++            break;
++        }
++        const auto next = parent.parent_path();
++        if (next == parent) break;
++        parent = next;
++    }
++}
+ 
+ ProcessEnvironment PluginInfo::create_host_env() const {
+     ProcessEnvironment env(environ);
+@@ -80,6 +103,11 @@ ProcessEnvironment PluginInfo::create_host_env() const {
+     // environment variable.
+     env.erase("WAYLAND_DISPLAY");
+ 
++    if (managed_loader_) {
++        env.insert("WINELOADER", managed_loader_->string());
++        env.erase("WINESERVER");
++    }
++
+     return env;
+ }
+ 
+@@ -110,6 +138,8 @@ std::string PluginInfo::wine_version() const {
+         wine_path = wineloader_path;
+     }
+ 
++    if (managed_loader_) wine_path = managed_loader_->string();
++
+     Process process(wine_path);
+     process.arg("--version");
+     process.environment(create_host_env());
+diff --git a/src/plugin/utils.h b/src/plugin/utils.h
+index feb7a818..9ef57973 100644
+--- a/src/plugin/utils.h
++++ b/src/plugin/utils.h
+@@ -86,6 +86,9 @@ struct PluginInfo {
+      */
+     ProcessEnvironment create_host_env() const;
+ 
++    // Plugg: fixed launcher for an explicitly managed prefix.
++    std::optional<ghc::filesystem::path> managed_loader_;
++
+     /**
+      * Return the path to the actual Wine prefix in use, taking into account
+      * `WINEPREFIX` overrides and the default `~/.wine` fallback.
+@@ -152,7 +155,7 @@ struct PluginInfo {
+      * not inside of a Wine prefix, this will be left empty, and the default
+      * prefix will be used instead.
+      */
+-    const std::
++    std::
+         variant<OverridenWinePrefix, ghc::filesystem::path, DefaultWinePrefix>
+             wine_prefix_;
+ };

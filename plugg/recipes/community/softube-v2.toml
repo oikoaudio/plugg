@@ -1,0 +1,10 @@
+schema = 1
+id = "plugg.softube"
+revision = 2
+kind = "vendor"
+name = "Softube Central"
+vendor = "Softube"
+documentation_only = true
+existing_setup = "softube"
+requires = ["plugg.pace-license-support@1", "plugg.graphics-dxvk@1", "plugg.softube-helper-compatibility@2"]
+notes = "Joins Softube Central to the existing shared iLok environment. Before copying Central, the join installs what this recipe requires and the environment lacks: pinned PowerShell 7.4 and the pinned Visual C++ 2015-2022 x64 runtime, after taking a recovery point and with PACE and machine identity checked before and after. Revision 1 lacked the Visual C++ runtime, and the first product install from Central could stall. Fresh PACE provisioning is not part of this recipe; create the iLok environment with plugg ilok create. See docs/recipes/softube.md."

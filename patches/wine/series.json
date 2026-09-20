@@ -1,0 +1,68 @@
+{
+  "wine_source": "https://github.com/ValveSoftware/wine",
+  "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+  "release": "UMU-Proton-10.0-4",
+  "source_sha256": "c4109981a732da9a575f5090f198bcd47540136e0aaec7a430661c89d68e4342",
+  "series": [
+    {
+      "patch": "0001-rundll32-Declare-supported-Windows-versions-in-a-man.patch",
+      "sha256": "cbaa557a01f905e20995bf0b9aacd8a8dc366a2f1cb0a077cf3355b0440b623f"
+    },
+    {
+      "patch": "0002-services-Store-and-report-service-failure-actions.patch",
+      "sha256": "2df73b4c2cbb57362d439541fc1454757eb353b2d7262ba7865348c985a64ac5"
+    }
+  ],
+  "also_applied_in_the_guarded_runtime": "../0004-ole32-revoke-foreign-drop-target.patch",
+  "build": {
+    "generated_first": [
+      "autoreconf -f",
+      "dlls/winevulkan/make_vulkan -x vk.xml -X video.xml",
+      "tools/make_specfiles",
+      "tools/make_requests"
+    ],
+    "configure": [
+      "--enable-archs=i386,x86_64",
+      "--without-x",
+      "--without-wayland",
+      "--without-vulkan",
+      "(and the other optional libraries disabled; only three modules are built)"
+    ],
+    "targets": [
+      "programs/rundll32/all",
+      "programs/services/all",
+      "dlls/sechost/all"
+    ],
+    "strip": "llvm-strip -g",
+    "tools": {
+      "clang": "clang version 22.1.8",
+      "lld": "LLD 22.1.8 (compatible with GNU linkers)",
+      "autoconf": "autoconf (GNU Autoconf) 2.73"
+    }
+  },
+  "artifacts_sha256": {
+    "x86_64-windows/rundll32.exe": "a8e43b341bb3a0e57af70652ce0ba3fc4125e10edad744e197cea4b9e8f503e8",
+    "x86_64-windows/services.exe": "ec47c683cc4efd8e9238c82e8dd11f1def90f1d30c4b897a3d9b98ac03956277",
+    "x86_64-windows/sechost.dll": "a9950db0831bf2d7fd0da8b56a6476f97db471d35cfcae6775997e52cd9d0c9e",
+    "i386-windows/rundll32.exe": "731373be740109b0cb53b806674ae5ee6f6101230d00b48c03592f87c09ecca2",
+    "i386-windows/services.exe": "eebe3fc833de7c8a8f30cc3b6f45678b69ffef4c4ff968c63422f80fd9dbf04c",
+    "i386-windows/sechost.dll": "4274b3e3e2efb9c3d82e2b735bdb1f5136ce5515977a51855e2aa92be54613f8"
+  },
+  "validation": {
+    "prefix": "Disposable unlicensed UMU-Proton-10.0-4 prefix; no vendor software",
+    "service_config_fixture": {
+      "unpatched": "QueryServiceConfig2W(FAILURE_ACTIONS) fails with 124 (ERROR_INVALID_LEVEL); writes accepted and discarded; FAILURE_ACTIONS_FLAG unsupported",
+      "patched": "x64 and x86: reset 86400, three actions, reboot message and command read back exactly; flag 0 -> 1; values reload from the registry after the service manager restarts; registry layout matches Windows (FailureActions header offset 0x14)"
+    },
+    "rundll32_version_probe": {
+      "unpatched": "x64 and x86: GetVersionEx 6.2.9200, RtlGetVersion 10.0.19045",
+      "patched": "x64 and x86: GetVersionEx 10.0.19045, RtlGetVersion 10.0.19045"
+    },
+    "not_yet_tested": [
+      "Unmodified PACE MSI in a fresh prefix",
+      "PACE service start and iLok License Manager",
+      "Other rundll32 consumers",
+      "Crash recovery itself: stored settings are not acted on"
+    ]
+  }
+}

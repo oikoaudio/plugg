@@ -1,0 +1,19 @@
+schema = 1
+id = "plugg.native-instruments"
+revision = 1
+kind = "vendor"
+name = "Native Access"
+vendor = "Native Instruments"
+requires = ["plugg.graphics-dxvk@1", "plugg.powershell@1"]
+helper_profile = "native-access"
+notes = "Installs the exact tested Native Access installer into a fresh managed Proton environment. PowerShell resolves the observed installer failure. Preserves existing NI installations. Account login and product installation remain user actions; the preset/content paths belong to Native Access."
+[helper]
+name = "Native Access"
+executable = "Program Files/Native Instruments/Native Access/Native Access.exe"
+archive_tools = false
+arguments = ["/S"]
+installer_sha256 = "82d7b7977d4fbc19db32aee8778c75906f6ddf935bcf2958f2d8d45141b2b2cc"
+[licensing]
+vendor = "Native Instruments"
+recovery = "unknown"
+note = "Preserve the existing environment and check product-specific licence recovery before rebuilding or moving it."

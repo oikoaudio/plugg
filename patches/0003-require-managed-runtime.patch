@@ -1,0 +1,17 @@
+diff --git a/src/plugin/utils.cpp b/src/plugin/utils.cpp
+--- a/src/plugin/utils.cpp
++++ b/src/plugin/utils.cpp
+@@ -78,6 +78,13 @@
+         if (next == parent) break;
+         parent = next;
+     }
++    // A managed publication must not fall back to an unrelated system Wine
++    // when its environment marker has been removed or a move is incomplete.
++    if (!managed_loader_ &&
++        fs::exists(native_library_path_.parent_path() / ".plugg-managed")) {
++        throw std::runtime_error(
++            "Plugg environment mapping is missing; restore its runtime marker before loading this plug-in");
++    }
+ }
+ 
+ ProcessEnvironment PluginInfo::create_host_env() const {

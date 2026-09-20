@@ -1,0 +1,55 @@
+name: Compatibility report
+description: What happened when you tried a plug-in, with enough detail to reproduce it
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A factory scan is not a playback test. Report what you observed for each
+        stage separately. "Installs and scans, no audio" helps more than
+        "does not work".
+
+        Do not attach installers, licence files, account data, callback URLs or
+        prefixes. Trim logs to the failure and check them for personal information.
+  - type: input
+    id: product
+    attributes:
+      label: Product and exact version
+      placeholder: e.g. Klevgrand Skaka 1.3.2, installer Klevgrand Helper 2.1.0
+    validations: {required: true}
+  - type: textarea
+    id: observed
+    attributes:
+      label: What worked and what did not
+      value: |
+        - Installation:
+        - Authorization:
+        - Audio:
+        - Editor opens:
+        - Editor close and reopen:
+        - Multiple instances:
+        - Project saved and recalled:
+    validations: {required: true}
+  - type: textarea
+    id: setup
+    attributes:
+      label: Runtime and desktop
+      description: Runtime and bridge identity, Linux distribution, graphics driver, desktop and DAW version.
+      value: |
+        - Runtime (`plugg doctor`):
+        - Distribution and kernel:
+        - Graphics driver:
+        - Desktop / compositor:
+        - DAW and version:
+    validations: {required: true}
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Smallest reproduction
+    validations: {required: true}
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log extract
+      description: Trimmed to the failure. Check it for personal information first.
+      render: text

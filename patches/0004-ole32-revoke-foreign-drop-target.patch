@@ -1,0 +1,43 @@
+From: Plugg
+Subject: [PATCH] ole32: refuse to revoke a drop target owned by another process
+
+Closing a plug-in editor that supports drag-and-drop crashed the host. The
+bridge runs an editor in a separate process from the window's owner, and
+RevokeDragDrop dereferenced a target pointer and marshal handle belonging to
+that other process.
+
+Applies to the Wine revision below; produces the ole32.dll that
+plugg.ole32-foreign-window-guard requires by hash. Validation
+fixtures and results are in diagnostics/dragdrop; the before-and-after are
+recorded in this directory's provenance file.
+
+  wine revision  b8fdff8e1f855b5276ec4ddca0f31b2792554322
+  release        UMU-Proton-10.0-4
+  source sha256  c4109981a732da9a575f5090f198bcd47540136e0aaec7a430661c89d68e4342
+  ole32.dll      920c6467a441ea27ccf300ec6a810407da02280d5ac3de7db312232f32858c59
+
+--- a/dlls/ole32/ole2.c	2026-09-12 14:52:06.727000000 +0000
++++ b/dlls/ole32/ole2.c	2026-09-12 14:52:06.728000000 +0000
+@@ -622,6 +622,7 @@
+   IStream *stream;
+   IDropTarget *drop_target;
+   HRESULT hr;
++  DWORD pid = 0;
+ 
+   TRACE("(%p)\n", hwnd);
+ 
+@@ -631,6 +632,14 @@
+     return DRAGDROP_E_INVALIDHWND;
+   }
+ 
++  /* The target pointer and marshal handle belong to the window's process. */
++  GetWindowThreadProcessId(hwnd, &pid);
++  if (pid != GetCurrentProcessId())
++  {
++    WARN("cannot revoke drop target in another process, hwnd %p\n", hwnd);
++    return DRAGDROP_E_INVALIDHWND;
++  }
++
+   /* no registration data */
+   if (!(map = get_droptarget_handle(hwnd)))
+     return DRAGDROP_E_NOTREGISTERED;

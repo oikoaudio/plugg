@@ -1,0 +1,107 @@
+Copyright (C) 2026 KokerZhou
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source
+   distribution.
+
+Third-Party Notices
+===================
+
+NSIS
+----
+
+This project implements an independent parser for installer formats created by
+NSIS and NSISBI. Format behavior was studied using the NSIS source code and
+documentation:
+
+https://github.com/NSIS-Dev/nsis
+https://nsis.sourceforge.io/
+
+NSIS is Copyright (C) 1999-2026 Contributors. Most NSIS source code,
+plug-ins, documentation, examples, header files, and graphics are licensed
+under the zlib/libpng license. Its bundled compression modules have their own
+terms: zlib uses the zlib/libpng license, bzip2 uses the bzip2 license, and
+LZMA uses the Common Public License 1.0 with the linking exception stated in
+NSIS's COPYING file. The complete upstream notices are available at:
+
+https://github.com/NSIS-Dev/nsis/blob/master/COPYING
+
+NSISBI
+------
+
+NSISBI is an experimental fork of NSIS that adds large-installer and external
+data-file support. This project uses the NSISBI name only to identify compatible
+input formats and is not affiliated with NSISBI or its maintainer.
+
+https://sourceforge.net/projects/nsisbi/
+
+The NSISBI project page does not state a project-wide license. NSIS-derived
+files remain subject to their respective upstream licenses. No NSISBI source
+code is distributed with this project.
+
+bzip2
+-----
+
+The modified-bzip2 decoder implements the NSIS stream variant using format
+behavior described by NSIS's bzip2 sources. The following is the license notice
+shipped by NSIS for bzip2:
+
+This program, "bzip2" and associated library "libbzip2", are copyright
+(C) 1996-2000 Julian R Seward. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+2. The origin of this software must not be misrepresented; you must not claim
+   that you wrote the original software. If you use this software in a
+   product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+3. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+4. The name of the author may not be used to endorse or promote products
+   derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+Julian Seward, Cambridge, UK.
+jseward@acm.org
+
+pefile
+------
+
+This project depends on pefile but does not vendor it. pefile is distributed
+under the MIT License:
+
+https://github.com/erocarrera/pefile
+
+No Affiliation
+--------------
+
+NSIS, NSISBI, bzip2, pefile, and innoextract are third-party projects. Their
+names are used only for accurate technical identification and comparison.
+NSIS Extractor is not sponsored by, endorsed by, or affiliated with them or
+their maintainers.
