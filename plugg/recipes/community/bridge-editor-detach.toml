@@ -1,0 +1,10 @@
+schema = 1
+id = "plugg.bridge-editor-detach"
+revision = 1
+kind = "component"
+name = "Bridge editor teardown fix"
+purpose = "Fixes plug-in editor windows that hang or crash the host when closed, by requiring a bridge built with the recorded editor-detach patch."
+notes = "Requires the recorded editor-detach source patch in the deployed bridge; does not install a bridge."
+
+[bridge_patch]
+sha256 = "28923da72a1137693f8733b1a859c4f4973743831a761b542722310288fef9dc"

@@ -1,0 +1,8 @@
+schema = 1
+id = "plugg.pace-license-support"
+revision = 1
+kind = "component"
+name = "PACE / iLok License Support"
+purpose = "Shared licensing services and iLok License Manager for participating vendors in one deliberately chosen Windows environment."
+documentation_only = true
+notes = "PACE 6.0.1 worked locally for UA Connect, SpaceBlender and soothe v1. Installation used diagnostic Windows-version and service-configuration workarounds that are not ready for automatic provisioning. Do not recreate, clone or repair a licensed environment from this description. See docs/recipes/pace.md for evidence, limitations and remaining gates."

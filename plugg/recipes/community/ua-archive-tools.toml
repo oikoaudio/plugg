@@ -1,0 +1,8 @@
+schema = 1
+id = "plugg.windows-archive-tools"
+revision = 1
+kind = "component"
+name = "Windows archive tools"
+purpose = "Provides extraction utilities on the Windows helper's PATH so downloaded plug-in packages can be installed."
+documentation_only = true
+notes = "The working UA adapter requires C:/Plugg/Tools/Archive/tar.exe and adds that directory to the helper PATH. The generic helper system already has pinned archive package support; this standalone component is descriptive until that operation is exposed and validated here. This is a download/install dependency, not a PACE licensing fix. See docs/recipes/universal-audio.md."

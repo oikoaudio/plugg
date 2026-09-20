@@ -1,0 +1,9 @@
+schema = 1
+id = "plugg.graphics-wined3d"
+revision = 1
+kind = "component"
+name = "WineD3D default"
+purpose = "Draws plug-in interfaces through Wine's own Direct3D, for plug-ins whose editors misbehave under DXVK."
+notes = "Selects builtin Wine D3D libraries. No downloads or runtime mutation."
+[graphics]
+default = "wined3d"

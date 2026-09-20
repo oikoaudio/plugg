@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Plugg
+Comment=Install Windows VST3 plug-ins for your Linux DAW
+Exec=plugg gui
+Icon=audio-x-generic
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupWMClass=com.oikoaudio.Plugg

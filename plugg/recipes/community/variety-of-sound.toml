@@ -1,0 +1,24 @@
+schema = 1
+id = "plugg.variety-of-sound"
+revision = 1
+kind = "vendor"
+name = "Variety of Sound direct VST3 imports"
+vendor = "Variety of Sound"
+requires = ["plugg.graphics-dxvk@1", "plugg.vc2022-x64@1", "plugg.vc2013-x64@1"]
+notes = "Exact modules tested locally in Bitwig. Uses the existing UMU-Proton 10.0-4 direct-import path; does not establish compatibility for other versions."
+
+[modules."fb744dab76f1741343e4b859c9d9095650bc5a7faad764bf76d07783029a65e3"]
+name = "FerricTDS mkIII"
+dependency = "plugg.vc2022-x64@1"
+
+[modules."203eb66ae1f777124d883995b30cd026f6073704cf1eb3191c1c4667ef920cb5"]
+name = "epicVerb mkII"
+dependency = "plugg.vc2022-x64@1"
+
+[modules."4183c72e13a97a183cb49ed24dbaa10279605b54ab53d934f17a5ab94e54a06a"]
+name = "epicPLATE mkII"
+dependency = "plugg.vc2013-x64@1"
+
+[modules."9de5e9e27448a804756cf90daaefc947d111c1e6fba39fb4535e4292733349f5"]
+name = "ThrillseekerXTC mkIII"
+dependency = "plugg.vc2013-x64@1"

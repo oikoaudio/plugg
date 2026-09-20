@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "default": "wined3d",
+  "plugins": {
+    "Program Files/Common Files/VST3/Black Box Analog Design HG-2.vst3": "wined3d",
+    "Program Files/Common Files/VST3/ADPTR MetricAB.vst3": "dxvk",
+    "Program Files/Common Files/VST3/Pro Audio DSP DSM V3.vst3": "dxvk"
+  }
+}

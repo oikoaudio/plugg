@@ -1,0 +1,9 @@
+schema = 1
+id = "plugg.softube-helper-compatibility"
+revision = 2
+kind = "component"
+name = "Softube Central helper compatibility"
+purpose = "Starts Central with its installer service and reuses shared-environment locking, window handling and library refresh."
+documentation_only = true
+requires = ["plugg.powershell@1", "plugg.vc2022-x64@1"]
+notes = "Revision 2 adds the Microsoft Visual C++ 2015-2022 x64 runtime. Softube product installers run their bundled vcredist_x64.exe /quiet /norestart; in an environment without that runtime the first product install sat waiting with no window and no progress. Every recorded stall was the first product install in an environment without the runtime; once a product had been installed interactively, later silent installs through Central completed. Installing the pinned runtime before Central runs removes that first step. PowerShell is still needed by the Central installer. See docs/recipes/softube.md."

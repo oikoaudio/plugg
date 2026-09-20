@@ -1,0 +1,24 @@
+--- a/dlls/ole32/ole2.c
++++ b/dlls/ole32/ole2.c
+@@ -622,12 +622,21 @@
+   IStream *stream;
+   IDropTarget *drop_target;
+   HRESULT hr;
++  DWORD pid = 0;
+ 
+   TRACE("(%p)\n", hwnd);
+ 
+   if (!IsWindow(hwnd))
+   {
+     ERR("invalid hwnd %p\n", hwnd);
++    return DRAGDROP_E_INVALIDHWND;
++  }
++
++  /* The target pointer and marshal handle belong to the window's process. */
++  GetWindowThreadProcessId(hwnd, &pid);
++  if (pid != GetCurrentProcessId())
++  {
++    WARN("cannot revoke drop target in another process, hwnd %p\n", hwnd);
+     return DRAGDROP_E_INVALIDHWND;
+   }
+ 

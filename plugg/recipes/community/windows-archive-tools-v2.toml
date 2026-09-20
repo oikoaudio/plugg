@@ -1,0 +1,8 @@
+schema = 1
+id = "plugg.windows-archive-tools"
+revision = 2
+kind = "component"
+name = "Windows archive tools"
+purpose = "Installs the pinned Windows extraction utilities needed by helpers to unpack downloaded plug-ins."
+archive_tools = true
+notes = "Uses the existing verified MSYS2 archive package set and retains its licence notices. Adds the private tool directory to the helper PATH. Shared by managed helper installation and the UA Connect existing-environment setup adapter. Does not provision PACE. Revision 1 is retained as historical documentation."

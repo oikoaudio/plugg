@@ -1,0 +1,77 @@
+From d4716a323e65ff9ecb686faab7112047a30e8d57 Mon Sep 17 00:00:00 2001
+From: Plugg <noreply@local>
+Date: Sat, 19 Sep 2026 18:03:59 +0100
+Subject: [PATCH 1/2] rundll32: Declare supported Windows versions in a
+ manifest.
+
+---
+ programs/rundll32/Makefile.in       |  3 ++-
+ programs/rundll32/rundll32.manifest | 15 +++++++++++++++
+ programs/rundll32/rundll32.rc       | 22 ++++++++++++++++++++++
+ 3 files changed, 39 insertions(+), 1 deletion(-)
+ create mode 100644 programs/rundll32/rundll32.manifest
+ create mode 100644 programs/rundll32/rundll32.rc
+
+diff --git a/programs/rundll32/Makefile.in b/programs/rundll32/Makefile.in
+index f2aa974..0ccc17a 100644
+--- a/programs/rundll32/Makefile.in
++++ b/programs/rundll32/Makefile.in
+@@ -4,4 +4,5 @@ IMPORTS   = user32 kernelbase
+ EXTRADLLFLAGS = -mwindows -municode
+ 
+ SOURCES = \
+-	rundll32.c
++	rundll32.c \
++	rundll32.rc
+diff --git a/programs/rundll32/rundll32.manifest b/programs/rundll32/rundll32.manifest
+new file mode 100644
+index 0000000..c372319
+--- /dev/null
++++ b/programs/rundll32/rundll32.manifest
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
++<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
++<assemblyIdentity type="win32" name="Wine.Rundll32" version="0.0.0.0"/>
++<compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
++    <application>
++        <!-- Windows' own rundll32 declares every supported OS, so code it hosts
++             sees the real version. Installer custom actions check it. -->
++        <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}"/> <!-- Vista -->
++        <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/> <!-- 7 -->
++        <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"/> <!-- 8 -->
++        <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/> <!-- 8.1 -->
++        <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/> <!-- 10 and 11 -->
++    </application>
++</compatibility>
++</assembly>
+diff --git a/programs/rundll32/rundll32.rc b/programs/rundll32/rundll32.rc
+new file mode 100644
+index 0000000..528fd54
+--- /dev/null
++++ b/programs/rundll32/rundll32.rc
+@@ -0,0 +1,22 @@
++/*
++ * Copyright 2026 Plugg contributors
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++#include "winuser.h"
++
++/* @makedep: rundll32.manifest */
++1 RT_MANIFEST rundll32.manifest
+-- 
+2.55.0
+

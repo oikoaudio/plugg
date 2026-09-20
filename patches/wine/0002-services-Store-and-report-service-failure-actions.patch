@@ -1,0 +1,450 @@
+From bdd4c569657de34a597a8137919b41e276e8b18a Mon Sep 17 00:00:00 2001
+From: Plugg <noreply@local>
+Date: Sat, 19 Sep 2026 18:11:08 +0100
+Subject: [PATCH 2/2] services: Store and report service failure actions.
+
+---
+ dlls/sechost/sechost.spec    |   2 +-
+ dlls/sechost/service.c       |  86 +++++++++++++++++++++++++-
+ include/wine/svcctl.idl      |  10 ++++
+ programs/services/rpc.c      | 113 +++++++++++++++++++++++++++++++++--
+ programs/services/services.c |  76 +++++++++++++++++++++++
+ programs/services/services.h |   7 +++
+ 6 files changed, 287 insertions(+), 7 deletions(-)
+
+diff --git a/dlls/sechost/sechost.spec b/dlls/sechost/sechost.spec
+index 12f4ff6..de4f1f3 100644
+--- a/dlls/sechost/sechost.spec
++++ b/dlls/sechost/sechost.spec
+@@ -89,7 +89,7 @@
+ @ stdcall EnumDependentServicesW(long long ptr long ptr ptr)
+ @ stdcall EnumServicesStatusExW(long long long long ptr long ptr ptr ptr wstr)
+ @ stub EnumerateIdentityProviders
+-@ stub EnumerateTraceGuidsEx
++@ stdcall EnumerateTraceGuidsEx(long ptr long ptr long ptr) advapi32.EnumerateTraceGuidsEx
+ @ stub EtwQueryRealtimeConsumer
+ @ stub EventAccessControl
+ @ stub EventAccessQuery
+diff --git a/dlls/sechost/service.c b/dlls/sechost/service.c
+index aa35892..3809786 100644
+--- a/dlls/sechost/service.c
++++ b/dlls/sechost/service.c
+@@ -510,7 +510,8 @@ BOOL WINAPI DECLSPEC_HOTPATCH ChangeServiceConfig2A( SC_HANDLE service, DWORD le
+         free( faw.lpRebootMsg );
+         free( faw.lpCommand );
+     }
+-    else if (level == SERVICE_CONFIG_PRESHUTDOWN_INFO || level == SERVICE_CONFIG_DELAYED_AUTO_START_INFO)
++    else if (level == SERVICE_CONFIG_PRESHUTDOWN_INFO || level == SERVICE_CONFIG_DELAYED_AUTO_START_INFO ||
++             level == SERVICE_CONFIG_FAILURE_ACTIONS_FLAG)
+     {
+         r = ChangeServiceConfig2W( service, level, info );
+     }
+@@ -807,8 +808,40 @@ BOOL WINAPI DECLSPEC_HOTPATCH QueryServiceConfig2A( SC_HANDLE service, DWORD lev
+                 else configA->lpDescription = NULL;
+             }
+             break;
++        case SERVICE_CONFIG_FAILURE_ACTIONS:
++            /* ANSI strings are never longer than the Unicode ones, so the W size is enough. */
++            if (buffer && bufferW)
++            {
++                SERVICE_FAILURE_ACTIONSA *configA = (SERVICE_FAILURE_ACTIONSA *)buffer;
++                SERVICE_FAILURE_ACTIONSW *configW = (SERVICE_FAILURE_ACTIONSW *)bufferW;
++                char *next = (char *)(configA + 1), *end = (char *)buffer + size;
++
++                configA->dwResetPeriod = configW->dwResetPeriod;
++                configA->cActions = configW->cActions;
++                configA->lpsaActions = NULL;
++                configA->lpRebootMsg = NULL;
++                configA->lpCommand = NULL;
++                if (configW->cActions)
++                {
++                    configA->lpsaActions = (SC_ACTION *)next;
++                    memcpy( next, configW->lpsaActions, configW->cActions * sizeof(SC_ACTION) );
++                    next += configW->cActions * sizeof(SC_ACTION);
++                }
++                if (configW->lpRebootMsg)
++                {
++                    configA->lpRebootMsg = next;
++                    next += WideCharToMultiByte( CP_ACP, 0, configW->lpRebootMsg, -1, next, end - next, NULL, NULL );
++                }
++                if (configW->lpCommand)
++                {
++                    configA->lpCommand = next;
++                    WideCharToMultiByte( CP_ACP, 0, configW->lpCommand, -1, next, end - next, NULL, NULL );
++                }
++            }
++            break;
+         case SERVICE_CONFIG_PRESHUTDOWN_INFO:
+         case SERVICE_CONFIG_DELAYED_AUTO_START_INFO:
++        case SERVICE_CONFIG_FAILURE_ACTIONS_FLAG:
+             if (buffer && bufferW && *ret_size <= size)
+                 memcpy(buffer, bufferW, *ret_size);
+             break;
+@@ -842,6 +875,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH QueryServiceConfig2W( SC_HANDLE service, DWORD lev
+     switch (level)
+     {
+     case SERVICE_CONFIG_DESCRIPTION:
++    case SERVICE_CONFIG_FAILURE_ACTIONS:
+         if (!(bufptr = malloc( size )))
+         {
+             SetLastError( ERROR_NOT_ENOUGH_MEMORY );
+@@ -851,6 +885,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH QueryServiceConfig2W( SC_HANDLE service, DWORD lev
+ 
+     case SERVICE_CONFIG_PRESHUTDOWN_INFO:
+     case SERVICE_CONFIG_DELAYED_AUTO_START_INFO:
++    case SERVICE_CONFIG_FAILURE_ACTIONS_FLAG:
+         bufptr = buffer;
+         break;
+ 
+@@ -862,7 +897,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH QueryServiceConfig2W( SC_HANDLE service, DWORD lev
+ 
+     if (!ret_size)
+     {
+-        if (level == SERVICE_CONFIG_DESCRIPTION) free( bufptr );
++        if (bufptr != buffer) free( bufptr );
+         SetLastError(ERROR_INVALID_ADDRESS);
+         return FALSE;
+     }
+@@ -915,8 +950,55 @@ BOOL WINAPI DECLSPEC_HOTPATCH QueryServiceConfig2W( SC_HANDLE service, DWORD lev
+         free( bufptr );
+         break;
+     }
++    case SERVICE_CONFIG_FAILURE_ACTIONS:
++    {
++        SERVICE_FAILURE_ACTIONSW *actions = (SERVICE_FAILURE_ACTIONSW *)buffer;
++        struct service_failure_actions *s = (struct service_failure_actions *)bufptr;
++        BYTE *next;
++
++        if (err != ERROR_SUCCESS && err != ERROR_INSUFFICIENT_BUFFER)
++        {
++            free( bufptr );
++            SetLastError( err );
++            return FALSE;
++        }
++        /* The client structure holds pointers, so it can be larger than the wire header. */
++        *ret_size = *ret_size - sizeof(*s) + sizeof(*actions);
++        if (err == ERROR_INSUFFICIENT_BUFFER || size < *ret_size)
++        {
++            free( bufptr );
++            SetLastError( ERROR_INSUFFICIENT_BUFFER );
++            return FALSE;
++        }
++        next = (BYTE *)(actions + 1);
++        actions->dwResetPeriod = s->reset_period;
++        actions->cActions = s->actions_count;
++        actions->lpsaActions = NULL;
++        actions->lpRebootMsg = NULL;
++        actions->lpCommand = NULL;
++        if (s->actions_count)
++        {
++            actions->lpsaActions = (SC_ACTION *)next;
++            memcpy( next, bufptr + s->actions, s->actions_count * sizeof(SC_ACTION) );
++            next += s->actions_count * sizeof(SC_ACTION);
++        }
++        if (s->reboot_msg)
++        {
++            actions->lpRebootMsg = (WCHAR *)next;
++            lstrcpyW( actions->lpRebootMsg, (WCHAR *)(bufptr + s->reboot_msg) );
++            next += (lstrlenW( actions->lpRebootMsg ) + 1) * sizeof(WCHAR);
++        }
++        if (s->command)
++        {
++            actions->lpCommand = (WCHAR *)next;
++            lstrcpyW( actions->lpCommand, (WCHAR *)(bufptr + s->command) );
++        }
++        free( bufptr );
++        break;
++    }
+     case SERVICE_CONFIG_PRESHUTDOWN_INFO:
+     case SERVICE_CONFIG_DELAYED_AUTO_START_INFO:
++    case SERVICE_CONFIG_FAILURE_ACTIONS_FLAG:
+         return set_error( err );
+ 
+     default:
+diff --git a/include/wine/svcctl.idl b/include/wine/svcctl.idl
+index 74b939d..7931656 100644
+--- a/include/wine/svcctl.idl
++++ b/include/wine/svcctl.idl
+@@ -235,6 +235,16 @@ struct service_description
+     WCHAR  description[1];
+ };
+ 
++/* Offsets are from the start of the structure; 0 means absent. */
++struct service_failure_actions
++{
++    DWORD reset_period;
++    DWORD reboot_msg;
++    DWORD command;
++    DWORD actions_count;
++    DWORD actions;
++};
++
+ typedef struct _SERVICE_RPC_REQUIRED_PRIVILEGES_INFO {
+     DWORD cbRequiredPrivileges;
+     [size_is(cbRequiredPrivileges)] BYTE *pRequiredPrivileges;
+diff --git a/programs/services/rpc.c b/programs/services/rpc.c
+index 798f674..d6e2c2c 100644
+--- a/programs/services/rpc.c
++++ b/programs/services/rpc.c
+@@ -961,10 +961,66 @@ DWORD __cdecl svcctl_ChangeServiceConfig2W( SC_RPC_HANDLE hService, SC_RPC_CONFI
+         }
+         break;
+     case SERVICE_CONFIG_FAILURE_ACTIONS:
+-        WINE_FIXME( "SERVICE_CONFIG_FAILURE_ACTIONS not implemented: period %lu msg %s cmd %s\n",
+-                    config.actions->dwResetPeriod,
+-                    wine_dbgstr_w(config.actions->lpRebootMsg),
+-                    wine_dbgstr_w(config.actions->lpCommand) );
++    {
++        const SERVICE_FAILURE_ACTIONSW *actions = config.actions;
++        WCHAR *msg = NULL, *command = NULL;
++        SC_ACTION *copy = NULL;
++        DWORD i;
++
++        if (!actions) return ERROR_INVALID_PARAMETER;
++        WINE_TRACE( "changing service %p failure actions: period %lu msg %s cmd %s actions %lu\n", service,
++                    actions->dwResetPeriod, wine_dbgstr_w(actions->lpRebootMsg),
++                    wine_dbgstr_w(actions->lpCommand), actions->lpsaActions ? actions->cActions : 0 );
++        if (actions->lpsaActions)
++            for (i = 0; i < actions->cActions; i++)
++                if (actions->lpsaActions[i].Type > SC_ACTION_RUN_COMMAND) return ERROR_INVALID_PARAMETER;
++
++        /* A NULL member leaves that setting unchanged; an empty one removes it. */
++        if (actions->lpRebootMsg && actions->lpRebootMsg[0] && !(msg = wcsdup( actions->lpRebootMsg )))
++            return ERROR_NOT_ENOUGH_MEMORY;
++        if (actions->lpCommand && actions->lpCommand[0] && !(command = wcsdup( actions->lpCommand )))
++        {
++            free( msg );
++            return ERROR_NOT_ENOUGH_MEMORY;
++        }
++        if (actions->lpsaActions && actions->cActions &&
++            !(copy = malloc( actions->cActions * sizeof(*copy) )))
++        {
++            free( msg );
++            free( command );
++            return ERROR_NOT_ENOUGH_MEMORY;
++        }
++
++        service_lock( service->service_entry );
++        if (actions->lpRebootMsg)
++        {
++            free( service->service_entry->failure_reboot_msg );
++            service->service_entry->failure_reboot_msg = msg;
++        }
++        if (actions->lpCommand)
++        {
++            free( service->service_entry->failure_command );
++            service->service_entry->failure_command = command;
++        }
++        if (actions->lpsaActions)
++        {
++            if (copy) memcpy( copy, actions->lpsaActions, actions->cActions * sizeof(*copy) );
++            free( service->service_entry->failure_actions );
++            service->service_entry->failure_actions = copy;
++            service->service_entry->failure_actions_count = actions->cActions;
++            service->service_entry->failure_reset_period = actions->dwResetPeriod;
++        }
++        save_service_config( service->service_entry );
++        service_unlock( service->service_entry );
++        break;
++    }
++    case SERVICE_CONFIG_FAILURE_ACTIONS_FLAG:
++        if (!config.actionsflag) return ERROR_INVALID_PARAMETER;
++        service_lock( service->service_entry );
++        service->service_entry->failure_actions_on_non_crash =
++            !!config.actionsflag->fFailureActionsOnNonCrashFailures;
++        save_service_config( service->service_entry );
++        service_unlock( service->service_entry );
+         break;
+     case SERVICE_CONFIG_PRESHUTDOWN_INFO:
+         WINE_TRACE( "changing service %p preshutdown timeout to %ld\n",
+@@ -1059,6 +1115,55 @@ DWORD __cdecl svcctl_QueryServiceConfig2W( SC_RPC_HANDLE hService, DWORD level,
+         service_unlock(service->service_entry);
+         break;
+ 
++    case SERVICE_CONFIG_FAILURE_ACTIONS:
++    {
++        struct service_entry *entry = service->service_entry;
++        struct service_failure_actions *out = (struct service_failure_actions *)buffer;
++        DWORD offset = sizeof(*out), msg_size = 0, command_size = 0;
++
++        service_lock(entry);
++        if (entry->failure_reboot_msg) msg_size = (lstrlenW(entry->failure_reboot_msg) + 1) * sizeof(WCHAR);
++        if (entry->failure_command) command_size = (lstrlenW(entry->failure_command) + 1) * sizeof(WCHAR);
++        *needed = offset + entry->failure_actions_count * sizeof(SC_ACTION) + msg_size + command_size;
++        if (size >= *needed)
++        {
++            out->reset_period = entry->failure_reset_period;
++            out->actions_count = entry->failure_actions_count;
++            if (entry->failure_actions_count)
++            {
++                out->actions = offset;
++                memcpy(buffer + offset, entry->failure_actions, entry->failure_actions_count * sizeof(SC_ACTION));
++                offset += entry->failure_actions_count * sizeof(SC_ACTION);
++            }
++            if (msg_size)
++            {
++                out->reboot_msg = offset;
++                memcpy(buffer + offset, entry->failure_reboot_msg, msg_size);
++                offset += msg_size;
++            }
++            if (command_size)
++            {
++                out->command = offset;
++                memcpy(buffer + offset, entry->failure_command, command_size);
++            }
++        }
++        else err = ERROR_INSUFFICIENT_BUFFER;
++        service_unlock(entry);
++        break;
++    }
++
++    case SERVICE_CONFIG_FAILURE_ACTIONS_FLAG:
++        service_lock(service->service_entry);
++
++        *needed = sizeof(SERVICE_FAILURE_ACTIONS_FLAG);
++        if (size >= *needed)
++            ((SERVICE_FAILURE_ACTIONS_FLAG *)buffer)->fFailureActionsOnNonCrashFailures =
++                service->service_entry->failure_actions_on_non_crash;
++        else err = ERROR_INSUFFICIENT_BUFFER;
++
++        service_unlock(service->service_entry);
++        break;
++
+     default:
+         WINE_FIXME("level %lu not implemented\n", level);
+         err = ERROR_INVALID_LEVEL;
+diff --git a/programs/services/services.c b/programs/services/services.c
+index 7cc45eb..8cef2d2 100644
+--- a/programs/services/services.c
++++ b/programs/services/services.c
+@@ -129,12 +129,41 @@ void free_service_entry(struct service_entry *entry)
+     free(entry->config.lpServiceStartName);
+     free(entry->config.lpDisplayName);
+     free(entry->description);
++    free(entry->failure_reboot_msg);
++    free(entry->failure_command);
++    free(entry->failure_actions);
+     free(entry->dependOnServices);
+     free(entry->dependOnGroups);
+     if (entry->process) release_process(entry->process);
+     free(entry);
+ }
+ 
++/* The FailureActions value has the layout Windows uses: a SERVICE_FAILURE_ACTIONS
++ * header with 32-bit placeholders where the pointers would be, then the actions. */
++#define FAILURE_ACTIONS_HEADER (5 * sizeof(DWORD))
++
++static void load_failure_actions(HKEY hKey, struct service_entry *entry)
++{
++    DWORD type, size = 0, header[5];
++    BYTE *data;
++
++    if (RegQueryValueExW(hKey, L"FailureActions", NULL, &type, NULL, &size) || type != REG_BINARY ||
++        size < FAILURE_ACTIONS_HEADER || !(data = malloc(size)))
++        return;
++    if (!RegQueryValueExW(hKey, L"FailureActions", NULL, NULL, data, &size) && size >= FAILURE_ACTIONS_HEADER)
++    {
++        memcpy(header, data, sizeof(header));
++        if (header[3] <= (size - FAILURE_ACTIONS_HEADER) / sizeof(SC_ACTION) &&
++            (!header[3] || (entry->failure_actions = malloc(header[3] * sizeof(SC_ACTION)))))
++        {
++            entry->failure_reset_period = header[0];
++            entry->failure_actions_count = header[3];
++            memcpy(entry->failure_actions, data + FAILURE_ACTIONS_HEADER, header[3] * sizeof(SC_ACTION));
++        }
++    }
++    free(data);
++}
++
+ static DWORD load_service_config(HKEY hKey, struct service_entry *entry)
+ {
+     DWORD err, value = 0;
+@@ -157,6 +186,11 @@ static DWORD load_service_config(HKEY hKey, struct service_entry *entry)
+         entry->is_wow64 = TRUE;
+     if (load_reg_dword(hKey, L"DelayedAutoStart", &value) == 0 && value == 1)
+         entry->delayed_autostart = TRUE;
++    if ((err = load_reg_string(hKey, L"RebootMessage", FALSE, &entry->failure_reboot_msg))) return err;
++    if ((err = load_reg_string(hKey, L"FailureCommand", FALSE, &entry->failure_command))) return err;
++    load_failure_actions(hKey, entry);
++    if (load_reg_dword(hKey, L"FailureActionsOnNonCrashFailures", &value) == 0 && value)
++        entry->failure_actions_on_non_crash = TRUE;
+ 
+     WINE_TRACE("Image path           = %s\n", wine_dbgstr_w(entry->config.lpBinaryPathName) );
+     WINE_TRACE("Group                = %s\n", wine_dbgstr_w(entry->config.lpLoadOrderGroup) );
+@@ -212,6 +246,46 @@ static DWORD reg_set_dword_value(HKEY hKey, LPCWSTR value_name, DWORD val)
+     return RegSetValueExW(hKey, value_name, 0, REG_DWORD, (const BYTE *)&val, sizeof(val));
+ }
+ 
++static DWORD set_or_delete_string(HKEY hKey, LPCWSTR name, LPCWSTR value)
++{
++    DWORD err;
++    if (value && value[0]) return RegSetValueExW(hKey, name, 0, REG_SZ, (const BYTE *)value,
++                                                 (lstrlenW(value) + 1) * sizeof(WCHAR));
++    err = RegDeleteValueW(hKey, name);
++    return err == ERROR_FILE_NOT_FOUND ? 0 : err;
++}
++
++static DWORD save_failure_actions(HKEY hKey, struct service_entry *entry)
++{
++    DWORD err, size, header[5] = {0};
++    BYTE *data;
++
++    if ((err = set_or_delete_string(hKey, L"RebootMessage", entry->failure_reboot_msg))) return err;
++    if ((err = set_or_delete_string(hKey, L"FailureCommand", entry->failure_command))) return err;
++
++    if (entry->failure_actions_on_non_crash)
++        err = reg_set_dword_value(hKey, L"FailureActionsOnNonCrashFailures", 1);
++    else if ((err = RegDeleteValueW(hKey, L"FailureActionsOnNonCrashFailures")) == ERROR_FILE_NOT_FOUND)
++        err = 0;
++    if (err) return err;
++
++    if (!entry->failure_actions_count && !entry->failure_reset_period)
++    {
++        err = RegDeleteValueW(hKey, L"FailureActions");
++        return err == ERROR_FILE_NOT_FOUND ? 0 : err;
++    }
++    size = FAILURE_ACTIONS_HEADER + entry->failure_actions_count * sizeof(SC_ACTION);
++    if (!(data = malloc(size))) return ERROR_NOT_ENOUGH_MEMORY;
++    header[0] = entry->failure_reset_period;
++    header[3] = entry->failure_actions_count;
++    header[4] = entry->failure_actions_count ? FAILURE_ACTIONS_HEADER : 0;
++    memcpy(data, header, sizeof(header));
++    memcpy(data + FAILURE_ACTIONS_HEADER, entry->failure_actions, entry->failure_actions_count * sizeof(SC_ACTION));
++    err = RegSetValueExW(hKey, L"FailureActions", 0, REG_BINARY, data, size);
++    free(data);
++    return err;
++}
++
+ DWORD save_service_config(struct service_entry *entry)
+ {
+     DWORD err;
+@@ -240,6 +314,8 @@ DWORD save_service_config(struct service_entry *entry)
+     if (err != 0 && err != ERROR_FILE_NOT_FOUND)
+         goto cleanup;
+ 
++    if ((err = save_failure_actions(hKey, entry))) goto cleanup;
++
+     if (entry->is_wow64)
+     {
+         if ((err = reg_set_dword_value(hKey, L"WOW64", TRUE))) goto cleanup;
+diff --git a/programs/services/services.h b/programs/services/services.h
+index 1d9dbfd..88b0f69 100644
+--- a/programs/services/services.h
++++ b/programs/services/services.h
+@@ -64,6 +64,13 @@ struct service_entry
+     BOOL marked_for_delete;
+     BOOL is_wow64;
+     BOOL delayed_autostart;
++    /* Recovery settings are stored and reported; the service manager does not act on them. */
++    DWORD failure_reset_period;
++    LPWSTR failure_reboot_msg;
++    LPWSTR failure_command;
++    DWORD failure_actions_count;
++    SC_ACTION *failure_actions;
++    BOOL failure_actions_on_non_crash;
+     struct list handles;
+ };
+ 
+-- 
+2.55.0
+

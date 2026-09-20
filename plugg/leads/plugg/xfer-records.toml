@@ -1,0 +1,19 @@
+# Plugg's own lead: a correction to the imported catalogue, kept separately
+# so attribution stays exact. The imported entry predates this release.
+
+schema = 1
+source = "plugg"
+licence = "GPL-3.0-or-later"
+vendor = "Xfer Records"
+
+[[products]]
+id = "serum-2-linux"
+name = "Serum 2"
+kind = "native"
+category = "Synth"
+summary = "Wavetable synthesizer; a native Linux VST3 build is in public beta."
+developer = "Xfer Records"
+formats = ["VST3"]
+homepage = "https://xferrecords.com/products/serum-2"
+note = "Xfer published a Linux beta in August 2026 for registered customers: 64-bit VST3, AVX2 CPU, GLIBC 2.38 or later. Use it instead of bridging the Windows version."
+references = ["https://synthanatomy.com/2026/08/xfer-records-serum-2-super-popular-wavetable-synth-gets-massive-free-update.html"]

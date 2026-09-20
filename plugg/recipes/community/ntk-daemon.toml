@@ -1,0 +1,8 @@
+schema = 1
+id = "plugg.ntk-daemon"
+revision = 1
+kind = "component"
+name = "Native Instruments background service"
+purpose = "Installs the bundled NTKDaemon service and starts it with Native Access so dependency checks and account login can complete."
+ntk_daemon = true
+notes = "Runs only the pinned NTKDaemon 1.32.0 installer bundled in the tested Native Access installer. No separate download, substituted service or licensing bypass. The service and helper share one Proton launch."

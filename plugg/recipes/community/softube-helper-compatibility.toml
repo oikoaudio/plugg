@@ -1,0 +1,9 @@
+schema = 1
+id = "plugg.softube-helper-compatibility"
+revision = 1
+kind = "component"
+name = "Softube Central helper compatibility"
+purpose = "Starts Central with its installer service and reuses shared-environment locking, window handling and library refresh."
+documentation_only = true
+requires = ["plugg.powershell@1"]
+notes = "PowerShell enabled the main installer to progress in the fresh trial; this is an installation dependency, not a demonstrated requirement for every Softube plug-in. The shared installation used unchanged vendor files plus the registered SoftubeInstallerDaemon service, without running the bundled PACE installer. The softube.py adapter clears SteamAppId and starts that service before Central. No Electron sandbox-disabling flag was needed in the fresh UI trial. Managed close cleanup passed. Saturation Knob installed interactively and works in Bitwig after activation and disabling its own OpenGL setting. Saturation Knob initially stalled in Central, including after adding PowerShell; later Fix Phaser installed successfully through Central and was published automatically on close. The initial stall cause remains unproven. This description does not install vendor files or services. See docs/recipes/softube.md."

@@ -1,0 +1,10 @@
+# Anyone may propose a recipe under recipes/community/. Everything below
+# decides what other people's machines do, so it needs a maintainer.
+
+/plugg/          @davfre
+/scripts/             @davfre
+/patches/             @davfre
+/.github/             @davfre
+/recipes/reviewed/    @davfre
+/docs/recipe-trust.md @davfre
+/docs/licensing-safety.md @davfre

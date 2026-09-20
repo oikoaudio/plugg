@@ -1,0 +1,29 @@
+name: Recipe request or proposal
+description: Ask for a vendor to be supported, or propose one you have tested
+labels: [recipe]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you have already got a vendor working, a pull request with the recipe
+        and your evidence is more useful than an issue. Start with
+        [the recipe guide](../../docs/recipes/getting-started.md).
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor and products
+    validations: {required: true}
+  - type: dropdown
+    id: state
+    attributes:
+      label: Where are you
+      options:
+        - I would like this supported (I have not tried)
+        - I got it working by hand and could write a recipe
+        - I have a recipe and want help finishing it
+    validations: {required: true}
+  - type: textarea
+    id: detail
+    attributes:
+      label: What the product needs
+      description: Installer type, runtime dependencies, licensing scheme, graphics settings, anything unusual.

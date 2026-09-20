@@ -1,0 +1,8 @@
+schema = 1
+id = "plugg.powershell"
+revision = 1
+kind = "component"
+name = "Microsoft PowerShell compatibility"
+purpose = "Provides Microsoft PowerShell through a small source-built launcher for installers that invoke Windows PowerShell."
+powershell = true
+notes = "Pins PowerShell 7.4.11 x64 from Microsoft's PowerShell project. Uses the checked-in forwarder built with scripts/build-powershell-forwarder.py. No third-party latest binary, compatibility profile, .NET 4.8 or stubbed queries. Fresh Native Access installation passed with this component."

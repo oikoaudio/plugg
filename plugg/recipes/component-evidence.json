@@ -1,0 +1,115 @@
+{
+  "plugg.bridge-editor-detach@1": {
+    "recipe_sha256": "83aefc4dd2df4b1e79d7feb255694c87efcb2e436419775936ca2e98f87e88f2",
+    "label": "Local editor checks",
+    "summary": "HG-2, DSM V3, MetricAB and several bx plug-ins were reported to close and reopen in Bitwig with the candidate patch. A separate X11 fixture checked the window-destruction order.",
+    "limitations": "Preliminary manual checks, not a universal close fix. Renderer issues remain separate; other DAWs need regression testing.",
+    "source": "docs/upstream/yabridge-editor-detach.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.ole32-foreign-window-guard@1": {
+    "recipe_sha256": "13da147666d964a7144615f8d922911999673cb9355161142720099ddaede4a5",
+    "label": "Validated locally: UAD LA-2A editor close",
+    "summary": "The foreign-window guard was tested for the LA-2A editor-close failure in the local UMU-Proton environment. Plugin Alliance was also tested on this guarded runtime, but its editor-close failures needed the separate yabridge editor-detach fix; the runtime guard alone was not sufficient. See also docs/compatibility/plugin-alliance.md.",
+    "limitations": "Requires the exact recorded DLL in both runtime and prefix. This component checks those files; it does not build or install them.",
+    "source": "docs/compatibility/universal-audio.md",
+    "recorded": "2026-09-14",
+    "runtime": "UMU-Proton 10.0-4 with the OLE32 guard"
+  },
+  "plugg.graphics-dxvk@1": {
+    "recipe_sha256": "ad1496328b23599c80cfdc210a65007453aeea3f182ddd971e34cda06cb2bbe9",
+    "label": "Local compatibility checks",
+    "summary": "MetricAB was reported usable with DXVK and the editor-detach patch. The synthetic helper fixture also passed publication and audio with the DXVK profile.",
+    "limitations": "The audio fixture does not validate graphical rendering. HG-2 still displayed a black editor with DXVK.",
+    "source": "docs/compatibility/plugin-alliance.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.graphics-wined3d@1": {
+    "recipe_sha256": "2405dde37279d65645424830ddcfa3441799a7027f9fa996bd02ef36f7bf1466",
+    "label": "Local compatibility checks",
+    "summary": "HG-2 was reported to close and reopen with WineD3D and the editor-detach patch. A synthetic fixture verified graphics-policy application, unchanged repeat and audio.",
+    "limitations": "MetricAB remained problematic with WineD3D. Graphics choice alone does not fix editor lifetime issues.",
+    "source": "plugg-lab: docs/validation/recipe-import.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.vc2013-x64@1": {
+    "recipe_sha256": "cc98090ab3a50987a5e48fc94271d195d584db50b2913ab0cc40b54588d14952",
+    "label": "Automated installation check",
+    "summary": "A fresh synthetic helper installation installed the pinned VC 2013 component, recorded the DLL hashes, published a plug-in and passed audio.",
+    "limitations": "Synthetic fixture only. This does not establish that every plug-in needing VC 2013 is compatible.",
+    "source": "plugg-lab: docs/validation/helper-vc-recipe-2026-09-12.json",
+    "recorded": "2026-09-14"
+  },
+  "plugg.vc2022-x64@1": {
+    "recipe_sha256": "843cdef536e08bacef3248f344032d8782596a5c9bbd1d8e57274ca9c3aeac15",
+    "label": "Documented import requirement",
+    "summary": "The FerricTDS mkIII import selects the pinned VC 2022 runtime based on the tested download and its readme. epicVerb mkII also selects this component.",
+    "limitations": "A dependency match is not a general compatibility guarantee. The separate automated VC installation fixture used VC 2013.",
+    "source": "docs/standalone-import.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.pace-license-support@1": {
+    "recipe_sha256": "2d83c5077718033bddef2862f14d7fbc41c1535602a82e3ac721322ce668f298",
+    "label": "Existing local setup; automatic provisioning unavailable",
+    "summary": "PACE 6.0.1 was recognized by UA Connect, and SpaceBlender and soothe v1 opened in the shared environment after user-managed activation.",
+    "limitations": "Historical local evidence only. This definition is documentation only and does not provision or modify an environment. Current activations have not been inspected.",
+    "source": "docs/recipes/pace.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.ua-helper-compatibility@1": {
+    "recipe_sha256": "71d53bbe235266be4a458a28375ad77519393255add643fe6dc8a27708bfce01",
+    "label": "Existing local setup; automatic provisioning unavailable",
+    "summary": "The dedicated UA Connect adapter records helper-scoped launch flags, close detection, process cleanup and a completion scan.",
+    "limitations": "Historical local evidence only. This definition is documentation only and does not provision or modify an environment. Current activations have not been inspected.",
+    "source": "docs/recipes/universal-audio.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.windows-archive-tools@1": {
+    "recipe_sha256": "394c77448623b693c0c1b8c9df613c5e6a56b57d2709f54e3d2b96be69a47e53",
+    "label": "Existing local setup; automatic provisioning unavailable",
+    "summary": "UA download installation was made usable with extraction utilities available to the helper. The current adapter checks for tar.exe.",
+    "limitations": "Historical local evidence only. This definition is documentation only and does not provision or modify an environment. Current activations have not been inspected.",
+    "source": "docs/compatibility/universal-audio.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.windows-archive-tools@2": {
+    "recipe_sha256": "84c15e5f5ba1d57cd5b70e891db6e15b0fcc913d1e8274dd7e56baeee97a7f9a",
+    "label": "Fresh modular Klevgrand install passed",
+    "summary": "The fresh modular Klevgrand Helper installation completed with the pinned archive tools present and the private helper PATH configured. Earlier local trials exercised extraction of vendor packages.",
+    "limitations": "The new run confirms installation and configuration, not a new logged-in vendor download or licensing test. PACE is separate.",
+    "source": "plugg-lab: docs/validation/klevgrand-modular-2026-09-14.json",
+    "recorded": "2026-09-14"
+  },
+  "plugg.powershell@1": {
+    "recipe_sha256": "d864f1c0339ff95d8d1e98e98509fe9bbf4610c2b5a089fd4e2e08a4c0d6a547",
+    "label": "Fresh Native Access installation passed",
+    "summary": "Native Access installed successfully in two fresh Proton environments using Microsoft PowerShell 7.4.11 and the source-built forwarding launcher, without the former third-party profile or .NET 4.8. One run used the full modular worker.",
+    "limitations": "Installer success does not establish browser login, product installation, licensing or audio. No claim of full Windows PowerShell compatibility.",
+    "source": "plugg-lab: docs/validation/native-access-modular-2026-09-14.json",
+    "recorded": "2026-09-14"
+  },
+  "plugg.ntk-daemon@1": {
+    "recipe_sha256": "d24b97f374b0eb551ef2f4fcd922b2388fe01a562befd2afb5383667d69ef1c5",
+    "label": "Fresh automated setup and helper lifecycle passed",
+    "summary": "The revision 2 worker installed Native Access and its bundled daemon in a fresh prefix. Normal helper launch recognized daemon 1.32.0.0. Closing the window left no prefix processes and completed library refresh.",
+    "limitations": "No account login or products in the automated trial. Login passed separately in the preserved manual startup test.",
+    "source": "plugg-lab: docs/validation/native-access-service-2026-09-14.json",
+    "recorded": "2026-09-14"
+  },
+  "plugg.softube-helper-compatibility@1": {
+    "recipe_sha256": "8a228658c2c16b9b3760c75b737d97f0c0b5e66aa344c6dd25c23014a22f70a2",
+    "label": "Local helper lifecycle and Saturation Knob audio passed",
+    "summary": "Central login, product sync and managed close passed. Fix Phaser installed through Central and was published automatically on close. Saturation Knob needed an interactive initial installation and passed Bitwig audio, controls and editor close/reopen with its OpenGL option disabled.",
+    "limitations": "Central silent product installation still stalls; PowerShell did not resolve it. Fresh vendor provisioning remains unavailable. Other Softube products and DAWs are untested. A small pointer offset was reported in tiled Hyprland login.",
+    "source": "docs/recipes/softube.md",
+    "recorded": "2026-09-14"
+  },
+  "plugg.softube-helper-compatibility@2": {
+    "recipe_sha256": "5e63cf96f2d58d9be0de72426f2c323addc9aebdc80981e8f5deeceb71cdcc74",
+    "label": "Confirmed on the maintainer's system",
+    "summary": "Softube product installers run their bundled vcredist_x64.exe /quiet. Without the Visual C++ 2015-2022 runtime it installs the runtime and never exits under Wine, so the product install never finishes. With the runtime already present it returns at once: a Wine log of Fix Phaser's install shows that, and Fix Phaser and Dirty Tape then installed from Central in the shared iLok environment.",
+    "limitations": "Two products on one system. Plugg's own runtime install stops waiting once the runtime is registered, because the same installer does not exit there either.",
+    "source": "docs/recipes/softube.md",
+    "recorded": "2026-09-20"
+  }
+}

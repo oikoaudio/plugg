@@ -1,0 +1,402 @@
+{
+ "schema": 1,
+ "overlays": [
+  {
+   "name": "plugg-1",
+   "identity": "440a6d29c2e6",
+   "content_sha256": "ff04ac663cad158f0e93bdb8a36f5dc0c057a712d56747a46c918784d0346f80",
+   "purpose": "UMU-Proton 10.0-4 with this project's validated Wine fixes built in: the PACE installer blockers (rundll32 Windows-version manifest, service failure actions) and the ole32 foreign drop-target guard. For new environments only.",
+   "base": {
+    "release": "UMU-Proton-10.0-4",
+    "archive_sha256": "62e99e029a18fa313e6fa63d42390918101730a940e3491c54d9d58cab887c69",
+    "proton_sha256": "da9bfb62b0326536c4dfdb2a145993d31e987cd46b8acf341ce05160b8775a25",
+    "wine_source": "https://github.com/ValveSoftware/wine",
+    "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322"
+   },
+   "files": {
+    "x86_64-windows/rundll32.exe": {
+     "sha256": "a8e43b341bb3a0e57af70652ce0ba3fc4125e10edad744e197cea4b9e8f503e8",
+     "patch": "patches/wine/0001-rundll32-Declare-supported-Windows-versions-in-a-man.patch"
+    },
+    "i386-windows/rundll32.exe": {
+     "sha256": "731373be740109b0cb53b806674ae5ee6f6101230d00b48c03592f87c09ecca2",
+     "patch": "patches/wine/0001-rundll32-Declare-supported-Windows-versions-in-a-man.patch"
+    },
+    "x86_64-windows/services.exe": {
+     "sha256": "ec47c683cc4efd8e9238c82e8dd11f1def90f1d30c4b897a3d9b98ac03956277",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "i386-windows/services.exe": {
+     "sha256": "eebe3fc833de7c8a8f30cc3b6f45678b69ffef4c4ff968c63422f80fd9dbf04c",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "x86_64-windows/sechost.dll": {
+     "sha256": "a9950db0831bf2d7fd0da8b56a6476f97db471d35cfcae6775997e52cd9d0c9e",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "i386-windows/sechost.dll": {
+     "sha256": "4274b3e3e2efb9c3d82e2b735bdb1f5136ce5515977a51855e2aa92be54613f8",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "x86_64-windows/ole32.dll": {
+     "sha256": "920c6467a441ea27ccf300ec6a810407da02280d5ac3de7db312232f32858c59",
+     "patch": "patches/0004-ole32-revoke-foreign-drop-target.patch"
+    }
+   },
+   "not_yet_tested": [
+    "A 32-bit plug-in editor closing (the ole32 guard exists for 64-bit only)"
+   ],
+   "validated": [
+    "The unmodified PACE 6.0.1 MSI installs in a fresh prefix (2026-09-20)",
+    "PACE service start, iLok License Manager sign-in and activation (2026-09-20)"
+   ],
+   "build": {
+    "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+    "source_archive": {
+     "url": "https://codeload.github.com/ValveSoftware/wine/tar.gz/b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+     "sha256": "c4109981a732da9a575f5090f198bcd47540136e0aaec7a430661c89d68e4342"
+    },
+    "toolchain": {
+     "clang": "clang version 22.1.8",
+     "lld": "LLD 22.1.8 (compatible with GNU linkers)",
+     "autoconf": "autoconf (GNU Autoconf) 2.73"
+    },
+    "arch_linux_archive": "2026/09/19",
+    "generate": [
+     {
+      "command": [
+       "autoreconf",
+       "-f"
+      ]
+     },
+     {
+      "command": [
+       "./make_vulkan",
+       "-x",
+       "vk.xml",
+       "-X",
+       "video.xml"
+      ],
+      "directory": "dlls/winevulkan"
+     },
+     {
+      "command": [
+       "tools/make_specfiles"
+      ]
+     },
+     {
+      "command": [
+       "tools/make_requests"
+      ]
+     }
+    ],
+    "trees": [
+     {
+      "name": "pace",
+      "source_directory": "wine",
+      "patches": [
+       {
+        "patch": "patches/wine/0001-rundll32-Declare-supported-Windows-versions-in-a-man.patch",
+        "sha256": "581751017b79d6dd38a9fe336bfcc64cf5ece8781f2bcb0c32dc5b28299567e1"
+       },
+       {
+        "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch",
+        "sha256": "4b543c4668b52fab3a77f3d63503a7b018d877bca46baee04211435439e76021"
+       }
+      ],
+      "configure": [
+       "--enable-archs=i386,x86_64",
+       "--without-x",
+       "--without-wayland",
+       "--without-freetype",
+       "--without-vulkan",
+       "--without-gstreamer",
+       "--without-alsa",
+       "--without-pulse",
+       "--without-cups",
+       "--without-dbus",
+       "--without-gnutls",
+       "--without-sdl",
+       "--without-udev",
+       "--without-usb",
+       "--without-v4l2",
+       "--without-ffmpeg",
+       "--without-opencl",
+       "--without-pcap",
+       "--without-capi",
+       "--without-krb5",
+       "--without-netapi",
+       "--without-gphoto",
+       "--without-sane",
+       "--without-unwind",
+       "--without-fontconfig",
+       "--without-inotify",
+       "--without-gssapi",
+       "--without-oss",
+       "--without-xinerama"
+      ],
+      "targets": [
+       "programs/rundll32/all",
+       "programs/services/all",
+       "dlls/sechost/all"
+      ],
+      "source_date_epoch": 1789837687,
+      "strip_debug": true,
+      "files": {
+       "x86_64-windows/rundll32.exe": "programs/rundll32/x86_64-windows/rundll32.exe",
+       "x86_64-windows/services.exe": "programs/services/x86_64-windows/services.exe",
+       "x86_64-windows/sechost.dll": "dlls/sechost/x86_64-windows/sechost.dll",
+       "i386-windows/rundll32.exe": "programs/rundll32/i386-windows/rundll32.exe",
+       "i386-windows/services.exe": "programs/services/i386-windows/services.exe",
+       "i386-windows/sechost.dll": "dlls/sechost/i386-windows/sechost.dll"
+      }
+     },
+     {
+      "name": "ole32",
+      "source_directory": "wine-b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+      "patches": [
+       {
+        "patch": "patches/0004-ole32-revoke-foreign-drop-target.patch",
+        "sha256": "a0794f01b515a9c77b7defdae877c3df5a6d0e1c70ab571e4925889113179cd1"
+       }
+      ],
+      "configure": [
+       "--enable-win64",
+       "--without-x",
+       "--without-wayland",
+       "--without-freetype",
+       "--without-vulkan",
+       "--without-gstreamer"
+      ],
+      "targets": [
+       "dlls/ole32/all"
+      ],
+      "make_variables": {
+       "x86_64_CFLAGS": "-g -O2 -fdebug-prefix-map={build}=/home/davfre/ws/dev/audio/protonhost/.scratch/wine-ole32/build"
+      },
+      "source_date_epoch": 1789157316,
+      "strip_debug": false,
+      "files": {
+       "x86_64-windows/ole32.dll": "dlls/ole32/x86_64-windows/ole32.dll"
+      }
+     }
+    ],
+    "notes": "The ole32 module keeps its debug information, which names the directory it was first built in; -fdebug-prefix-map reproduces that path so the bytes match."
+   },
+   "release": {
+    "url": "https://github.com/oikoaudio/plugg/releases/download/runtime-plugg-1/plugg-1-wine-modules.tar",
+    "sha256": "2f2ebcfe16b7e8ca1538045e82f92962e300711ab282279d8b6a4417f02044ff"
+   }
+  },
+  {
+   "name": "plugg-2",
+   "draft": true,
+   "purpose": "plugg-1 plus the upstream Wine fix for RtlVirtualUnwind2 writing through NULL output parameters. Without it, a plug-in that throws during initialisation takes the whole Windows host down and the DAW waits on a process that has already died.",
+   "base": {
+    "release": "UMU-Proton-10.0-4",
+    "archive_sha256": "62e99e029a18fa313e6fa63d42390918101730a940e3491c54d9d58cab887c69",
+    "proton_sha256": "da9bfb62b0326536c4dfdb2a145993d31e987cd46b8acf341ce05160b8775a25",
+    "wine_source": "https://github.com/ValveSoftware/wine",
+    "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322"
+   },
+   "files": {
+    "x86_64-windows/rundll32.exe": {
+     "sha256": "a8e43b341bb3a0e57af70652ce0ba3fc4125e10edad744e197cea4b9e8f503e8",
+     "patch": "patches/wine/0001-rundll32-Declare-supported-Windows-versions-in-a-man.patch"
+    },
+    "i386-windows/rundll32.exe": {
+     "sha256": "731373be740109b0cb53b806674ae5ee6f6101230d00b48c03592f87c09ecca2",
+     "patch": "patches/wine/0001-rundll32-Declare-supported-Windows-versions-in-a-man.patch"
+    },
+    "x86_64-windows/services.exe": {
+     "sha256": "ec47c683cc4efd8e9238c82e8dd11f1def90f1d30c4b897a3d9b98ac03956277",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "i386-windows/services.exe": {
+     "sha256": "eebe3fc833de7c8a8f30cc3b6f45678b69ffef4c4ff968c63422f80fd9dbf04c",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "x86_64-windows/sechost.dll": {
+     "sha256": "a9950db0831bf2d7fd0da8b56a6476f97db471d35cfcae6775997e52cd9d0c9e",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "i386-windows/sechost.dll": {
+     "sha256": "4274b3e3e2efb9c3d82e2b735bdb1f5136ce5515977a51855e2aa92be54613f8",
+     "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch"
+    },
+    "x86_64-windows/ole32.dll": {
+     "sha256": "920c6467a441ea27ccf300ec6a810407da02280d5ac3de7db312232f32858c59",
+     "patch": "patches/0004-ole32-revoke-foreign-drop-target.patch"
+    },
+    "x86_64-windows/ntdll.dll": {
+     "sha256": null,
+     "patch": "patches/wine/0003-ntdll-Do-not-crash-in-RtlVirtualUnwind2-on-NULL-outp.patch"
+    }
+   },
+   "not_yet_tested": [
+    "A 32-bit plug-in editor closing (the ole32 guard exists for 64-bit only)",
+    "The 32-bit unwinder, which has its own code and is not patched"
+   ],
+   "validated": [],
+   "build": {
+    "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+    "source_archive": {
+     "url": "https://codeload.github.com/ValveSoftware/wine/tar.gz/b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+     "sha256": "c4109981a732da9a575f5090f198bcd47540136e0aaec7a430661c89d68e4342"
+    },
+    "toolchain": {
+     "clang": "clang version 22.1.8",
+     "lld": "LLD 22.1.8 (compatible with GNU linkers)",
+     "autoconf": "autoconf (GNU Autoconf) 2.73"
+    },
+    "arch_linux_archive": "2026/09/19",
+    "generate": [
+     {
+      "command": [
+       "autoreconf",
+       "-f"
+      ]
+     },
+     {
+      "command": [
+       "./make_vulkan",
+       "-x",
+       "vk.xml",
+       "-X",
+       "video.xml"
+      ],
+      "directory": "dlls/winevulkan"
+     },
+     {
+      "command": [
+       "tools/make_specfiles"
+      ]
+     },
+     {
+      "command": [
+       "tools/make_requests"
+      ]
+     }
+    ],
+    "trees": [
+     {
+      "name": "pace",
+      "source_directory": "wine",
+      "patches": [
+       {
+        "patch": "patches/wine/0001-rundll32-Declare-supported-Windows-versions-in-a-man.patch",
+        "sha256": "581751017b79d6dd38a9fe336bfcc64cf5ece8781f2bcb0c32dc5b28299567e1"
+       },
+       {
+        "patch": "patches/wine/0002-services-Store-and-report-service-failure-actions.patch",
+        "sha256": "4b543c4668b52fab3a77f3d63503a7b018d877bca46baee04211435439e76021"
+       }
+      ],
+      "configure": [
+       "--enable-archs=i386,x86_64",
+       "--without-x",
+       "--without-wayland",
+       "--without-freetype",
+       "--without-vulkan",
+       "--without-gstreamer",
+       "--without-alsa",
+       "--without-pulse",
+       "--without-cups",
+       "--without-dbus",
+       "--without-gnutls",
+       "--without-sdl",
+       "--without-udev",
+       "--without-usb",
+       "--without-v4l2",
+       "--without-ffmpeg",
+       "--without-opencl",
+       "--without-pcap",
+       "--without-capi",
+       "--without-krb5",
+       "--without-netapi",
+       "--without-gphoto",
+       "--without-sane",
+       "--without-unwind",
+       "--without-fontconfig",
+       "--without-inotify",
+       "--without-gssapi",
+       "--without-oss",
+       "--without-xinerama"
+      ],
+      "targets": [
+       "programs/rundll32/all",
+       "programs/services/all",
+       "dlls/sechost/all"
+      ],
+      "source_date_epoch": 1789837687,
+      "strip_debug": true,
+      "files": {
+       "x86_64-windows/rundll32.exe": "programs/rundll32/x86_64-windows/rundll32.exe",
+       "x86_64-windows/services.exe": "programs/services/x86_64-windows/services.exe",
+       "x86_64-windows/sechost.dll": "dlls/sechost/x86_64-windows/sechost.dll",
+       "i386-windows/rundll32.exe": "programs/rundll32/i386-windows/rundll32.exe",
+       "i386-windows/services.exe": "programs/services/i386-windows/services.exe",
+       "i386-windows/sechost.dll": "dlls/sechost/i386-windows/sechost.dll"
+      }
+     },
+     {
+      "name": "ole32",
+      "source_directory": "wine-b8fdff8e1f855b5276ec4ddca0f31b2792554322",
+      "patches": [
+       {
+        "patch": "patches/0004-ole32-revoke-foreign-drop-target.patch",
+        "sha256": "a0794f01b515a9c77b7defdae877c3df5a6d0e1c70ab571e4925889113179cd1"
+       }
+      ],
+      "configure": [
+       "--enable-win64",
+       "--without-x",
+       "--without-wayland",
+       "--without-freetype",
+       "--without-vulkan",
+       "--without-gstreamer"
+      ],
+      "targets": [
+       "dlls/ole32/all"
+      ],
+      "make_variables": {
+       "x86_64_CFLAGS": "-g -O2 -fdebug-prefix-map={build}=/home/davfre/ws/dev/audio/protonhost/.scratch/wine-ole32/build"
+      },
+      "source_date_epoch": 1789157316,
+      "strip_debug": false,
+      "files": {
+       "x86_64-windows/ole32.dll": "dlls/ole32/x86_64-windows/ole32.dll"
+      }
+     },
+     {
+      "name": "ntdll",
+      "source_directory": "wine",
+      "patches": [
+       {
+        "patch": "patches/wine/0003-ntdll-Do-not-crash-in-RtlVirtualUnwind2-on-NULL-outp.patch",
+        "sha256": "7422e3cb694f0a46345466f9ba1f27c30e0d4998301f7ae7875fe3c5656040d4"
+       }
+      ],
+      "configure": [
+       "--enable-win64",
+       "--without-x",
+       "--without-wayland",
+       "--without-freetype",
+       "--without-vulkan",
+       "--without-gstreamer"
+      ],
+      "targets": [
+       "dlls/ntdll/all"
+      ],
+      "files": {
+       "x86_64-windows/ntdll.dll": "dlls/ntdll/x86_64-windows/ntdll.dll"
+      },
+      "source_date_epoch": 1789920000,
+      "strip_debug": true
+     }
+    ],
+    "notes": "The ole32 module keeps its debug information, which names the directory it was first built in; -fdebug-prefix-map reproduces that path so the bytes match."
+   }
+  }
+ ]
+}

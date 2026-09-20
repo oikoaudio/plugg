@@ -1,0 +1,8 @@
+schema = 1
+id = "plugg.ua-helper-compatibility"
+revision = 1
+kind = "component"
+name = "UA Connect helper compatibility"
+purpose = "Records the helper launch, window handling and cleanup needed by the working UA Connect adapter."
+documentation_only = true
+notes = "The existing plugg/ua_connect.py adapter launches UA Connect with --disable-gpu and --no-sandbox after explicit consent, waits for the visible helper to close, cleans up its processes and refreshes the library. These flags are scoped to the helper, not audio plug-ins. This definition does not execute or replace that adapter. Wine/Proton is not a security sandbox. See docs/recipes/universal-audio.md."

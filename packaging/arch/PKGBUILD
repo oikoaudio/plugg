@@ -1,0 +1,64 @@
+# Maintainer: David Fredman <1152707+davfre@users.noreply.github.com>
+#
+# Builds the manager and the patched yabridge bridge from pinned sources.
+# The Proton runtime is not packaged: the app downloads the pinned
+# UMU-Proton release on first use and checks its hash.
+#
+# Local test build from a checkout:
+#   PLUGG_SOURCE="git+file://$PWD#branch=$(git branch --show-current)" makepkg -si
+
+pkgname=plugg-git
+pkgver=0.1.0.dev0
+pkgrel=1
+pkgdesc='Managed Windows VST3 plug-ins for native Linux DAWs, on a pinned Proton runtime'
+arch=(x86_64)
+url='https://github.com/oikoaudio/plugg'
+license=(GPL-3.0-or-later)
+depends=(python python-gobject gtk4 zstd libarchive libxcb dbus bubblewrap xdg-utils)
+makedepends=(git meson ninja wine go python-build python-installer python-setuptools python-wheel)
+provides=(plugg)
+conflicts=(plugg)
+options=(!lto !debug !strip)
+_yabridge=b580a9f7fc46509767ca156d4f92872552b9e571
+source=("plugg::${PLUGG_SOURCE:-git+$url.git#branch=main}"
+        "yabridge::git+https://github.com/robbert-vdh/yabridge.git#commit=$_yabridge")
+sha256sums=('SKIP' 'SKIP')
+
+pkgver() {
+    cd plugg
+    printf '0.1.0.dev0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+    cd plugg
+    rm -rf vendor/yabridge
+    mkdir -p vendor
+    git clone --quiet --no-checkout "$srcdir/yabridge" vendor/yabridge
+    git -C vendor/yabridge checkout --quiet --detach "$_yabridge"
+}
+
+build() {
+    cd plugg
+    PLUGG_BUILD_DIR="$srcdir/bridge-build" PLUGG_BRIDGE_OUTPUT="$srcdir/bridge" \
+        PLUGG_BUILD_JOBS="${PLUGG_BUILD_JOBS:-2}" scripts/build-bridge.sh
+    python scripts/build-powershell-forwarder.py
+    python scripts/build-python-package.py --output "$srcdir/dist"
+}
+
+check() {
+    cd plugg
+    python -m unittest discover -s tests -q
+}
+
+package() {
+    cd plugg
+    python -m installer --destdir="$pkgdir" "$srcdir"/dist/*.whl
+    install -d "$pkgdir/usr/lib/plugg"
+    cp -a "$srcdir/bridge" "$pkgdir/usr/lib/plugg/bridge"
+    cp -a bundle/powershell-forwarder "$pkgdir/usr/lib/plugg/powershell-forwarder"
+    install -Dm644 packaging/arch/com.oikoaudio.Plugg.desktop \
+        "$pkgdir/usr/share/applications/com.oikoaudio.Plugg.desktop"
+    install -Dm644 "$srcdir/bridge/COPYING.yabridge" "$pkgdir/usr/share/licenses/$pkgname/COPYING.yabridge"
+    install -Dm644 docs/third-party.md "$pkgdir/usr/share/doc/$pkgname/third-party.md"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

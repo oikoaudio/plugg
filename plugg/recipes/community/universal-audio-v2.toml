@@ -1,0 +1,9 @@
+schema = 1
+id = "plugg.universal-audio"
+revision = 2
+kind = "vendor"
+name = "Universal Audio / UA Connect"
+vendor = "Universal Audio"
+documentation_only = true
+requires = ["plugg.pace-license-support@1", "plugg.windows-archive-tools@2", "plugg.ua-helper-compatibility@1", "plugg.ole32-foreign-window-guard@1"]
+notes = "Documents the working local setup: shared PACE/iLok services, archive extraction, UA Connect helper handling and the LA-2A editor-close runtime fix. Automatic provisioning is not available. Open the existing UA Connect from Helpers. This recipe does not modify that installation or its machine identity. See docs/recipes/universal-audio.md."

@@ -1,0 +1,62 @@
+From: Paul Gofman <pgofman@codeweavers.com>
+Subject: [PATCH] ntdll: Do not crash in RtlVirtualUnwind2() in some cases of
+ NULL output parameters on x64.
+
+Backport of upstream Wine commit a55cddce9839a1516f882ad2e5a2ab689084da92,
+first released in Wine 11.7. UMU-Proton 10.0-4 is Wine 10.0 and has the bug.
+
+Wine's exception dispatcher calls RtlVirtualUnwind() with no handler data and
+no handler on all three collided-unwind paths in dlls/ntdll/signal_x86_64.c.
+RtlVirtualUnwind2() wrote through those NULL pointers, so the dispatch faulted,
+and dispatching that fault collided again. The recursion ended only when the
+thread's one megabyte stack was exhausted, which killed the process without an
+error message.
+
+For Plugg this is what kept a host crash invisible: a plug-in thread that ran
+out of stack died without Wine printing anything, because printing it took this
+path. With the fix, the overflow is reported and can be acted on. The overflow
+itself had a different cause; see diagnostics/host-stack.
+
+The upstream tests/unwind.c changes are not included; the runtime build does
+not run Wine's test suite.
+
+  wine revision  b8fdff8e1f855b5276ec4ddca0f31b2792554322
+  upstream       a55cddce9839a1516f882ad2e5a2ab689084da92
+
+--- a/dlls/ntdll/unwind.c
++++ b/dlls/ntdll/unwind.c
+@@ -2157,8 +2157,8 @@
+     {
+         context->Rip = *(ULONG64 *)context->Rsp;
+         context->Rsp += sizeof(ULONG64);
+-        *data = NULL;
+-        *handler_ret = NULL;
++        if (type) *data = NULL;
++        if (handler_ret) *handler_ret = NULL;
+         return STATUS_SUCCESS;
+     }
+ 
+@@ -2193,7 +2193,7 @@
+                 TRACE("inside epilog.\n");
+                 interpret_epilog( (BYTE *)pc, context, ctx_ptr );
+                 *frame_ret = info->frame_reg ? context->Rsp - 8 : frame;
+-                *handler_ret = NULL;
++                if (handler_ret) *handler_ret = NULL;
+                 return STATUS_SUCCESS;
+             }
+         }
+@@ -2274,12 +2274,12 @@
+         context->Rsp += sizeof(ULONG64);
+     }
+ 
+-    *handler_ret = NULL;
++    if (handler_ret) *handler_ret = NULL;
+ 
+     if (!(info->flags & type)) return STATUS_SUCCESS;  /* no matching handler */
+     if (prolog_offset != ~0) return STATUS_SUCCESS;  /* inside prolog */
+ 
+-    *handler_ret = (PEXCEPTION_ROUTINE)((char *)base + handler_data->handler);
++    if (handler_ret) *handler_ret = (PEXCEPTION_ROUTINE)((char *)base + handler_data->handler);
+     *data = &handler_data->handler + 1;
+     return STATUS_SUCCESS;
+ }

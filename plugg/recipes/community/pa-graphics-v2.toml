@@ -1,0 +1,18 @@
+schema = 1
+id = "plugg.plugin-alliance"
+revision = 2
+kind = "vendor"
+name = "Plugin Alliance graphics"
+vendor = "Plugin Alliance"
+requires = ["plugg.graphics-wined3d@1", "plugg.bridge-editor-detach@1"]
+notes = "Preliminary compatibility profile. Verifies the editor-detach patch for the three specified modules; does not install a bridge. See docs/compatibility/plugin-alliance.md."
+
+[graphics.plugins]
+"Program Files/Common Files/VST3/Black Box Analog Design HG-2.vst3" = "wined3d"
+"Program Files/Common Files/VST3/ADPTR MetricAB.vst3" = "dxvk"
+"Program Files/Common Files/VST3/Pro Audio DSP DSM V3.vst3" = "dxvk"
+
+[bridge_requirements]
+"Program Files/Common Files/VST3/Black Box Analog Design HG-2.vst3" = ["plugg.bridge-editor-detach@1"]
+"Program Files/Common Files/VST3/ADPTR MetricAB.vst3" = ["plugg.bridge-editor-detach@1"]
+"Program Files/Common Files/VST3/Pro Audio DSP DSM V3.vst3" = ["plugg.bridge-editor-detach@1"]
