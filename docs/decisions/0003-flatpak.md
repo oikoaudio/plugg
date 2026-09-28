@@ -1,38 +1,23 @@
-# No Flatpak yet: prove two things first
+# No Plugg Flatpak: Cabinet covers Flatpak
 
-Decided in September 2026. Plugg does not ship a Flatpak for now. The [ROADMAP](../ROADMAP.md) names one as a way to reach more distributions "if the bridge and runtimes can work inside one". This record says what that condition means in practice, what [Cabinet](https://github.com/Mark12870/cabinet) shows about it, and what would change the decision.
+Decided in September 2026. Plugg does not ship a Flatpak. People who want one, and people on image-based distributions such as Fedora Silverblue, are well served by [Cabinet](https://github.com/Mark12870/cabinet). Plugg stays a native install.
 
-## What a Flatpak would give
+## Two projects that fit together
 
-One build that installs with one command on any distribution, including image-based ones such as Fedora Silverblue, with updates from a remote. Flatpak packages the app. It does not change how a plug-in gets bridged, so it gives no architectural advantage. It is a distribution channel.
+Cabinet and Plugg share a design: one Wine prefix per vendor, a patched yabridge, and one long-lived session per prefix. They are built for different people.
 
-## What Cabinet shows
+**Cabinet** is a Flatpak. It installs with one command on any distribution, including image-based ones, and updates from a remote. It keeps a curated library of plug-ins that it installs for you, many of them free, and tests them in a real host on every release. It also works through what running a DAW's plug-ins across a sandbox boundary takes: DAWs inside and outside Flatpak, a shim that keeps one session per prefix, and supervision that works across PID namespaces. Its README states the permissions a sandboxed DAW needs plainly, so people can decide for themselves.
 
-Cabinet is a Flatpak with the same design underneath: one Wine prefix per vendor, a patched yabridge, and one long-lived session per prefix. Almost all of its hard problems come from the sandbox boundary between the DAW and Wine:
+**Plugg** installs whatever Windows plug-in you bring it, free or paid: an installer, an MSI or a VST3 file. It is also built for the harder cases, where plug-ins come through their vendors' own managers (Native Access, UA Connect, Softube Central and others) or need iLok and PACE. It records which environments hold activations and refuses the operations that could cost a seat. It gives every environment on a computer one machine identity. It runs Proton, with Wine fixes of its own that the PACE installer needs. Much of that work sits close to the host, and a sandbox would make it harder, not easier.
 
-- A DAW that is itself a Flatpak needs `--talk-name=org.freedesktop.Flatpak` to start Cabinet's Wine. That permission lets the DAW run any command on the host, so the DAW's sandbox is gone.
-- yabridge's watchdog tracks the host by PID, and PIDs differ across the boundary, so Cabinet turns it off and supervises the host another way.
-- Two sandboxes over one prefix reached the same wineserver socket from different PID namespaces and froze REAPER. Cabinet now routes every launch through one session per prefix to avoid this.
-- Cabinet patches yabridge so a DAW outside Flatpak finds Cabinet's yabridge inside the Flatpak installation directory.
-- `flatpak uninstall --delete-data` deletes every prefix.
+Building a Plugg Flatpak would mean solving, a second time, the problems Cabinet has already solved well. Plugg's time is better spent on what sets it apart, and where the two projects can help each other. Cabinet's catalogue already informs Plugg's recipe leads (`plugg/leads/cabinet/`). In the other direction, `docs/upstream/cabinet.md` holds notes from Plugg's iLok and machine-identity work, drafted for Cabinet.
 
-Cabinet also runs plain Wine, not Proton, so it never has to start pressure-vessel inside a Flatpak.
+## How Plugg reaches more people
 
-## What is unproven for Plugg
+Natively: a published release with prebuilt artifacts first (the bridge and the `plugg-1` modules), so the README's steps work without building anything. Then packages for more distribution families, or a relocatable tarball. The Arch package stays the supported install until then.
 
-Plugg runs every environment through UMU and pressure-vessel, which starts its container with bubblewrap. Inside a Flatpak sandbox, an app cannot create the user namespaces bubblewrap needs. The Steam Flatpak gets around this by asking the Flatpak portal for a sub-sandbox, and pressure-vessel supports that mode. Whether Plugg's persistent session works that way has not been tested. The session needs `PRESSURE_VESSEL_SHARE_PID=1`, the private socket directory in `/dev/shm`, and a DAW outside the sandbox connecting to it.
+## If this is ever revisited
 
-The launch path is the second open question. Today a native DAW runs `launch-plugin`, which runs the session manager with the host's Python. From a Flatpak, that manager and its Python live inside the app, so a DAW outside it cannot run them without the same host-command permission Cabinet needs. Alternatives are a small static launcher outside the sandbox, or requiring host Python. Neither has been tried.
+A Flatpak could still be added later without disturbing anyone's library, as long as one rule holds: user data never belongs to the app's install location. The library lives in `~/.local/share/plugg`, and a Flatpak would be granted that directory and use the existing environments in place. Moving an environment changes its path and in practice its runtime copy, which for iLok and other deactivate-first licences means deactivating first ([licensing safety](../licensing-safety.md)). The machine identity is derived from the host's `/etc/machine-id`, which a Flatpak app can read. `plugg environment update-launcher` rewrites the scripts that start sessions.
 
-## What a Flatpak must not do to activations
-
-Moving an existing environment into a Flatpak changes its path and, in practice, its runtime copy. For an environment with iLok or other deactivate-first licences, that is a move that needs deactivation first ([licensing safety](../licensing-safety.md)). A Flatpak must also keep environments out of reach of `flatpak uninstall --delete-data`, for example under `~/.local/share/plugg` with a filesystem grant, rather than in the app's own data directory.
-
-## What would change the decision
-
-A spike that answers both questions with the gain and editor fixtures (`scripts/test-carla.py`) and no vendor software:
-
-1. From inside a Flatpak, start a persistent Proton session in a sub-sandbox and load a fixture from a native Carla outside it, with the session's host watchdog working.
-2. Do that without granting the DAW, or anything the DAW runs, `org.freedesktop.Flatpak`.
-
-If both hold, a Flatpak is worth building. If only the first holds, Plugg's own sandbox claims would be no stronger than Cabinet's, and more distribution packages or a relocatable tarball are the better next step. Until then, the Arch package stays the supported install, and other distributions build from a checkout.
+Two questions would need answers first, both about Proton rather than about packaging. Can Plugg's persistent session run inside a Flatpak, in the kind of sub-sandbox the Steam Flatpak uses for pressure-vessel? And can a DAW outside the sandbox reach it without being granted `org.freedesktop.Flatpak`?
