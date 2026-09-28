@@ -624,7 +624,8 @@ class LibraryView:
             return [{'key': record['id'], 'title': name, 'record': record, 'owner': True, 'size': size,
                      'plugins': record['plugins'], 'waiting': [n for names in waiting.values() for n in names],
                      'recheck': next((j['id'] for j in record['jobs'] if not j.get('archived')), None),
-                     'apps': [widget for _, widget in apps], 'note': note, 'helpers': helpers}]
+                     'apps': [widget for _, widget in apps], 'helpers': helpers,
+                     'extra': ['Last check: ' + note] if note else []}]
         # What activating needs: the iLok helper's job, and whether it can
         # open the License Manager directly.
         ilok = next(({'job': s['job'], 'direct': 'iLok License Manager' in (s.get('managers') or [])}
@@ -647,10 +648,16 @@ class LibraryView:
                                                     'plugins': [], 'waiting': [], 'apps': []})
             (member['apps'] if member else own).append(widget)
         vendors = sorted((v for v in members if v != UNIDENTIFIED), key=str.casefold)
+        waiting_total = sum(len(m['waiting']) for m in members.values())
+        meta = 'licences for ' + plural(len(vendors), 'vendor')
+        if waiting_total:
+            meta += '  ·  %d waiting for activation' % waiting_total
+        extra = ['Shared by ' + (', '.join(vendors) if vendors else 'no vendor yet') + '.']
+        if note:
+            extra.append('Last check: ' + note)
         head = {'key': record['id'], 'title': record.get('name') or 'iLok', 'record': record, 'owner': True,
-                'size': size, 'plugins': [], 'waiting': [], 'apps': own,
-                'meta': 'License Manager · shared by ' + (', '.join(vendors) if vendors else 'no vendor yet'),
-                'note': note, 'helpers': helpers}
+                'size': size, 'plugins': [], 'waiting': [], 'apps': own, 'meta': meta, 'extra': extra,
+                'waiting_total': waiting_total, 'helpers': helpers}
         return [head] + list(members.values())
 
     def row_matches(self, row):
@@ -675,7 +682,9 @@ class LibraryView:
             state = ('running' if running else 'waiting' if row.get('waiting')
                      else 'ok' if row['plugins'] else 'idle')
             if row.get('meta'):
-                state = None
+                # The licence manager has no state of its own; it sums up the
+                # vendors that share it.
+                state = 'waiting' if row.get('waiting_total') else None
             line = Gtk.Box(spacing=8)
             dot = Gtk.Box(accessible_role=Gtk.AccessibleRole.PRESENTATION)
             dot.add_css_class('lib-dot')
@@ -712,12 +721,6 @@ class LibraryView:
         if not row['owner']:
             meta += '  ·  in the shared iLok environment'
         titles.append(text(meta, 'lib-meta', ellipsize=True))
-        if row.get('note'):
-            # What the helper last said, such as plug-ins waiting for
-            # activation. News about this vendor, not an alarm.
-            said = text(row['note'], 'lib-note', ellipsize=True)
-            said.set_tooltip_text(row['note'])
-            titles.append(said)
         head.append(titles)
         todo = None
         if waiting and activation:
@@ -763,7 +766,10 @@ class LibraryView:
         toggle.set_valign(Gtk.Align.CENTER)
         toggle.set_tooltip_text('Show its plug-ins')
         speak(toggle, 'Show the plug-ins of ' + row['title'])
-        listed = row['plugins'] + row.get('waiting', [])
+        listed = row['plugins'] + row.get('waiting', []) + row.get('extra', [])
+        if row.get('extra') and not row['plugins'] + row.get('waiting', []):
+            toggle.set_tooltip_text('Show details')
+            speak(toggle, 'Show details of ' + row['title'])
         toggle.set_sensitive(bool(listed))
         toggle.set_opacity(1.0 if listed else 0.0)
         head.append(toggle)
@@ -772,7 +778,7 @@ class LibraryView:
             box.append(bar((row['size'] or 0) / largest))
         revealer = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN, transition_duration=140)
         revealer.set_reveal_child(opened and bool(listed))
-        revealer.set_child(self.details(row['plugins'], hits, waiting, activation))
+        revealer.set_child(self.details(row['plugins'], hits, waiting, activation, row.get('extra', [])))
         box.append(revealer)
 
         def flip(*_):
@@ -787,13 +793,13 @@ class LibraryView:
         toggle.set_focusable(False)
         spoken = ', '.join(x for x in (row['title'], meta.replace('  ·  ', ', '),
                                         size_text(row['size']) if row['owner'] else None) if x)
-        if row.get('note'):
-            spoken += '. ' + row['note']
         return box, (flip if listed else None), menu, opened and bool(listed), spoken
 
-    def details(self, plugins, hits, waiting=(), activation=False):
+    def details(self, plugins, hits, waiting=(), activation=False, extra=()):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.add_css_class('lib-details')
+        for line in extra:
+            box.append(text(line, 'lib-note', wrap=True, selectable=True))
 
         def chips(names, *classes, tooltip=None):
             flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=6, row_spacing=6,
@@ -813,7 +819,7 @@ class LibraryView:
             box.append(chips(waiting, 'lib-plugin-waiting',
                              tooltip='Installed but not in your DAW yet. iLok and other copy-protected plug-ins '
                                      'are added once they are activated.'))
-        if not plugins and not waiting:
+        if not plugins and not waiting and not extra:
             box.append(text('Nothing from here is in your DAW yet.', 'lib-dim'))
         return box
 
