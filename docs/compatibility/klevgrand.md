@@ -10,9 +10,10 @@ Klevgrand's [licence policy](https://klevgrand.com/support/how-many-computers-ma
 | --- | --- | --- |
 | Skaka | 1.2.1 | Authorized and working in Bitwig, including editor open and close during playback |
 | Slammer | 1.1.2 | Working in Bitwig, including editor open and close during playback |
-| Richter | 1.0.2 | Factory discovery and publication only |
-| Korvpressor | 2.1.2 | Factory discovery and publication only |
-| DAW Cassette | not recorded | Editor redraws correctly after the DXVK fix below |
+| Richter | 1.0.2 | Working in Bitwig |
+| Korvpressor | 2.1.2 | Working in Bitwig |
+| DAW Cassette | not recorded | Working in Bitwig. The editor redraws correctly after the DXVK fix below. |
+| REAMP | not recorded | Working in Bitwig |
 | Klevgrand Helper | 1.0.12, self-updates after login | Login, product installation and authorization work |
 
 Not checked yet are sustained stress tests, project save and reopen, and REAPER.

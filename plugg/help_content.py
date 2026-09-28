@@ -87,9 +87,7 @@ FAQ = (
 #: "tested" or "experimental"; anything else is untested.
 VENDORS = {
     'Klevgrand': ('tested',
-                  "Skaka and Slammer have worked in Bitwig, including opening and closing the editor during "
-                  "playback, and DAW Cassette's editor draws correctly. Korvpressor and Richter are found and "
-                  "added to your DAW but not yet played. Klevgrand Helper is managed by the app: install "
+                  "Skaka, Slammer, Korvpressor, Richter, DAW Cassette and REAMP work in Bitwig. Klevgrand Helper is managed by the app: install "
                   "products, then close Helper. The tested setup includes graphics and window fixes. Other "
                   "Klevgrand products are not yet verified."),
     'Variety of Sound': ('tested',
