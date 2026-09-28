@@ -56,8 +56,8 @@ licensing-backups/
 .licensing-key
 
 # makepkg working directories and output
-packaging/arch/src/
-packaging/arch/pkg/
-packaging/arch/plugg/
-packaging/arch/yabridge/
-packaging/arch/*.pkg.tar.*
+packaging/aur/*/src/
+packaging/aur/*/pkg/
+packaging/aur/*/plugg/
+packaging/aur/*/yabridge/
+packaging/aur/*/*.pkg.tar.*

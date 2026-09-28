@@ -45,7 +45,7 @@ Keep installers, account data, callback URLs, licenses, downloaded runtimes and 
 
 ## Packaging
 
-The Arch package (`packaging/arch/PKGBUILD`) is the complete installation. It builds the bridge, the scanner and the PowerShell forwarder from pinned sources. The Python wheel on its own holds the manager, the recipe engine, the built-in recipes and the font. It has no bridge, so don't describe a wheel install as a working setup. See [packaging](docs/packaging.md).
+The Arch package (`packaging/aur/plugg-git/PKGBUILD`) is the complete installation. It builds the bridge, the scanner and the PowerShell forwarder from pinned sources. The Python wheel on its own holds the manager, the recipe engine, the built-in recipes and the font. It has no bridge, so don't describe a wheel install as a working setup. See [packaging](docs/packaging.md).
 
 When changing package data, build a wheel and check recipe commands from an isolated installation outside the checkout. With uv installed:
 

@@ -2,7 +2,7 @@
 
 ## Arch package
 
-`packaging/arch/PKGBUILD` builds everything from pinned sources:
+`packaging/aur/plugg-git/PKGBUILD` builds everything from pinned sources:
 
 - the yabridge revision and patch series, which the bridge build script already verifies,
 - the bridge and scanner,
@@ -13,7 +13,7 @@ It runs the full unit suite in `check()` and installs the bridge to `/usr/lib/pl
 A test build from a checkout uses the local branch instead of GitHub:
 
 ```sh
-cd packaging/arch
+cd packaging/aur/plugg-git
 PLUGG_SOURCE="git+file://$(git rev-parse --show-toplevel)#branch=$(git branch --show-current)" makepkg -si
 ```
 

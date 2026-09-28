@@ -1,11 +1,11 @@
 # Maintainer: David Fredman <1152707+davfre@users.noreply.github.com>
 #
-# Builds the manager and the patched yabridge bridge from pinned sources.
-# The Proton runtime is not packaged: the app downloads the pinned
-# UMU-Proton release on first use and checks its hash.
+# Builds the manager and the patched yabridge bridge from main and a pinned
+# yabridge commit. The Proton runtime is not packaged: the app downloads the
+# pinned UMU-Proton release on first use and checks its hash.
 #
 # Local test build from a checkout:
-#   PLUGG_SOURCE="git+file://$PWD#branch=$(git branch --show-current)" makepkg -si
+#   PLUGG_SOURCE="git+file://$(git rev-parse --show-toplevel)#branch=$(git branch --show-current)" makepkg -si
 
 pkgname=plugg-git
 pkgver=0.1.0.dev0
@@ -18,11 +18,18 @@ depends=(python python-gobject gtk4 zstd libarchive libxcb dbus bubblewrap xdg-u
 makedepends=(git meson ninja wine go python-build python-installer python-setuptools python-wheel)
 provides=(plugg)
 conflicts=(plugg)
+# !strip and !debug: the bridge's and the forwarder's build.json record the
+# hashes of the binaries as built, and Plugg checks them; stripping or
+# splitting debug symbols would change them. !lto: the bridge is built with
+# yabridge's own flags only (scripts/build-bridge.sh drops the packager's
+# CFLAGS and LDFLAGS), because -march flags above the x86-64 baseline break
+# the Windows host (diagnostics/host-stack).
 options=(!lto !debug !strip)
 _yabridge=b580a9f7fc46509767ca156d4f92872552b9e571
 source=("plugg::${PLUGG_SOURCE:-git+$url.git#branch=main}"
         "yabridge::git+https://github.com/robbert-vdh/yabridge.git#commit=$_yabridge")
-sha256sums=('SKIP' 'SKIP')
+sha256sums=('SKIP'
+            'fa7e723cf380027c9c87133259dd08485446144a0d33fba8bd0cc565ea32099f')
 
 pkgver() {
     cd plugg

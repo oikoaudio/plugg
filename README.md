@@ -39,7 +39,7 @@ The bridge build fetches the pinned yabridge source, applies Plugg's patches and
 On Arch-based systems (Arch, CachyOS, EndeavourOS and others), the package does all of that and puts `plugg` on your path:
 
 ```sh
-cd plugg/packaging/arch
+cd plugg/packaging/aur/plugg-git
 makepkg -si
 ```
 
