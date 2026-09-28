@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import shutil
 import tempfile
 import re
 import tomllib
@@ -53,10 +54,17 @@ def main():
                    XDG_DATA_HOME=str(temporary / 'data'), PYTHONDONTWRITEBYTECODE='1',
                    UV_NO_CONFIG='1', UV_LINK_MODE='copy')
         python = temporary / 'venv/bin/python'
-        subprocess.run(['uv', 'venv', '--python', sys.executable, str(temporary / 'venv')],
-                       cwd=temporary, env=env, check=True)
-        subprocess.run(['uv', 'pip', 'install', '--python', str(python), '--no-index', '--no-deps', str(wheel)],
-                       cwd=temporary, env=env, check=True)
+        if shutil.which('uv'):
+            subprocess.run(['uv', 'venv', '--python', sys.executable, str(temporary / 'venv')],
+                           cwd=temporary, env=env, check=True)
+            subprocess.run(['uv', 'pip', 'install', '--python', str(python), '--no-index', '--no-deps', str(wheel)],
+                           cwd=temporary, env=env, check=True)
+        else:
+            # A CI runner has Python's own venv and pip, not uv. Same isolation:
+            # no index, no dependencies, only the wheel under test.
+            subprocess.run([sys.executable, '-m', 'venv', str(temporary / 'venv')], cwd=temporary, env=env, check=True)
+            subprocess.run([str(python), '-m', 'pip', 'install', '--quiet', '--no-index', '--no-deps', str(wheel)],
+                           cwd=temporary, env=env, check=True)
 
         def cli(*arguments):
             result = subprocess.run([str(python), '-I', '-m', 'plugg', 'recipe', *arguments],
