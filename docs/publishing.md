@@ -48,6 +48,22 @@ Some things only matter once strangers can submit recipes:
 3. Decide whether `recipes/reviewed/` accepts anything yet. It is reasonable to start with community-tier contributions only, and open the reviewed tier once someone's evidence has held up.
 4. The README describes a developer preview. Keep it that way until packaging exists. If the first install fails on a machine without a checkout, people stop trusting the project.
 
+## At the first release
+
+Once the v0.1.0 release is published, the README's Install section lists the packages first. Replace its opening paragraphs, down to the `makepkg` block, with this, and keep the "build from a checkout" link for other distributions:
+
+````markdown
+Download the package for your distribution from [the latest release](https://github.com/oikoaudio/plugg/releases/latest) and install it:
+
+- Ubuntu 24.04 or newer, Debian 13 or newer: `sudo apt install ./plugg_<version>_amd64.deb`
+- Fedora 42 or newer: `sudo dnf install ./plugg-<version>-1.x86_64.rpm`
+- Arch and Arch-based systems: install `plugg` from the AUR, for example `yay -S plugg`
+
+Then start Plugg from your applications menu, or run `plugg gui`.
+````
+
+Update the AUR package first (`scripts/update-aur.py`, see [packaging](packaging.md)), so the Arch line is true when the README says it.
+
 ## Keeping your working environments out of it
 
 `.gitignore` already excludes `.test-*/`, `.scratch/`, downloaded runtimes, prefixes, installers, licensing records and recovery points. Live environments belong in the library (`~/.local/share/plugg`), not in the checkout. Published plug-ins and vendor launchers do not depend on where the checkout is, so you can move it or clone it again.

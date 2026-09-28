@@ -1,10 +1,39 @@
 # Building and running from a checkout
 
-[The README](../README.md#install) has the dependencies and the short version. This page has the details, the tests and the build options.
+[The README](../README.md#install) has the short version. This page has building from a checkout, the tests and the build options.
 
-The test fixtures also need Clang, lld-link and Wine's PE import libraries.
+## Build from a checkout
+
+You need:
+
+- Python 3.12 or newer, GTK 4.10 or newer, and PyGObject
+- Wine with its development tools (for `winegcc`), Meson, Ninja, a C++20 compiler and Git, to build the bridge
+- libxcb, D-Bus, zstd, libarchive (`bsdtar`), bubblewrap and xdg-utils
+- Go, only if you want Native Access (it builds a small PowerShell forwarder)
+
+On Ubuntu 24.04 these are the packages the packaging container test builds with:
+
+```sh
+sudo apt install git meson ninja-build g++ pkg-config cmake patch libxcb1-dev libdbus-1-dev \
+  wine wine64 wine64-tools libwine-dev python3-gi gir1.2-gtk-4.0 \
+  zstd libarchive-tools bubblewrap xdg-utils golang-go
+```
+
+Then build the bridge and start the app from the checkout:
+
+```sh
+git clone https://github.com/oikoaudio/plugg.git
+cd plugg
+scripts/build-bridge.sh
+python3 scripts/build-powershell-forwarder.py    # optional, needs Go
+bin/plugg gui
+```
+
+The bridge build fetches the pinned yabridge source, applies Plugg's patches and takes a few minutes.
 
 ## Build
+
+The test fixtures also need Clang, lld-link and Wine's PE import libraries.
 
 ```sh
 scripts/build-bridge.sh

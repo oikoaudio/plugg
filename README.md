@@ -17,31 +17,18 @@ Install a plug-in with the vendor's own Windows installer, and it shows up in yo
 
 ## Install
 
-You need:
+There is no packaged release yet. The first one, v0.1.0, will have packages for Ubuntu and Debian (.deb), Fedora (.rpm) and Arch (AUR). [Watch the releases](https://github.com/oikoaudio/plugg/releases) to hear when it's out.
 
-- Python 3.12 or newer, GTK 4.10 or newer, and PyGObject
-- Wine (for `winegcc`), Meson, Ninja, a C++20 compiler and Git, to build the bridge
-- libxcb, D-Bus, zstd, libarchive (`bsdtar`), bubblewrap and xdg-utils
-- Go, only if you want Native Access (it builds a small PowerShell forwarder)
-
-Then build the bridge and start the app from the checkout:
+Until then, on Arch and Arch-based systems (CachyOS, EndeavourOS and others), build the package from source:
 
 ```sh
 git clone https://github.com/oikoaudio/plugg.git
-cd plugg
-scripts/build-bridge.sh
-python3 scripts/build-powershell-forwarder.py    # optional, needs Go
-bin/plugg gui
-```
-
-The bridge build fetches the pinned yabridge source, applies Plugg's patches and takes a few minutes. Plugg downloads the Proton runtime the first time it needs it and checks it by hash.
-
-On Arch-based systems (Arch, CachyOS, EndeavourOS and others), the package does all of that and puts `plugg` on your path:
-
-```sh
 cd plugg/packaging/aur/plugg-git
 makepkg -si
+plugg gui
 ```
+
+The build takes a few minutes, because it compiles the plug-in bridge from pinned sources. On other distributions, [build from a checkout](docs/building.md#build-from-a-checkout). Plugg downloads its Proton runtime the first time it needs it and checks it by hash.
 
 Drop in an EXE, MSI or Windows VST3. Leave any BIN files next to an EXE, and Plugg copies them too. Then point your DAW at `~/.vst3/plugg`, where each plug-in appears as a bundle named after itself.
 
