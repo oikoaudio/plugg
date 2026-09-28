@@ -11,7 +11,7 @@ The window showed the library through four tabs, one for each kind of record the
 `plugg/library_view.py` draws the library as one list, ordered by how often each thing is used:
 
 1. **Needs you.** Only what blocks you or puts an activation at risk: a protected environment whose machine identity has drifted. Usually this section is absent.
-2. **Vendors.** One row per vendor, by name, with its plug-in count, its size, and its own app as the button (Open Kilohearts Installer, Open Native Access). A shared iLok environment becomes an iLok row, which owns the size and settings, and one row per vendor in it, each with its own app. A helper's status, such as plug-ins waiting for activation, is a quiet line on its row. Opening a row lists its plug-ins.
+2. **Vendors.** One row per vendor, by name, with a status dot (green: in your DAW; amber: something waiting for you, with the button that does it on the row; blue: its app is running), with its plug-in count, its size, and its own app as the button (Open Kilohearts Installer, Open Native Access). A shared iLok environment becomes an iLok row, which owns the size and settings, and one row per vendor in it, each with its own app. A helper's status, such as plug-ins waiting for activation, is a quiet line on its row. Opening a row lists its plug-ins.
 3. **Cleanup.** A folded line under the vendors: orphaned, archived or dangling environments, unused runtimes, nested libraries, and space in the library folder that none of its parts explains, with what deleting them would free.
 4. **The whole folder**, added up by part in the footer.
 

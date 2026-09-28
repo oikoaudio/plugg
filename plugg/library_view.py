@@ -241,19 +241,6 @@ def unpublished(records, known_modules):
     return found
 
 
-#: Colour direction being compared (sketch only): '', 'dots', 'monograms' or 'warm'.
-STYLE = os.environ.get('PLUGG_STYLE', '')
-
-
-def monogram(title):
-    """Two letters a person would recognise: initials, or the start of one word."""
-    words = [w for w in title.replace('-', ' ').split() if w[:1].isalnum()]
-    if len(words) >= 2:
-        return (words[0][0] + words[1][0]).upper()
-    word = words[0] if words else '?'
-    return word[:2] if word[:1].islower() else word[:1].upper() + word[1:2].lower()
-
-
 def plural(count, word):
     return '%d %s%s' % (count, word, '' if count == 1 else 's')
 
@@ -305,8 +292,6 @@ def bar(fraction, *classes):
     widget = Gtk.ProgressBar(accessible_role=Gtk.AccessibleRole.PRESENTATION)
     widget.set_fraction(max(0.0, min(1.0, fraction)))
     widget.add_css_class('lib-bar')
-    if STYLE == 'warm':
-        widget.add_css_class('lib-bar-warm')
     for name in classes:
         widget.add_css_class(name)
     widget.set_valign(Gtk.Align.CENTER)
@@ -676,36 +661,26 @@ class LibraryView:
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
         name = text(row['title'], 'lib-name', ellipsize=True)
-        if STYLE == 'dots':
-            # State at a glance: all in the DAW, some waiting, or its app running.
-            running = any(c.has_css_class('running') for c in row['apps'])
-            state = ('running' if running else 'waiting' if row.get('waiting')
-                     else 'ok' if row['plugins'] else 'idle')
-            if row.get('meta'):
-                # The licence manager has no state of its own; it sums up the
-                # vendors that share it.
-                state = 'waiting' if row.get('waiting_total') else None
-            line = Gtk.Box(spacing=8)
-            dot = Gtk.Box(accessible_role=Gtk.AccessibleRole.PRESENTATION)
-            dot.add_css_class('lib-dot')
-            dot.add_css_class('lib-dot-' + (state or 'none'))
-            dot.set_tooltip_text({'running': 'Its app is running', 'ok': 'Its plug-ins are in your DAW',
-                                  'waiting': 'Something is waiting for you: see the button on this row',
-                                  'idle': 'Nothing in your DAW yet'}.get(state))
-            dot.set_valign(Gtk.Align.CENTER)
-            line.append(dot)
-            line.append(name)
-            titles.append(line)
-        else:
-            titles.append(name)
-        if STYLE == 'monograms':
-            import zlib
-            tile = text(monogram(row['title']), 'lib-mono', 'lib-mono-%d' % (zlib.crc32(row['title'].casefold().encode()) % 6))
-            tile.update_property([Gtk.AccessibleProperty.LABEL], [''])
-            tile.set_size_request(34, 34)
-            tile.set_xalign(0.5)
-            tile.set_valign(Gtk.Align.CENTER)
-            head.append(tile)
+        # The status dot: all in the DAW (green), something waiting for you
+        # (amber), or its app running (blue). The words on the row say the same.
+        running = any(c.has_css_class('running') for c in row['apps'])
+        state = ('running' if running else 'waiting' if row.get('waiting')
+                 else 'ok' if row['plugins'] else 'idle')
+        if row.get('meta'):
+            # The licence manager has no state of its own; it sums up the
+            # vendors that share it.
+            state = 'waiting' if row.get('waiting_total') else None
+        line = Gtk.Box(spacing=8)
+        dot = Gtk.Box(accessible_role=Gtk.AccessibleRole.PRESENTATION)
+        dot.add_css_class('lib-dot')
+        dot.add_css_class('lib-dot-' + (state or 'none'))
+        dot.set_tooltip_text({'running': 'Its app is running', 'ok': 'Its plug-ins are in your DAW',
+                              'waiting': 'Something is waiting for you: see the button on this row',
+                              'idle': 'Nothing in your DAW yet'}.get(state))
+        dot.set_valign(Gtk.Align.CENTER)
+        line.append(dot)
+        line.append(name)
+        titles.append(line)
         waiting = row.get('waiting') or []
         activation = row.get('ilok') is not None
         if row.get('meta'):
