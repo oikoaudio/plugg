@@ -72,3 +72,9 @@ plugg-scan "$HOME/.vst3/plugg/NAME.vst3/Contents/x86_64-linux/NAME.so" /tmp/out.
 
 An exception thrown and caught in a plain winegcc-built Windows program does
 *not* reproduce it: the collision is what matters, not the exception.
+
+## Probe
+
+`null-outputs.c` makes the dispatcher's call on its own frame: `RtlVirtualUnwind2()` with no handler data and no handler output. It writes `started` to `C:\unwind-probe.txt` first and `survived` once the call returns, so `started` alone means the bug. Build it with `sh diagnostics/collided-unwind/build.sh`. `scripts/test-runtime-patches.py` runs it with the other probes.
+
+On 2026-09-28, stock UMU-Proton 10.0-4 crashed in the call. A copy of `plugg-1` with a local build of the patched `ntdll.dll` returned from it.
