@@ -100,6 +100,9 @@ overrides:
       - python3 >= 3.12
       - python3-gobject
       - gtk4 >= 4.10
+      # The cairo typelib Gtk 4 imports. Fedora 44's gtk4 no longer pulls
+      # it in, and without it `from gi.repository import Gtk` fails.
+      - gobject-introspection
       - glibc >= 2.34
       - libstdc++ >= 11
       - libgcc
