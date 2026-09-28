@@ -122,7 +122,8 @@ def main():
     version = re.search(r'^__version__ = "(.+)"', (REPO / 'plugg/__init__.py').read_text(), re.M).group(1)
     epoch = int(subprocess.check_output(['git', '-C', str(REPO), 'log', '-1', '--format=%ct']).strip())
     image = 'plugg-bridge-builder:' + hashlib.sha256((CONTEXT / 'Dockerfile').read_bytes()).hexdigest()[:12]
-    run('docker', 'build', '--quiet', '--tag', image, CONTEXT, stdout=subprocess.DEVNULL)
+    # The full build log goes to stderr, so a failed package download says why.
+    run('docker', 'build', '--progress=plain', '--tag', image, CONTEXT, stdout=sys.stderr)
     built = run('docker', 'run', '--rm', '--interactive', '--label', LABEL, image, 'sh', '-c', BUILD,
                 input=tracked_files(), stdout=subprocess.PIPE).stdout
     args.output.mkdir(parents=True, exist_ok=True)
