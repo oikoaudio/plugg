@@ -71,7 +71,7 @@ button.running:hover { background: alpha(@oiko_accent, 0.12); }
 .lib-section-title { font-family: "JetBrains Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
                      font-size: 0.79em; letter-spacing: 1px; text-transform: uppercase; color: @oiko_muted; }
 .lib-section separator { background: @oiko_border; min-height: 1px; }
-.lib-list, list.lib-list { background: @oiko_panel; border: 1px solid alpha(@oiko_border, 0.7); border-radius: 10px; padding: 0; }
+.lib-list, list.lib-list { background: @oiko_panel; color: @oiko_text; border: 1px solid alpha(@oiko_border, 0.7); border-radius: 10px; padding: 0; }
 list.lib-list > row.lib-item { padding: 12px 16px 10px 16px; border-top: 1px solid alpha(@oiko_border, 0.5);
                                background: transparent; }
 list.lib-list > row.lib-item:first-child { border-top: none; }
@@ -90,7 +90,7 @@ button.lib-menu-item { background: transparent; border: none; padding: 6px 10px;
 button.lib-menu-item:hover { background: @oiko_hover; }
 button.lib-menu-danger { color: @oiko_error; }
 popover.lib-menu separator { margin: 4px 0; background: alpha(@oiko_border, 0.6); }
-.lib-name { font-size: 1.07em; font-weight: 500; }
+.lib-name { font-size: 1.07em; font-weight: 500; color: @oiko_text; }
 .lib-meta, .lib-figure, .lib-plugin, .lib-chip { font-family: "JetBrains Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
                                                    font-feature-settings: "tnum"; }
 .lib-meta { font-size: 0.79em; color: @oiko_muted; }
