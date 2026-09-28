@@ -13,12 +13,13 @@ for shows up as well. There is no third place for an environment to be.
 
 SPDX-License-Identifier: GPL-3.0-or-later
 """
+import os
 from pathlib import Path
 
 import gi
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import environments as survey  # noqa: E402
 
@@ -45,6 +46,22 @@ def text(value, *classes, wrap=False, xalign=0.0, ellipsize=False, selectable=Fa
     widget.set_selectable(selectable)
     for name in classes:
         widget.add_css_class(name)
+    return widget
+
+
+def speak(widget, label=None, description=None):
+    """What a screen reader says for a widget whose look alone does not say it."""
+    props, values = [], []
+    if label:
+        # A button is otherwise named by its own text, which wins over this.
+        widget.reset_relation(Gtk.AccessibleRelation.LABELLED_BY)
+        props.append(Gtk.AccessibleProperty.LABEL)
+        values.append(label)
+    if description:
+        props.append(Gtk.AccessibleProperty.DESCRIPTION)
+        values.append(description)
+    if props:
+        widget.update_property(props, values)
     return widget
 
 
@@ -243,7 +260,11 @@ class Section(Gtk.Box):
     def __init__(self, title, trailing=''):
         super().__init__(spacing=10)
         self.add_css_class('lib-section')
-        self.append(text(title, 'lib-section-title'))
+        heading = Gtk.Label(label=title, xalign=0.0, accessible_role=Gtk.AccessibleRole.HEADING)
+        heading.add_css_class('lib-section-title')
+        heading.update_property([Gtk.AccessibleProperty.LEVEL, Gtk.AccessibleProperty.LABEL],
+                                [2, title + (', ' + trailing if trailing else '')])
+        self.append(heading)
         rule = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
         rule.set_hexpand(True)
         rule.set_valign(Gtk.Align.CENTER)
@@ -253,8 +274,12 @@ class Section(Gtk.Box):
 
 
 def group():
-    """One panel per section, rows divided by hairlines: a list, not a pile of cards."""
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    """One panel per section, rows divided by hairlines: a list, not a pile of cards.
+
+    A ListBox, so the keyboard works the way it does in any list: Up and Down
+    move between rows, Enter or Space activates one, Tab goes into its buttons.
+    """
+    box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
     box.add_css_class('lib-list')
     box.set_overflow(Gtk.Overflow.HIDDEN)
     return box
@@ -262,7 +287,9 @@ def group():
 
 def bar(fraction, *classes):
     """ncdu's bar: how much of the largest this one is, and nothing else."""
-    widget = Gtk.ProgressBar()
+    # Decoration: the size is said in words on the same row, and a screen
+    # reader announcing "22 percent" would only add noise.
+    widget = Gtk.ProgressBar(accessible_role=Gtk.AccessibleRole.PRESENTATION)
     widget.set_fraction(max(0.0, min(1.0, fraction)))
     widget.add_css_class('lib-bar')
     for name in classes:
@@ -287,12 +314,23 @@ class LibraryView:
         self.softube = set()
         self.expanded = set()
         self.menus = {}
+        self.row_actions = {}
+        self.vendor_list = None
         self.widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         self.widget.add_css_class('library')
+        pointer = Gtk.EventControllerMotion()
+        pointer.connect('motion', self.pointer_moved)
+        self.widget.add_controller(pointer)
         top = Gtk.Box(spacing=12)
         self.search = Gtk.SearchEntry(placeholder_text='Find a plug-in or vendor')
+        speak(self.search, 'Find a plug-in or vendor',
+              'Type anywhere to search. Down goes to the results, Escape clears the search.')
         self.search.set_hexpand(True)
         self.search.connect('search-changed', self.search_changed)
+        self.search.connect('stop-search', self.search_stopped)
+        down = Gtk.EventControllerKey()
+        down.connect('key-pressed', self.search_key)
+        self.search.add_controller(down)
         top.append(self.search)
         top.append(button('Recipes & fixes', lambda: self.host.open_recipes(), 'compact', 'lib-quiet',
                           tooltip='Setups for vendors, and reusable fixes for plug-ins that do not work at first'))
@@ -305,6 +343,98 @@ class LibraryView:
         self.query = entry.get_text().strip().casefold()
         if self.last:
             self.render(*self.last)
+
+    # ------------------------------------------------------------ keyboard
+
+    def attach(self, window):
+        """Keys that work anywhere in the window: typing searches, Ctrl+F goes to search."""
+        self.search.set_key_capture_widget(window)
+        shortcuts = Gtk.ShortcutController(scope=Gtk.ShortcutScope.GLOBAL)
+        shortcuts.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string('<Control>f'),
+                                            action=Gtk.CallbackAction.new(lambda *_: self.search.grab_focus() or True)))
+        window.add_controller(shortcuts)
+
+    def search_stopped(self, entry):
+        """Escape clears the search and goes back to the list."""
+        entry.set_text('')
+        self.focus_first_row()
+
+    def search_key(self, controller, keyval, keycode, state):
+        if keyval == Gdk.KEY_Down:
+            return self.focus_first_row()
+        return False
+
+    def focus_first_row(self):
+        row = self.vendor_list.get_row_at_index(0) if self.vendor_list is not None else None
+        if row is not None:
+            row.grab_focus()
+            self.show_focus(row)
+            return True
+        return False
+
+    def show_focus(self, widget=None):
+        """Mark the list as keyboard-driven, so the focused row gets its ring.
+
+        GTK's own focus-visible state is not reliably set when focus moves
+        between list rows, so the view keeps track itself: keys turn the ring
+        on, moving the pointer turns it off again.
+        """
+        self.widget.add_css_class('keyboard')
+
+    def pointer_moved(self, *_):
+        if self.widget.has_css_class('keyboard'):
+            self.widget.remove_css_class('keyboard')
+
+    def add_row(self, listing, widget, activate=None, menu=None, classes=(), label=None, expanded=None):
+        """Put a row in a list. Enter on it runs `activate`; the Menu key opens `menu`.
+
+        `label` is what a screen reader says for the row. When `expanded` is
+        given the row can open, and says whether it is open; `activate` then
+        returns the new state.
+        """
+        row = Gtk.ListBoxRow()
+        row.set_child(widget)
+        if label:
+            speak(row, label, 'Enter shows its plug-ins. The Menu key opens its settings.'
+                  if expanded is not None and menu is not None else
+                  'Enter shows its plug-ins.' if expanded is not None else None)
+        if expanded is not None:
+            # GTK keeps this state as an int (true, false or undefined), not a bool.
+            row.update_state([Gtk.AccessibleState.EXPANDED], [int(bool(expanded))])
+            flip = activate
+
+            def activate():
+                row.update_state([Gtk.AccessibleState.EXPANDED], [int(bool(flip()))])
+        row.add_css_class('lib-item')
+        for name in classes:
+            row.add_css_class(name)
+        row.set_activatable(activate is not None)
+        self.row_actions[row] = (activate, menu)
+        listing.append(row)
+        return row
+
+    def listing(self):
+        box = group()
+        box.connect('row-activated', lambda _, row: (self.row_actions.get(row, (None, None))[0] or (lambda: None))())
+        keys = Gtk.EventControllerKey()
+        keys.connect('key-pressed', self.list_key, box)
+        box.add_controller(keys)
+        return box
+
+    def list_key(self, controller, keyval, keycode, state, box):
+        """The Menu key, or Shift+F10, opens the focused row's settings."""
+        if keyval in (Gdk.KEY_Up, Gdk.KEY_Down, Gdk.KEY_Home, Gdk.KEY_End, Gdk.KEY_Page_Up, Gdk.KEY_Page_Down):
+            self.show_focus(box)
+            return False
+        wants_menu = keyval == Gdk.KEY_Menu or (keyval == Gdk.KEY_F10 and state & Gdk.ModifierType.SHIFT_MASK)
+        if not wants_menu:
+            return False
+        row = box.get_focus_child()
+        menu = self.row_actions.get(row, (None, None))[1] if row is not None else None
+        if menu is None:
+            return False
+        menu.popup()
+        return True
 
     # ------------------------------------------------------------ the model
 
@@ -384,12 +514,14 @@ class LibraryView:
         measured = [sizes.get(r['id']) for r, _ in leftovers + vendors]
         largest = max([s for s in measured if s] or [1])
 
+        self.row_actions = {}
         if urgent:
             self.body.append(Section('needs you'))
-            listing = group()
+            listing = self.listing()
             self.body.append(listing)
             for record, problem in urgent:
-                listing.append(self.urgent_row(record, problem, helpers.get(record['id'], [])))
+                self.add_row(listing, self.urgent_row(record, problem, helpers.get(record['id'], [])),
+                             classes=('lib-urgent',))
 
         rows = []
         for record, _ in vendors:
@@ -402,13 +534,16 @@ class LibraryView:
             self.body.append(text('Nothing installed yet. Drop an installer or a VST3 above.', 'lib-dim'))
         elif not shown:
             self.body.append(text('Nothing matches “%s”.' % self.query, 'lib-dim'))
-        listing = group()
+        listing = self.listing()
+        self.vendor_list = listing
         if shown:
             self.body.append(listing)
         # By name, with what could not be identified at the end.
         for row, hits in sorted(shown, key=lambda item: (item[0]['title'] == UNIDENTIFIED,
                                                          item[0]['title'].casefold())):
-            listing.append(self.vendor_row(row, hits, largest))
+            widget, flip, menu, opened, spoken = self.vendor_row(row, hits, largest)
+            self.add_row(listing, widget, activate=flip, menu=menu, label=spoken,
+                         expanded=opened if flip else None)
 
         items = len(leftovers) + len(spare_runtimes) + len(nested) + len(unaccounted)
         if items:
@@ -430,12 +565,14 @@ class LibraryView:
         title.append(text(plural(items, 'item') + (' · ' + size_text(freeable) + ' reclaimable' if freeable else ''),
                           'lib-figure', 'lib-dim'))
         expander.set_label_widget(title)
-        listing = group()
+        speak(expander, 'Cleanup, ' + plural(items, 'item') + (', ' + size_text(freeable) + ' reclaimable'
+                                                               if freeable else ''))
+        listing = self.listing()
         listing.set_margin_top(8)
         for record, reason in leftovers:
-            listing.append(self.leftover_row(record, reason, sizes.get(record['id']), largest))
+            self.add_row(listing, self.leftover_row(record, reason, sizes.get(record['id']), largest))
         for name in spare_runtimes:
-            listing.append(self.simple_row(
+            self.add_row(listing, self.simple_row(
                 'Unused runtime ' + name, 'No environment uses it. It is downloaded again if one ever does.',
                 None, button('Reclaim', lambda n=name: self.host.reclaim_runtime(n), 'compact', 'lib-quiet')))
         for library in nested:
@@ -443,12 +580,12 @@ class LibraryView:
                             sensitive=not library.get('required_by'),
                             tooltip=('Needed by ' + ', '.join(library['required_by']))
                             if library.get('required_by') else None)
-            listing.append(self.simple_row(
+            self.add_row(listing, self.simple_row(
                 'Separate library ' + library['name'],
                 plural(library['environments'], 'environment') + ' with its own downloads and runtimes',
                 None, action))
         for name, size in unaccounted:
-            listing.append(self.simple_row(
+            self.add_row(listing, self.simple_row(
                 name, 'In the library folder, and nothing here lists it.', size,
                 button('Show folder', lambda n=name: self.host.show_folder(n), 'compact', 'lib-quiet')))
         expander.set_child(listing)
@@ -508,7 +645,6 @@ class LibraryView:
     def vendor_row(self, row, hits, largest):
         record = row['record']
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        box.add_css_class('lib-item')
         head = Gtk.Box(spacing=12)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
@@ -530,6 +666,8 @@ class LibraryView:
             titles.append(said)
         head.append(titles)
         for control in row['apps']:
+            # "Open manager" five times over says nothing to someone who hears it.
+            speak(control, '%s for %s' % (control.get_label(), row['title']), control.get_tooltip_text())
             head.append(control)
         # Every row keeps the size and settings columns, so the app buttons line
         # up down the list; a vendor sharing an environment leaves them empty.
@@ -538,8 +676,12 @@ class LibraryView:
         figure.set_xalign(1.0)
         figure.set_valign(Gtk.Align.CENTER)
         head.append(figure)
+        menu = None
         if row['owner']:
-            head.append(self.settings(record, row.get('helpers') or []))
+            menu = self.settings(record, row.get('helpers') or [])
+            speak(menu, 'Settings for ' + row['title'],
+                  'Show folder, rename, troubleshoot, licence handling and delete')
+            head.append(menu)
         else:
             slot = Gtk.Box()
             slot.set_size_request(26, -1)
@@ -549,6 +691,7 @@ class LibraryView:
         toggle.add_css_class('lib-toggle')
         toggle.set_valign(Gtk.Align.CENTER)
         toggle.set_tooltip_text('Show its plug-ins')
+        speak(toggle, 'Show the plug-ins of ' + row['title'])
         listed = row['plugins'] + row.get('waiting', [])
         toggle.set_sensitive(bool(listed))
         toggle.set_opacity(1.0 if listed else 0.0)
@@ -568,11 +711,14 @@ class LibraryView:
             revealer.set_reveal_child(now)
             toggle.set_icon_name('pan-down-symbolic' if now else 'pan-end-symbolic')
             (self.expanded.add if now else self.expanded.discard)(row['key'])
-        toggle.connect('clicked', flip)
-        click = Gtk.GestureClick()
-        click.connect('released', lambda gesture, n, x, y: flip() if gesture.get_current_button() == 1 else None)
-        titles.add_controller(click)
-        return box
+            return now
+        toggle.connect('clicked', lambda *_: flip())
+        toggle.set_focusable(False)
+        spoken = ', '.join(x for x in (row['title'], meta.replace('  ·  ', ', '),
+                                        size_text(row['size']) if row['owner'] else None) if x)
+        if row.get('note'):
+            spoken += '. ' + row['note']
+        return box, (flip if listed else None), menu, opened and bool(listed), spoken
 
     def details(self, plugins, hits, waiting=()):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -642,6 +788,11 @@ class LibraryView:
             warning.set_max_width_chars(44)
             box.append(warning)
         item('Delete…', lambda: self.host.delete_environment(record), 'lib-menu-danger')
+        arrows = Gtk.EventControllerKey()
+        arrows.connect('key-pressed', lambda c, key, code, state: popover.child_focus(
+            Gtk.DirectionType.TAB_FORWARD if key == Gdk.KEY_Down else Gtk.DirectionType.TAB_BACKWARD)
+            if key in (Gdk.KEY_Down, Gdk.KEY_Up) else False)
+        box.add_controller(arrows)
         popover.set_child(box)
         menu.set_popover(popover)
         self.menus[record['id']] = menu
@@ -691,8 +842,6 @@ class LibraryView:
 
     def urgent_row(self, record, problem, helpers):
         row = Gtk.Box(spacing=12)
-        row.add_css_class('lib-item')
-        row.add_css_class('lib-urgent')
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
         titles.append(text(self.names.get(record['id'], survey.summarize(record)), 'lib-name', ellipsize=True))
@@ -703,7 +852,6 @@ class LibraryView:
 
     def leftover_row(self, record, reason, size, largest):
         row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        row.add_css_class('lib-item')
         head = Gtk.Box(spacing=12)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
@@ -723,7 +871,6 @@ class LibraryView:
 
     def simple_row(self, title, reason, size, action):
         row = Gtk.Box(spacing=12)
-        row.add_css_class('lib-item')
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
         titles.append(text(title, 'lib-name', ellipsize=True))
@@ -854,7 +1001,7 @@ def library_data(root):
     breakdown['environments'] = sum(sizes.values())
     soft = {r['id'] for r in records if not r.get('dangling') and softube.configured(Path(r['path']))}
     return (records, setups, jobs, sizes, breakdown, survey.unused_runtimes(store),
-            survey.nested_libraries(store)), plugins, soft, store.root, [p['module'] for p in every]
+            survey.nested_libraries(store)), plugins, soft, store.root, [p.get('module') for p in every]
 
 
 SAMPLE = {
@@ -969,6 +1116,13 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
     app = Gtk.Application(application_id='com.oikoaudio.PluggLibraryDemo', flags=Gio.ApplicationFlags.NON_UNIQUE)
 
     def activate(_):
+        # For checking the layout the way people with low vision see it:
+        # the desktop's text scale (as Large Text sets it) and high contrast.
+        settings = Gtk.Settings.get_default()
+        if os.environ.get('PLUGG_TEXT_SCALE'):
+            settings.set_property('gtk-xft-dpi', int(96 * 1024 * float(os.environ['PLUGG_TEXT_SCALE'])))
+        if os.environ.get('PLUGG_HIGH_CONTRAST'):
+            settings.set_property('gtk-interface-contrast', Gtk.InterfaceContrast.MORE)
         window = Gtk.ApplicationWindow(application=app, title='Plugg')
         window.set_default_size(width, height)
         theme.install_font()
@@ -990,6 +1144,7 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
         page.append(view.widget)
         scroll.set_child(page)
         window.set_child(scroll)
+        view.attach(window)
         window.present()
         if snapshot:
             if menu:
@@ -1002,7 +1157,7 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
                 print(json.dumps({'snapshot': snapshot}), flush=True)
                 app.quit()
                 return False
-            GLib.timeout_add(1500, shoot)
+            GLib.timeout_add(int(os.environ.get('PLUGG_SNAPSHOT_DELAY', '1500')), shoot)
 
     app.connect('activate', activate)
     app.run([])

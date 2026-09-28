@@ -276,6 +276,14 @@ class Manager(Gtk.Application):
         content.append(self.recipe_notice_row)
         content.append(label("Developer preview · Separate environments are not security sandboxes. Compatibility testing is in progress.", "muted", True))
         self.stack.connect('notify::visible-child-name', self.tab_changed)
+        # Keys: typing searches the library, Ctrl+F goes to its search, Ctrl+O adds a file.
+        self.library_view.attach(self.window)
+        if self.tab != 'library':
+            self.library_view.search.set_key_capture_widget(None)
+        adding = Gtk.ShortcutController(scope=Gtk.ShortcutScope.GLOBAL)
+        adding.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string('<Control>o'),
+                                         action=Gtk.CallbackAction.new(lambda *_: self.choose() or True)))
+        self.window.add_controller(adding)
         self.refresh()
         if self.tab == 'library':
             self.measure_environments()
@@ -340,6 +348,8 @@ class Manager(Gtk.Application):
     def tab_changed(self, stack, _):
         """Come back to the view you were working in, and survey only on arrival."""
         self.tab = stack.get_visible_child_name() or 'plugins'
+        # Typing searches the library only while the library is what you see.
+        self.library_view.search.set_key_capture_widget(self.window if self.tab == 'library' else None)
         self.save_interface_state()
         self.last = None
         self.refresh()
@@ -2236,7 +2246,7 @@ class Manager(Gtk.Application):
                 self.library_view.update(survey.survey(self.store), setups, jobs, self.sizes, self.breakdown,
                                          survey.unused_runtimes(self.store), survey.nested_libraries(self.store),
                                          plugins=plugins, softube={d.name for _, d in softube_setups},
-                                         known_modules=[p['module'] for p in self.store.plugins()])
+                                         known_modules=[p.get('module') for p in self.store.plugins()])
             self.clear(self.environments)
             # Surveying reads a licensing record and a registry hive per
             # environment. That is nothing once and a stutter every time the

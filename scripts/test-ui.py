@@ -38,6 +38,9 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
     plugins = [dict(name='Example', env_id='direct', hash='fixture', status='ready', message='Ready',
                     publication=str(root / 'published/Example.vst3'),
                     metadata=json.dumps({'classes': [{'name': 'Example', 'vendor': 'Example Vendor', 'version': '1.0'}]}))]
+    # The library list is built from environment folders, so the example has one.
+    (root / 'environments/direct').mkdir(parents=True)
+    (root / 'environments/direct/environment.json').write_text(json.dumps({'recipe': 'standalone-vst3'}))
     store = SimpleNamespace(root=root, jobs=lambda: jobs, plugins=lambda: plugins,
                             job=lambda job_id: next(job for job in jobs if job['id'] == job_id))
     setups = [dict(job='direct', recipe='managed-helper', name='Example Manager',
@@ -89,6 +92,27 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
                 assert any(isinstance(w, Gtk.Button) and w.get_label() == 'Open the Recipes tab'
                            for w in descendants(help_window))
                 help_window.close()
+
+                # The library list works from the keyboard and tells a screen
+                # reader what each row is: a row is an activatable list row with
+                # a spoken name, Enter opens it, and the expanded state follows.
+                self.stack.set_visible_child_name('library')
+                self.refresh()
+                view = self.library_view
+                first = view.vendor_list.get_row_at_index(0) if view.vendor_list else None
+                assert first is not None, 'the library should list the example vendor'
+                assert first.get_activatable(), 'Enter must be able to act on a vendor row'
+                assert Gtk.test_accessible_has_property(first, Gtk.AccessibleProperty.LABEL)
+                assert Gtk.test_accessible_has_state(first, Gtk.AccessibleState.EXPANDED)
+                opens, settings = view.row_actions[first]
+                revealer = next(w for w in descendants(first) if isinstance(w, Gtk.Revealer))
+                before = revealer.get_reveal_child()
+                opens()
+                assert revealer.get_reveal_child() != before, 'Enter on a row should show or hide its plug-ins'
+                assert settings is not None and Gtk.test_accessible_has_property(settings, Gtk.AccessibleProperty.LABEL)
+                assert not any(isinstance(w, Gtk.ProgressBar)
+                               and w.get_accessible_role() != Gtk.AccessibleRole.PRESENTATION
+                               for w in descendants(view.widget)), 'size bars are decoration'
 
                 # Every view exists and can be entered. Switching tabs is the
                 # one interaction nothing else covers, and each one rebuilds.
@@ -300,8 +324,9 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
                 self.save_interface_state()
                 assert Manager(store).tab == 'recipes', 'the recipe tab should survive reopening'
                 result['passed'] = True
-                print('GTK checks passed: tabs, search, theme, vendor card, source details, '
-                      'the recipe report and its refusal, and malformed-recipe isolation.', flush=True)
+                print('GTK checks passed: the library list by keyboard and screen reader, tabs, search, '
+                      'theme, vendor card, source details, the recipe report and its refusal, and '
+                      'malformed-recipe isolation.', flush=True)
             except Exception as exc:
                 import traceback
                 traceback.print_exc()

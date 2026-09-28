@@ -21,6 +21,14 @@ Rare actions sit behind a settings (cogwheel) button on each environment's row: 
 
 The view calls the manager's existing actions, so deletion still needs the typed confirmation and passes the licensing guard. Recipes open from "Recipes & fixes" in the top bar and from "Troubleshoot…" in the settings menu. The older tabs are still there, behind the grid button at the left of the title bar, for comparison.
 
+## Keyboard and accessibility
+
+The list works without a mouse. Up and Down move between rows, and Enter or Space shows a row's plug-ins. Tab moves into a row's buttons, and Enter runs one. The Menu key or Shift+F10 opens a row's settings, where Up and Down move and Escape closes. Typing anywhere starts a search. Ctrl+F goes to the search box, Down goes from there to the results, and Escape clears it. Ctrl+O adds a file. A solid ring marks the row the keyboard is on.
+
+GTK exposes the interface to screen readers such as Orca through AT-SPI. Each row has a spoken summary ("Klevgrand, 4 plug-ins, 921.6 MB") and says whether it is expanded. Icon buttons are named ("Settings for Klevgrand"), and app buttons say whose they are ("Open manager for Klevgrand"). The size bars are hidden from screen readers as decoration. Text sizes are relative, so the desktop's text-size setting scales the window, and a `prefers-contrast: more` block turns muted text full strength and thickens the focus ring.
+
+`PLUGG_TEXT_SCALE=1.5` and `PLUGG_HIGH_CONTRAST=1` set those desktop settings for the preview. `scripts/test-ui.py` checks row activation, the spoken labels and the expanded state.
+
 ## Looking at it without a screen
 
 ```sh

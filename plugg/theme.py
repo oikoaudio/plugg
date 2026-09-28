@@ -11,27 +11,27 @@ def css(mode='dark'):
     roles = PALETTES[mode]
     definitions = '\n'.join(f'@define-color oiko_{key} {value};' for key,value in roles.items())
     return (definitions + '''
-window { background: @oiko_page; color: @oiko_text; font-family: Ubuntu, sans-serif; font-size: 14px; }
+window { background: @oiko_page; color: @oiko_text; font-family: Ubuntu, sans-serif; }
 headerbar { background: @oiko_panel; color: @oiko_text; border-bottom: none; box-shadow: none; }
 headerbar button { padding: 4px 8px; }
 .app-tabs button { min-width: 0; padding: 7px 10px; }
 .app-tabs button:checked { background: @oiko_selection; color: @oiko_panel; border-color: @oiko_selection; }
-.hero { font-size: 20px; font-weight: 600; }
+.hero { font-size: 1.43em; font-weight: 600; }
 .subtitle, .muted { color: @oiko_muted; }
-.section-title { font-size: 18px; font-weight: 500; }
-.plugin-name { font-size: 18px; font-weight: 500; }
-.status { font-size: 11px; color: @oiko_muted; }
+.section-title { font-size: 1.29em; font-weight: 500; }
+.plugin-name { font-size: 1.29em; font-weight: 500; }
+.status { font-size: 0.79em; color: @oiko_muted; }
 .drop-area { background: @oiko_panel; border: 1px solid alpha(@oiko_accent, 0.35); border-radius: 10px; padding: 24px; min-height: 100px; }
 .card { background: @oiko_panel; border: 1px solid @oiko_border; border-radius: 8px; padding: 12px; }
 .component-card { padding: 10px; }
 .component-purpose { color: @oiko_text; opacity: 1; }
-.card-title { font-size: 15px; font-weight: 500; color: @oiko_text; opacity: 1; }
-button.count { padding: 1px 8px; min-height: 18px; font-size: 12px; color: @oiko_muted; }
+.card-title { font-size: 1.07em; font-weight: 500; color: @oiko_text; opacity: 1; }
+button.count { padding: 1px 8px; min-height: 18px; font-size: 0.86em; color: @oiko_muted; }
 .plugin-row { padding: 4px 12px; border-radius: 6px; }
 .plugin-row:hover { background: @oiko_hover; }
 button, dropdown > button { background: @oiko_panel; color: @oiko_text; border: 1px solid @oiko_border; border-radius: 6px; padding: 7px 12px; min-height: 24px; box-shadow: none; }
 .compact-icon > button { padding: 4px; min-height: 20px; min-width: 20px; }
-button.compact { padding: 4px 10px; min-height: 20px; font-size: 13px; }
+button.compact { padding: 4px 10px; min-height: 20px; font-size: 0.93em; }
 button.destructive { background: @oiko_error; color: @oiko_panel; border-color: @oiko_error; }
 button.destructive:disabled { opacity: 0.4; }
 button.dim { opacity: 0.6; }
@@ -44,7 +44,7 @@ button.suggested-action { background: @oiko_accent; color: @oiko_accent_text; bo
 button:disabled { opacity: 0.45; }
 entry, searchentry { background: @oiko_field; color: @oiko_text; border: 1px solid @oiko_border; border-radius: 6px; padding: 8px; min-height: 24px; }
 popover > contents { background: @oiko_panel; color: @oiko_text; border: 1px solid @oiko_border; }
-expander > title { padding: 12px 4px; font-size: 18px; color: @oiko_text; }
+expander > title { padding: 12px 4px; font-size: 1.29em; color: @oiko_text; }
 /* A section header reads as one bar across the window. The folding one is the
    expander's own title, so the whole bar — arrow included — is the hit area. */
 .section-header, expander.section > title { background: @oiko_panel; border: 1px solid @oiko_border; border-radius: 8px; padding: 10px 14px; }
@@ -54,28 +54,34 @@ selection { background: @oiko_selection; color: @oiko_panel; }
 /* Running, but its window may be hidden: visibly live rather than greyed out. */
 button.running { border-color: @oiko_accent; color: @oiko_accent; }
 button.running:hover { background: alpha(@oiko_accent, 0.12); }
-.running-note { font-size: 11px; color: @oiko_accent; }
+.running-note { font-size: 0.79em; color: @oiko_accent; }
 /* What a recipe declares, ranked. The colour is the ranking; the sentence
    beside it is what tells someone whether to care. */
-.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid @oiko_border; color: @oiko_muted; }
+.chip { font-size: 0.79em; padding: 2px 8px; border-radius: 999px; border: 1px solid @oiko_border; color: @oiko_muted; }
 .chip-danger { color: @oiko_error; border-color: @oiko_error; }
 .chip-caution { color: @oiko_accent; border-color: @oiko_accent; }
 .flag-danger { color: @oiko_error; }
 .flag-caution { color: @oiko_accent; }
-.pinned { font-family: monospace; font-size: 11px; color: @oiko_muted; }
+.pinned { font-family: monospace; font-size: 0.79em; color: @oiko_muted; }
 /* The library list. Figures and identifiers are monospace with even digits,
    so sizes line up down the column the way they do in a terminal; everything
    a person reads as words stays in the interface font. */
 .library searchentry { padding: 6px 10px; }
 .lib-section { margin-top: 18px; margin-bottom: 2px; }
 .lib-section-title { font-family: "JetBrains Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
-                     font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: @oiko_muted; }
+                     font-size: 0.79em; letter-spacing: 1px; text-transform: uppercase; color: @oiko_muted; }
 .lib-section separator { background: @oiko_border; min-height: 1px; }
-.lib-list { background: @oiko_panel; border: 1px solid alpha(@oiko_border, 0.7); border-radius: 10px; }
-.lib-item { padding: 12px 16px 10px 16px; border-top: 1px solid alpha(@oiko_border, 0.5); }
-.lib-item:first-child { border-top: none; }
-.lib-item:hover { background: alpha(@oiko_text, 0.025); }
-.lib-urgent { border-left: 3px solid @oiko_accent; padding-left: 13px; }
+.lib-list, list.lib-list { background: @oiko_panel; border: 1px solid alpha(@oiko_border, 0.7); border-radius: 10px; padding: 0; }
+list.lib-list > row.lib-item { padding: 12px 16px 10px 16px; border-top: 1px solid alpha(@oiko_border, 0.5);
+                               background: transparent; }
+list.lib-list > row.lib-item:first-child { border-top: none; }
+list.lib-list > row.lib-item:hover { background: alpha(@oiko_text, 0.025); }
+/* Where the keyboard is: a solid ring inside the row, so the hairlines stay put.
+   The view adds .keyboard while it is driven by keys (see LibraryView.show_focus). */
+list.lib-list > row.lib-item:focus-visible,
+.library.keyboard list.lib-list > row.lib-item:focus { box-shadow: inset 0 0 0 2px @oiko_selection;
+                                                        background: alpha(@oiko_selection, 0.08); }
+list.lib-list > row.lib-urgent { border-left: 3px solid @oiko_accent; padding-left: 13px; }
 /* Cleanup is housekeeping: a folded line under the vendors, not a banner. */
 expander.lib-cleanup { margin-top: 18px; }
 expander.lib-cleanup > title { padding: 4px 0; }
@@ -84,16 +90,16 @@ button.lib-menu-item { background: transparent; border: none; padding: 6px 10px;
 button.lib-menu-item:hover { background: @oiko_hover; }
 button.lib-menu-danger { color: @oiko_error; }
 popover.lib-menu separator { margin: 4px 0; background: alpha(@oiko_border, 0.6); }
-.lib-name { font-size: 15px; font-weight: 500; }
+.lib-name { font-size: 1.07em; font-weight: 500; }
 .lib-meta, .lib-figure, .lib-plugin, .lib-chip { font-family: "JetBrains Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
                                                    font-feature-settings: "tnum"; }
-.lib-meta { font-size: 11px; color: @oiko_muted; }
-.lib-figure { font-size: 13px; color: @oiko_text; }
+.lib-meta { font-size: 0.79em; color: @oiko_muted; }
+.lib-figure { font-size: 0.93em; color: @oiko_text; }
 .lib-dim { color: @oiko_muted; }
-.lib-note { font-size: 12px; color: @oiko_muted; }
-.lib-chip { font-size: 10px; padding: 1px 7px; border-radius: 4px; border: 1px solid @oiko_border; color: @oiko_muted; }
+.lib-note { font-size: 0.86em; color: @oiko_muted; }
+.lib-chip { font-size: 0.71em; padding: 1px 7px; border-radius: 4px; border: 1px solid @oiko_border; color: @oiko_muted; }
 .lib-chip-caution { color: @oiko_accent; border-color: alpha(@oiko_accent, 0.6); }
-.lib-plugin { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: alpha(@oiko_text, 0.05);
+.lib-plugin { font-size: 0.79em; padding: 2px 8px; border-radius: 4px; background: alpha(@oiko_text, 0.05);
               color: @oiko_text; }
 .lib-plugin-waiting { background: transparent; border: 1px dashed alpha(@oiko_text, 0.25); color: @oiko_muted; }
 .lib-plugin-hit { background: alpha(@oiko_selection, 0.25); }
@@ -111,9 +117,20 @@ button.lib-danger { background: transparent; color: @oiko_error; border-color: a
 button.lib-danger:hover { background: alpha(@oiko_error, 0.12); }
 .drop-area.drop-compact { padding: 10px 14px; min-height: 0; border-color: alpha(@oiko_accent, 0.25); }
 .window-title { font-weight: 600; }
-.lib-preview { font-size: 12px; color: @oiko_selection; padding: 8px 12px; border-radius: 6px;
+.lib-preview { font-size: 0.86em; color: @oiko_selection; padding: 8px 12px; border-radius: 6px;
                background: alpha(@oiko_selection, 0.10); }
 .lib-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid alpha(@oiko_border, 0.6); }
+/* Text size follows the desktop's own setting: every size above is relative
+   to the window font, which GTK takes from the system (Large Text included). */
+@media (prefers-contrast: more) {
+  .subtitle, .muted, .status, .lib-meta, .lib-dim, .lib-note, .lib-section-title { color: @oiko_text; }
+  .lib-list, list.lib-list, .lib-section separator { border-color: @oiko_text; }
+  list.lib-list > row.lib-item { border-top-color: alpha(@oiko_text, 0.6); }
+  list.lib-list > row.lib-item:focus-visible,
+  .library.keyboard list.lib-list > row.lib-item:focus { box-shadow: inset 0 0 0 3px @oiko_selection; }
+  button:focus-visible { outline-width: 3px; }
+  .lib-plugin-waiting { border-style: solid; }
+}
 ''').encode()
 
 
