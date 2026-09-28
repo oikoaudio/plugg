@@ -6,6 +6,7 @@
     "topics": ["linux-audio", "vst3", "wine", "proton", "yabridge"],
     "has_issues": true,
     "has_wiki": false,
+    "has_discussions": false,
     "has_projects": false,
     "allow_merge_commit": false,
     "allow_squash_merge": true,
