@@ -38,6 +38,8 @@ With `--container`, the build runs in an Arch Linux container. Its packages come
 
 `--package FILE` also writes the release archive. It is deterministic, so you can compare it with the published one too.
 
+`scripts/publish-runtime-release.py` publishes that archive as the runtime's GitHub release. It attaches the notes and source pointer from `packaging/runtime/<name>/` and Wine's licence files at the pinned revision, and it checks the archive against the hash in `runtime-overlays.json`. It only reports what it would do until you pass `--publish`. It never moves an existing tag, and it never replaces a file already published with different bytes.
+
 One detail: `ole32.dll` keeps its debug information, which names the directory it was first built in. The build maps its own directory to that path so the bytes match.
 
 ## plugg-2, in progress
