@@ -1,6 +1,6 @@
 # Native Instruments
 
-Native Instruments **partly works** on the maintainer's system (Bitwig, Hyprland/XWayland). Native Access 2 runs under UMU-Proton 10.0-4, signs in through the Linux browser and installs products. Raum works in Bitwig. The [Native Instruments recipe](../recipes/native-instruments.md) automates the setup. This page records the findings the recipe is based on.
+Native Instruments **partly works** on the maintainer's system (Bitwig, Hyprland/XWayland). Native Access 2 runs under UMU-Proton 10.0-4, signs in through the Linux browser and installs products. Raum works in Bitwig, and Massive and Massive X play in Bitwig and find their presets. The [Native Instruments recipe](../recipes/native-instruments.md) automates the setup. This page records the findings the recipe is based on.
 
 ## Tested products
 
@@ -8,10 +8,12 @@ Native Instruments **partly works** on the maintainer's system (Bitwig, Hyprland
 | --- | --- | --- |
 | Native Access | 2 | Installs, signs in and installs products. The UI is somewhat sluggish. |
 | Raum | 1.3.7 (R34) | Working in Bitwig |
-| Massive | 1.7.0 (R0) | Factory discovery and publication only |
-| Massive X | 1.7.1 (R0) | Factory discovery and publication only. The factory library of 720 `.nksf` presets installs. The preset browser is untested. |
+| Massive | 1.7.0 (R0) | Working in Bitwig and finds its presets (the maintainer's report, 11 September). Project recall is unchecked. |
+| Massive X | 1.7.1 (R0) | Working in Bitwig and finds its presets (the maintainer's report, 11 September). The factory library of 720 `.nksf` presets installs. Project recall is unchecked. |
+| Reaktor 6 and Reaktor 6 FX | 6.5.0 | Factory discovery and publication only. Playback, browsing and project recall are untested. |
+| Super 8 | 2.1.0 (R26) | Factory discovery and publication only. Playback, browsing and project recall are untested. |
 
-Massive X's preset browser did not work under an earlier plain Wine/yabridge setup. Nobody has checked it under Plugg yet.
+Massive X's preset browser did not work under an earlier plain Wine/yabridge setup. Under Plugg it finds its presets.
 
 ## Native Access installer
 
@@ -39,4 +41,4 @@ Native Access signs in through the system browser, which returns a `native-acces
 
 ## Validation limits
 
-Discovery and publication are automated checks. Sign-in, product installation and Raum in Bitwig were checked by hand. Preset browsing, preset loading, authorization and project recall for Massive and Massive X are untested.
+Discovery and publication are automated checks. Sign-in, product installation, Raum, and Massive and Massive X with their presets were checked by hand in Bitwig. Project recall for Massive and Massive X, and everything beyond discovery for Reaktor 6 and Super 8, are untested.

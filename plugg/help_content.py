@@ -87,22 +87,26 @@ FAQ = (
 #: "tested" or "experimental"; anything else is untested.
 VENDORS = {
     'Klevgrand': ('tested',
-                  "Skaka, Slammer, Korvpressor, Richter, DAW Cassette and REAMP have worked. Klevgrand Helper "
-                  "is managed by the app: install products, then close Helper. The tested setup includes "
-                  "graphics and window fixes. Other Klevgrand products are not yet verified."),
+                  "Skaka and Slammer have worked in Bitwig, including opening and closing the editor during "
+                  "playback, and DAW Cassette's editor draws correctly. Korvpressor and Richter are found and "
+                  "added to your DAW but not yet played. Klevgrand Helper is managed by the app: install "
+                  "products, then close Helper. The tested setup includes graphics and window fixes. Other "
+                  "Klevgrand products are not yet verified."),
     'Variety of Sound': ('tested',
-                         "FerricTDS mkIII, epicVerb mkII, epicPLATE mkII and ThrillseekerXTC mkIII have worked. "
-                         "Drop the Windows .vst3 file directly; known versions get the Visual C++ components "
-                         "they need. Sibling VST2 .dll files are not imported."),
+                         "FerricTDS mkIII has worked in Bitwig. epicVerb mkII, epicPLATE mkII and ThrillseekerXTC "
+                         "mkIII are recognised and added to your DAW but not yet played. Drop the Windows .vst3 "
+                         "file directly; known versions get the Visual C++ components they need. Sibling VST2 "
+                         ".dll files are not imported."),
     'Native Instruments': ('experimental',
-                           "Native Access 2 installs and signs in. Raum loads; Massive and Massive X work and "
-                           "find their presets. Reaktor 6, Reaktor 6 FX and Super 8 are found, but playback, "
-                           "browsing and project recall are still being tested."),
+                           "Native Access 2 installs and signs in. Raum works in Bitwig. Massive and Massive X "
+                           "have played in Bitwig and found their presets; project recall is not yet checked. "
+                           "Reaktor 6, Reaktor 6 FX and Super 8 are found, but playback, browsing and project "
+                           "recall are still being tested."),
     'Universal Audio': ('experimental',
                         "The LA-2A has worked in Bitwig in the shared iLok environment, and UA Connect can "
                         "install products. Soundtoys SpaceBlender and soothe v1 have also opened there. "
-                        "Setting up PACE from scratch still needs developer help; do not recreate the iLok "
-                        "environment to fix a plug-in."),
+                        "Creating the iLok environment is a command-line step for now (plugg ilok create); "
+                        "do not recreate the iLok environment to fix a plug-in."),
     'Plugin Alliance': ('experimental',
                         "HG-2, DSM V3, Metric AB and several bx and Shadow Hills plug-ins have worked. Some "
                         "need different graphics settings. DSM curve dragging is uneven, and Kirchhoff has "
