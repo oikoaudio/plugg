@@ -4,6 +4,7 @@
 /plugg/          @davfre
 /scripts/             @davfre
 /patches/             @davfre
+/packaging/           @davfre
 /.github/             @davfre
 /recipes/reviewed/    @davfre
 /docs/recipe-trust.md @davfre

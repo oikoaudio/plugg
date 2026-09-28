@@ -1,0 +1,70 @@
+{
+  "_comment": "What the GitHub repository should look like. scripts/github-settings.py compares it with GitHub and, with --apply, makes GitHub match. Edit here, not in the web interface.",
+  "repository": {
+    "description": "Windows audio plug-ins in your Linux DAW",
+    "homepage": "https://www.oikoaudio.com",
+    "topics": ["linux-audio", "vst3", "wine", "proton", "yabridge"],
+    "has_issues": true,
+    "has_wiki": false,
+    "has_projects": false,
+    "allow_merge_commit": false,
+    "allow_squash_merge": true,
+    "allow_rebase_merge": true,
+    "delete_branch_on_merge": true
+  },
+  "rulesets": [
+    {
+      "name": "main",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
+      "bypass_actors": [],
+      "rules": [
+        {"type": "deletion"},
+        {"type": "non_fast_forward"},
+        {"type": "required_linear_history"}
+      ]
+    },
+    {
+      "name": "main checks and reviews",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
+      "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+      "rules": [
+        {"type": "pull_request", "parameters": {
+          "required_approving_review_count": 1,
+          "require_code_owner_review": true,
+          "dismiss_stale_reviews_on_push": true,
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": true,
+          "allowed_merge_methods": ["squash", "rebase"]
+        }},
+        {"type": "required_status_checks", "parameters": {
+          "strict_required_status_checks_policy": true,
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {"context": "Tests (Python 3.12)", "integration_id": 15368},
+            {"context": "Tests (Python 3.13)", "integration_id": 15368},
+            {"context": "Recipe review", "integration_id": 15368},
+            {"context": "Guardrail audit", "integration_id": 15368},
+            {"context": "Interface smoke test", "integration_id": 15368}
+          ]
+        }}
+      ]
+    },
+    {
+      "name": "release tags",
+      "target": "tag",
+      "enforcement": "active",
+      "conditions": {"ref_name": {"include": ["refs/tags/v*", "refs/tags/runtime-*"], "exclude": []}},
+      "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+      "rules": [
+        {"type": "creation"},
+        {"type": "update"},
+        {"type": "deletion"},
+        {"type": "non_fast_forward"}
+      ]
+    }
+  ]
+}
