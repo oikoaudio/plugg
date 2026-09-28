@@ -9,12 +9,14 @@ from pathlib import Path
 import unittest
 
 REPO = Path(__file__).resolve().parents[1]
-SKIP = {'vendor', 'build', 'bundle', '.git', '__pycache__'}
+SKIP = {'vendor', 'build', 'bundle', '.git', '__pycache__', '.scratch'}
 
 
 def sources():
     for path in sorted(REPO.rglob('*.py')):
-        if not any(part in SKIP for part in path.relative_to(REPO).parts):
+        parts = path.relative_to(REPO).parts
+        # .test-* holds local test libraries, with downloaded runtimes in them.
+        if not any(part in SKIP for part in parts) and not parts[0].startswith('.test-'):
             yield path
 
 
