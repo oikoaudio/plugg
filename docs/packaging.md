@@ -92,6 +92,93 @@ The result is `plugg-bridge-<version>-x86_64.tar.gz` and its `.sha256`. The arch
 
 The release workflow (`.github/workflows/release.yml`) runs this on a `v<version>` tag with `--pin`, which writes `plugg/recipes/bridge-release.json` with the archive's release URL and SHA-256 before it builds the wheel. An installed wheel with that file and no other bridge downloads exactly that archive the first time it needs a bridge, checks the hash and the build manifest, and keeps it under `~/.local/share/plugg/bridge-downloads/` (see `plugg/bridge_download.py`). A checkout never has the file, and the Arch package ships its own bridge in `/usr/lib/plugg/bridge`, which comes first. The workflow leaves a draft release. The maintainer writes the notes and publishes it.
 
+## Debian, Ubuntu and Fedora packages
+
+A release also carries packages a musician installs with the system's package manager, which pulls in every runtime dependency and adds a menu entry:
+
+- `plugg_<version>_amd64.deb` for Ubuntu 24.04 or newer and Debian 13 or newer,
+- `plugg-<version>-1.x86_64.rpm` for Fedora 42 or newer,
+- `plugg-<version>-x86_64.tar.gz`, the same files as a plain tree with a short `INSTALL.md`, for other distributions and for inspection.
+
+```sh
+sudo apt install ./plugg_<version>_amd64.deb      # Ubuntu, Debian
+sudo dnf install ./plugg-<version>-1.x86_64.rpm   # Fedora
+```
+
+All three hold the same files:
+
+| Path | Contents |
+| --- | --- |
+| `/usr/lib/plugg/app/plugg/` | the manager: exactly the files the release wheel holds |
+| `/usr/lib/plugg/bridge/` | the release bridge archive's directory, with `build.json`, `NOTICE.md`, `COPYING.yabridge` and `licenses/` |
+| `/usr/lib/plugg/powershell-forwarder/` | the output of `scripts/build-powershell-forwarder.py`, with its licences and `build.json` |
+| `/usr/bin/plugg` | a small `sh` launcher |
+| `/usr/share/applications/com.oikoaudio.Plugg.desktop` | the menu entry, the same one the Arch package installs |
+| `/usr/share/doc/plugg/` | `README.md` and `third-party.md`, and on Debian and Ubuntu `copyright`, which holds the licence |
+| `/usr/share/licenses/plugg/LICENSE` | the licence, in the .rpm and the tarball |
+
+The launcher runs `/usr/bin/python3` with `/usr/lib/plugg/app` put first on the module path inside Python rather than through `PYTHONPATH`, so the path does not leak into Proton or vendor programs. Plugg uses the distribution's Python, PyGObject and GTK 4, and needs no virtual environment. It finds the bridge and the forwarder in `/usr/lib/plugg` on its own (`default_bridge_directory()` and `forwarder_directory()`), so a new library needs no `--bridge-dir`. The wheel's `recipes/bridge-release.json` is in the package too, but the packaged bridge comes first, so an installed package never downloads one. After installing, the package byte-compiles the app as root, and before removal it deletes the compiled files again (`packaging/nfpm-scripts/`), so nothing is left in `/usr/lib/plugg`.
+
+The dependencies are in `packaging/nfpm.yaml`, one list per format. Every name was installed and checked in the test below.
+
+| Needed for | .deb | .rpm |
+| --- | --- | --- |
+| the app | `python3 (>= 3.12)`, `python3-gi`, `gir1.2-gtk-4.0 (>= 4.10)` | `python3 >= 3.12`, `python3-gobject`, `gtk4 >= 4.10`, `gobject-introspection` |
+| the bridge binaries | `libc6 (>= 2.34)`, `libstdc++6 (>= 11)`, `libgcc-s1`, `libxcb1`, `libdbus-1-3` | `glibc >= 2.34`, `libstdc++ >= 11`, `libgcc`, `libxcb`, `dbus-libs` |
+| runtime downloads and archives | `zstd`, `libarchive-tools`, `ca-certificates` | `zstd`, `bsdtar`, `ca-certificates` |
+| Proton and the desktop | `bubblewrap`, `xdg-utils` | `bubblewrap`, `xdg-utils` |
+| sign-in notifications (recommended) | `libnotify-bin` | `libnotify` |
+
+Fedora 44's `gtk4` no longer pulls in `gobject-introspection`, which holds the cairo typelib that GTK 4 needs from Python, so the .rpm names it. The test below found that. The packages do not depend on Wine. Plugg downloads its pinned Proton runtime the first time it needs one and checks its hash.
+
+### Versions
+
+The version comes from `plugg/__init__.py`, like everywhere else. A pre-release or development version has to sort before the release it leads to in dpkg and rpm as well, so `scripts/build-release-packages.py` converts it into the tilde syntax both tools share: `0.1.0rc1` becomes `0.1.0~rc1`, and `0.1.0.dev0` becomes `0.1.0~~dev0`, because PEP 440 puts a development release before the alphas. A post-release becomes `+post1`. The package release is always 1. The file names keep the PEP 440 version, like the tag and the bridge archive, so `0.1.0.dev0` is packaged as `plugg_0.1.0.dev0_amd64.deb` holding version `0.1.0~~dev0-1`. Unit tests check the conversion against dpkg's and rpm's comparison rules, and the container test checks the same order with `dpkg --compare-versions` and `rpm.vercmp`.
+
+### Build the packages
+
+The release workflow builds the wheel, the bridge and the forwarder and hands them to `scripts/build-release-packages.py`. To build the packages locally, build the same three first. The forwarder needs Go.
+
+```sh
+python3 scripts/build-release-bridge.py --output dist
+python3 scripts/build-python-package.py --output dist
+python3 scripts/build-powershell-forwarder.py
+python3 scripts/build-release-packages.py --output dist \
+  --wheel dist/plugg-<version>-py3-none-any.whl --bridge dist/plugg-bridge-<version>-x86_64.tar.gz
+```
+
+Without `--wheel`, the script builds a wheel from the checkout. Without `--forwarder`, it takes `bundle/powershell-forwarder`. Before packaging, it checks the bridge against its `.sha256` file and its build manifest, the forwarder against its manifest and the reviewed source hash, and that the wheel holds nothing outside `plugg/`.
+
+The .deb and .rpm are made with [nfpm](https://nfpm.goreleaser.com) 2.47.0. The script downloads its release archive from GitHub, refuses it unless it matches the SHA-256 pinned in the script, and keeps it in `build/tools/`. It runs nfpm on the committed `packaging/nfpm.yaml`, and it writes the tarball itself. Every file gets the commit time as its date, so two builds of one commit from the same inputs are byte for byte the same. That was checked for all three files.
+
+### Test the packages in clean containers
+
+This needs Docker and outbound downloads:
+
+```sh
+python3 packaging/test-packages.py dist --output .scratch/package-test-001
+```
+
+For each of Ubuntu 24.04, Debian 13, Fedora 42 and Fedora 44, pinned by image digest, the test starts a fresh container and installs the package with `apt-get install --no-install-recommends` or `dnf install --setopt=install_weak_deps=False`. That way only the declared dependencies come in, and nothing else is preinstalled. Then, as an ordinary user and before any test tool is installed, `packaging/package-check.py` checks:
+
+- `plugg --help` works, and `plugg doctor` reports the declared version and the bridge at `/usr/lib/plugg/bridge`, with no bridge error,
+- `plugg recipe check` loads the built-in recipes,
+- the installed bridge passes `bridge_bundle.inspect`, its libraries load, and the scanner starts,
+- the PowerShell forwarder is found in `/usr/lib/plugg/powershell-forwarder` and matches its manifest and the reviewed source hash,
+- PyGObject loads GTK 4.10 or newer, the desktop entry runs `plugg gui`, the app was byte-compiled, and the user cannot write to it.
+
+It then installs Xvfb, D-Bus and a few X tools, validates the desktop entry with `desktop-file-validate`, and under Xvfb creates the app's GTK window with a new library that picks the packaged bridge on its own. It also starts `plugg gui` through the installed launcher and waits for its window to appear. Last, it checks that the distribution orders the converted versions as PEP 440 does, removes the package and checks that `/usr/lib/plugg` and the launcher are gone.
+
+The test follows the conventions of the Ubuntu packaging gate below. It uses no host mounts. Every container carries the label `plugg.test=distribution-packages`, and the test removes only the container it created after checking that label. The output directory holds each distribution's logs, its `result.json` and the container ID, in case the runner is killed.
+
+What the test does not cover:
+
+- It never downloads Proton or starts Windows programs, a plug-in or audio. See the synthetic runtime test below for why that does not work in Docker yet.
+- Xvfb says nothing about a real Wayland or X11 desktop, a GPU or a DAW.
+- It installs one version from scratch. Upgrading from an older package has not been tested.
+- It tests Ubuntu 24.04, Debian 13, Fedora 42 and Fedora 44 only. Ubuntu 22.04 and Debian 12 lack Python 3.12 and GTK 4.10. Fedora 41 has both, but it is past its end of life and was not tested.
+- The packages are not signed and come from no apt or dnf repository, so there are no automatic updates.
+
 ## Build the manager as a wheel
 
 You can also build the manager as a Python wheel. The native bridge is a separate, versioned artifact. This is a developer packaging path, not a turnkey Linux installer. The sections below say what the container checks cover and what they do not.
@@ -129,9 +216,9 @@ Under ordinary Docker isolation, as tested so far, UMU/pressure-vessel cannot cr
 
 ## Distribution work still required
 
-- Validate the Ubuntu-built Windows host and full audio path in a suitable runner.
-- Test on another supported distribution and establish the oldest supported ABI.
-- Turn the wheel and validated bridge into an installable release with desktop integration and clear dependency handling.
-- Decide artifact signing and update policy before public distribution.
+- Validate the Ubuntu-built Windows host and full audio path in a suitable runner, from an installed .deb or .rpm rather than a checkout.
+- Check the packages on a real desktop: the menu entry, a DAW finding the published plug-ins, and Wayland.
+- Test upgrading from one package version to the next. Only a fresh install and removal are tested.
+- Decide artifact signing and update policy before public distribution. The .deb and .rpm are unsigned, and there is no apt or dnf repository, so each release is downloaded and installed by hand.
 
 Keep candidate bridges in a stable location. A new library can select one with `--bridge-dir`, and its published plug-ins keep depending on it. Do not replace a live library's recorded bridge or runtime as part of a packaging test.

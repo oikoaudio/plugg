@@ -45,7 +45,7 @@ Keep installers, account data, callback URLs, licenses, downloaded runtimes and 
 
 ## Packaging
 
-The Arch package (`packaging/aur/plugg-git/PKGBUILD`, and `packaging/aur/plugg/PKGBUILD` for a release) is the complete installation. It builds the bridge, the scanner and the PowerShell forwarder from pinned sources. The Python wheel on its own holds the manager, the recipe engine, the built-in recipes and the font. It has no bridge, so don't describe a wheel install as a working setup. See [packaging](docs/packaging.md).
+The Arch packages (`packaging/aur/plugg-git/PKGBUILD`, and `packaging/aur/plugg/PKGBUILD` for a release) are complete installations. They build the bridge, the scanner and the PowerShell forwarder from pinned sources. A release's .deb and .rpm are complete installations too: `scripts/build-release-packages.py` packs the release wheel, bridge and forwarder, and `packaging/test-packages.py` installs them in clean Ubuntu, Debian and Fedora containers. The Python wheel on its own holds the manager, the recipe engine, the built-in recipes and the font. A release wheel downloads its pinned bridge the first time it needs one. A wheel built from a checkout has no bridge, so don't describe it as a working setup. See [packaging](docs/packaging.md).
 
 When changing package data, build a wheel and check recipe commands from an isolated installation outside the checkout. With uv installed:
 
