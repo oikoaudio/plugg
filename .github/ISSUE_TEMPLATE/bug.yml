@@ -1,14 +1,16 @@
-name: Bug in the manager
-description: The application itself misbehaves
+name: Bug in Plugg
+description: Plugg itself does something wrong, and you can say how to make it happen again
+title: "[Bug]: "
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        For a plug-in that does not work, use the compatibility report instead.
+        **Plugg has no helpdesk.** Good bug reports get read and fixed. A request to get one particular setup working usually cannot be answered, so try Help, the known fixes Plugg shows for your vendor, and **Recipes & fixes** first.
 
-        If an environment holding your licences is involved, say so. Don't
-        recreate or move it while we look at the problem.
+        For a plug-in that does not work, use the compatibility report instead. Use one report per problem, and leave out licence files, serials, account details and anything else private.
+
+        If an environment holding your licences is involved, say so, and don't recreate or move it while the problem is looked at.
   - type: textarea
     id: what
     attributes:
@@ -18,14 +20,44 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
+      placeholder: |
+        1. Drop ... into Plugg
+        2. ...
+        3. ...
+    validations: {required: true}
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often
+      options:
+        - Every time
+        - Sometimes
+        - Once so far
     validations: {required: true}
   - type: input
     id: version
     attributes:
-      label: Version or commit
+      label: Plugg version or commit
+    validations: {required: true}
+  - type: input
+    id: daw
+    attributes:
+      label: DAW and version
+      placeholder: Bitwig Studio 5.3, REAPER 7.2, ...
     validations: {required: true}
   - type: textarea
-    id: doctor
+    id: setup
     attributes:
-      label: Output of `plugg doctor`
-      render: json
+      label: Setup summary
+      description: Plugg fills this in when you report from Help. Otherwise paste the output of `plugg doctor`.
+      render: text
+    validations: {required: true}
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I read Help and tried the known fixes and Recipes & fixes for this vendor.
+          required: true
+        - label: I searched for an existing report of this problem.
+          required: true

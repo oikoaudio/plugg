@@ -5,6 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        **Plugg has no helpdesk.** A compatibility report is a finding others can reuse: how far a plug-in got, and what you tried. The best ones end with a fix, or a recipe. It is not a request to get your setup working.
+
         A factory scan is not a playback test. Report what you observed for each
         stage separately. "Installs and scans, no audio" helps more than
         "does not work".
@@ -34,7 +36,7 @@ body:
     id: setup
     attributes:
       label: Runtime and desktop
-      description: Runtime and bridge identity, Linux distribution, graphics driver, desktop and DAW version.
+      description: Plugg fills this in when you share a finding from Help. Otherwise give the runtime and bridge identity, Linux distribution, graphics driver, desktop and DAW version.
       value: |
         - Runtime (`plugg doctor`):
         - Distribution and kernel:
@@ -53,3 +55,17 @@ body:
       label: Relevant log extract
       description: Trimmed to the failure. Check it for personal information first.
       render: text
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: Known fixes, recipes or settings you tried, and what each changed. "Switched to WineD3D graphics, editor draws, no change to audio" is a finding in itself.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I looked at the known fixes and Recipes & fixes for this vendor.
+          required: true
+        - label: I searched for an existing report of this product.
+          required: true
