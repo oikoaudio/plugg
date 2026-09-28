@@ -52,7 +52,7 @@ jobs:
 
       - name: Python package
         run: |
-          pip install --quiet build
+          pip install --quiet --require-hashes -r packaging/release-build-requirements.txt
           python3 scripts/build-python-package.py --output dist
           python3 scripts/test-python-package.py dist/plugg-*.whl
 
