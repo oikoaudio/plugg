@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
 
@@ -23,7 +24,11 @@ def manifest(root, build, output):
                   for language, value in group.items()}
         for machine, group in info('compilers').items()
     }
-    dependencies = [{key: dep[key] for key in ('name', 'type', 'version') if key in dep}
+    # Meson names a dependency it was given no name for after a memory
+    # address (dep140686460032512), which differs on every run. Those are
+    # recorded as anonymous so that two builds of one commit match.
+    dependencies = [{key: ('(anonymous)' if key == 'name' and re.fullmatch(r'dep[0-9]+', str(dep[key])) else dep[key])
+                     for key in ('name', 'type', 'version') if key in dep}
                     for dep in info('dependencies')]
     options = {item['name']: item['value'] for item in info('buildoptions')
                if item['name'] in ('buildtype', 'bitbridge', 'clap', 'vst3', 'wrap_mode', 'cpp_std', 'build.cpp_std', 'b_lto', 'force_fallback_for')}
