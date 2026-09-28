@@ -82,22 +82,44 @@ def serve(path,proton,idle_seconds=300,graphics=None):
         for t in threads:t.join(timeout=5)
         Path(path).unlink(missing_ok=True)
 
-def windows_process_alive(marker):
-    """Is a live (not exited) process running the launched Windows program?
+def windows_process_state(program,group=None):
+    """Is the launched Windows program running, gone after running, or absent?
 
     Wine's launcher keeps waiting when the program it started dies, so the
-    caller would wait with it. The marker is the program's own path, which
-    appears in the command line of the process Wine creates for it.
+    caller would wait with it. A host whose main thread died shows as a
+    zombie while its other threads keep the process, and so the launcher,
+    alive: that is 'exited', not absent.
+
+    The program is recognised by its own name, not by its path appearing
+    somewhere in a command line: Proton's runinprefix and Wine's start.exe
+    carry that path as an argument and are the launcher, while the program's
+    own argv[0] is the same path in Windows form (X:\\...\\yabridge-host.exe.so).
+    A zombie's command line may be unreadable, so its 15-character comm name
+    stands in for it.
+
+    Every plug-in instance runs the same host program, so the name alone
+    cannot tell one launch from another: a healthy instance would hide a dead
+    one. The group is the launch's own process group, which Wine keeps for
+    the processes it starts.
     """
-    marker=os.fsencode(marker)
+    name=os.fsencode(os.path.basename(program));found=None
     for p in Path('/proc').iterdir():
         if not p.name.isdigit():continue
         try:
-            if marker not in (p/'cmdline').read_bytes():continue
-            state=(p/'stat').read_bytes().rpartition(b')')[2].split()[0:1]
-        except OSError:continue
-        if state and state[0] not in (b'Z',b'X'):return True
-    return False
+            fields=(p/'stat').read_bytes().rpartition(b')')[2].split()
+            if len(fields)<3 or (group is not None and int(fields[2])!=group):continue
+            argv0=(p/'cmdline').read_bytes().split(b'\0',1)[0]
+            if argv0:
+                if argv0.replace(b'\\',b'/').rpartition(b'/')[2]!=name:continue
+            elif (p/'comm').read_bytes().rstrip(b'\n')!=name[:15]:continue
+        except (OSError,ValueError):continue
+        if fields[0] not in (b'Z',b'X'):return 'running'
+        found='exited'
+    return found
+
+
+def windows_process_alive(program,group=None):
+    return windows_process_state(program,group)=='running'
 
 
 def watch_windows_process(program,process,stopping,appeared_within=60,interval=2):
@@ -106,14 +128,16 @@ def watch_windows_process(program,process,stopping,appeared_within=60,interval=2
     Returns once the program is gone after having run, once the launcher
     exits, or once the session stops. The caller then ends the launcher, so a
     crashed plug-in is reported as a failed launch instead of a DAW that waits
-    for a process which no longer exists.
+    for a process which no longer exists. The launcher is started in a
+    session of its own, so its pid is the launch's process group.
     """
     started=time.monotonic();seen=False
     while not stopping.is_set() and process.poll() is None:
-        if windows_process_alive(program):
+        state=windows_process_state(program,process.pid)
+        if state=='running':
             seen=True
-        elif seen or time.monotonic()-started>appeared_within:
-            return seen
+        elif state=='exited' or seen or time.monotonic()-started>appeared_within:
+            return seen or state=='exited'
         stopping.wait(interval)
     return False
 
