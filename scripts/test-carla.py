@@ -158,20 +158,27 @@ def run(argv, **kwargs):
     return subprocess.run(argv, capture_output=True, text=True, check=False, **kwargs)
 
 
-def plugg(library, publication, *args):
+def plugg(library, publication, *args, env=None):
     return run([str(ROOT / 'bin' / 'plugg'), '--data', str(library), '--publish-dir', str(publication), *args],
-               timeout=600)
+               timeout=600, env=env)
 
 
-def prepare(library, publication):
-    """Build and install the fixtures unless they are already published here."""
+def prepare(library, publication, env=None):
+    """Build and install the fixtures unless they are already published here.
+
+    Installing creates the Windows prefix, and Wine keeps the screen layout it
+    first sees in that prefix. So the install runs on the display the test
+    runs on (env), never on the desktop that started the harness: a prefix
+    made on a 3440x1440 desktop and tested on a 1920x1080 one puts every
+    click in the wrong place.
+    """
     wanted = {EDITOR, CRASH}
     if not all((ROOT / 'build' / 'fixtures' / f'{name}.vst3').is_file() for name in wanted):
         subprocess.run([str(ROOT / 'scripts' / 'build-fixture.sh')], check=True)
     for name in sorted(wanted):
         if not (publication / f'{name}.vst3').exists():
             print(f'Installing {name} into {library}', flush=True)
-            said = plugg(library, publication, 'install', str(ROOT / 'build' / 'fixtures' / f'{name}.vst3'))
+            said = plugg(library, publication, 'install', str(ROOT / 'build' / 'fixtures' / f'{name}.vst3'), env=env)
             if not (publication / f'{name}.vst3').exists():
                 raise SystemExit(f'Could not install {name}:\n{said.stdout}{said.stderr}')
 
@@ -266,13 +273,13 @@ def main():
             raise SystemExit(f'{tool} is needed for this test')
     if not (CARLA_PYTHON / 'carla_backend.py').is_file() or not CARLA_LIBRARY.is_file():
         raise SystemExit('Carla with its Python API is needed for this test')
-    prepare(library, publication)
     scratch = Path(tempfile.mkdtemp(prefix='plugg-carla-'))
     display = Existing(a.x_display) if a.x_display else Display(scratch, a.outputs, 1920, 1080)
     results, status = {}, 1
     try:
         env = dict(os.environ, DISPLAY=display.name)
         env.pop('WAYLAND_DISPLAY', None)
+        prepare(library, publication, env)
         print(f'Carla on {display.name} ({a.outputs} output{"s" if a.outputs > 1 else ""})', flush=True)
         try:
             child = subprocess.run([sys.executable, __file__, 'probe', str(publication), str(a.cycles)], env=env,

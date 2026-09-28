@@ -114,6 +114,7 @@ def main():
 
     if args.apply:
         # Read back: what GitHub stored is the only proof it took.
+        sys.stdout.flush()
         return subprocess.run([sys.executable, __file__]).returncode
     if not drift:
         print('GitHub matches', DESIRED.relative_to(REPO))
