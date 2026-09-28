@@ -110,6 +110,8 @@ button.lib-danger { background: transparent; color: @oiko_error; border-color: a
 button.lib-danger:hover { background: alpha(@oiko_error, 0.12); }
 .drop-area.drop-compact { padding: 10px 14px; min-height: 0; border-color: alpha(@oiko_accent, 0.25); }
 .window-title { font-weight: 600; }
+.lib-preview { font-size: 12px; color: @oiko_selection; padding: 8px 12px; border-radius: 6px;
+               background: alpha(@oiko_selection, 0.10); }
 .lib-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid alpha(@oiko_border, 0.6); }
 ''').encode()
 

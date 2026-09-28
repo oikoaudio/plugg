@@ -673,15 +673,24 @@ class ReadOnlyLibrary:
 
     Opening a real Store creates tables and settings when they are missing
     and prepares module runners. Looking at someone's library must do none
-    of that, so this reads the database with SQLite's read-only mode.
+    of that. Even SQLite's read-only mode is not enough: on a database in
+    WAL mode it still creates the -wal and -shm files beside it. So this
+    reads a copy of the database, made in a temporary folder.
     """
 
     def __init__(self, root):
+        import shutil
+        import tempfile
         self.root = Path(root).expanduser().resolve()
         database = self.root / 'library.sqlite3'
         if not database.is_file():
             raise SystemExit(f'No library at {self.root}')
-        self.uri = database.as_uri() + '?mode=ro'
+        self.scratch = tempfile.TemporaryDirectory(prefix='plugg-preview-')
+        copy = Path(self.scratch.name) / 'library.sqlite3'
+        for suffix in ('', '-wal'):
+            if Path(str(database) + suffix).is_file():
+                shutil.copy2(str(database) + suffix, str(copy) + suffix)
+        self.uri = copy.as_uri()
 
     def query(self, sql):
         import sqlite3
@@ -792,6 +801,17 @@ def demo_data():
     return records, setups, jobs, sizes, breakdown, ['proton-10.0-4-pace-ab-old'], []
 
 
+PREVIEW_ACTIONS = {
+    'reclaim_runtime': 'reclaim the unused runtime', 'delete_environment': 'ask to delete the environment',
+    'delete_nested': 'ask to delete the separate library', 'show_path': 'open the folder',
+    'show_folder': 'open the folder', 'rename_environment': 'rename the environment',
+    'record_licensing': 'open licence handling for', 'troubleshoot': 'open the fixes for',
+    'open_recipes': 'open recipes and fixes', 'stop_helper': 'force close the apps of',
+    'show_helper': 'bring back the window of', 'vendor_action': 'open the helper of',
+    'manager_action': 'open', 'open_ilok': 'open iLok License Manager in', 'softube_action': 'open Softube Central in',
+}
+
+
 def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='', menu=None, library=None):
     import json
     import sys
@@ -803,15 +823,26 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
     else:
         data, plugins, soft, root = demo_data(), demo_plugins(), {'8c1f02aa77e14c0b'}, Path.home() / '.local/share/plugg'
 
+    notice = text('Read-only preview. Buttons show what they would do and change nothing.', 'lib-preview', wrap=True)
+
     class Host:
-        # Every action only prints. Nothing here opens, stops or deletes.
+        # Every action only says what it would have done. Nothing here opens,
+        # stops or deletes anything.
         store = type('Store', (), {'root': root})()
 
         def __getattr__(self, name):
-            return lambda *args: print('demo:', name, *[getattr(a, 'get', lambda k: a)('id') if isinstance(a, dict)
-                                                       else a for a in args], file=sys.stderr)
+            def said(*args):
+                what = ' '.join(str(a.get('path') or a.get('id') or a.get('name')) if isinstance(a, dict) else str(a)
+                                for a in args if a is not None and not isinstance(a, bool))
+                line = 'Would ' + PREVIEW_ACTIONS.get(name, name.replace('_', ' ')) + (': ' + what if what else '')
+                notice.set_text(line + '. This preview changes nothing.')
+                print('preview:', line, file=sys.stderr)
+            return said
 
-    app = Gtk.Application(application_id='com.oikoaudio.PluggLibraryDemo')
+    from gi.repository import Gio
+    # Not unique: a second preview, or a headless one taking a snapshot, must
+    # get its own window instead of handing itself to one already open.
+    app = Gtk.Application(application_id='com.oikoaudio.PluggLibraryDemo', flags=Gio.ApplicationFlags.NON_UNIQUE)
 
     def activate(_):
         window = Gtk.ApplicationWindow(application=app, title='Plugg')
@@ -830,6 +861,8 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         for side in ('top', 'bottom', 'start', 'end'):
             getattr(page, 'set_margin_' + side)(28)
+        notice.set_margin_bottom(14)
+        page.append(notice)
         page.append(view.widget)
         scroll.set_child(page)
         window.set_child(scroll)
