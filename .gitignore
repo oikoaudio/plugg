@@ -63,3 +63,9 @@ packaging/aur/*/pkg/
 packaging/aur/*/plugg/
 packaging/aur/*/yabridge/
 packaging/aur/*/*.pkg.tar.*
+
+# makepkg working directories from before the PKGBUILD moved to packaging/aur/
+packaging/arch/src/
+packaging/arch/pkg/
+packaging/arch/plugg/
+packaging/arch/yabridge/
