@@ -1,3 +1,5 @@
+**This is not the Plugg app.** These are support files that Plugg downloads for itself. To install Plugg, see the latest release or the README.
+
 The patched Wine modules for Plugg's `plugg-1` runtime (UMU-Proton 10.0-4 plus seven replaced modules). Plugg downloads this archive itself with `plugg runtime assemble plugg-1` and checks every hash. You don't need to download it by hand.
 
 - `rundll32.exe` declares Windows 10 support, so MSI custom actions such as PACE's see the right Windows version.

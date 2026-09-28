@@ -93,11 +93,18 @@ def main():
         target = git('rev-parse', args.commit + '^{commit}')
         print(f'Tag {tag} will be created at {target[:12]}.')
 
-    existing = gh('release', 'view', tag, '--repo', repository, '--json', 'assets', check=False)
-    published = {}
+    # A runtime release is support files, not the app: a pre-release with a
+    # title that says so, never the repository's latest release.
+    title = f'Support files: Wine modules for the {args.runtime} runtime (not the app)'
+    existing = gh('release', 'view', tag, '--repo', repository, '--json', 'assets,name,isPrerelease,body', check=False)
+    published, relabel = {}, False
     if existing.returncode == 0:
-        published = {a['name']: (a.get('digest') or '').removeprefix('sha256:')
-                     for a in json.loads(existing.stdout)['assets']}
+        shown = json.loads(existing.stdout)
+        published = {a['name']: (a.get('digest') or '').removeprefix('sha256:') for a in shown['assets']}
+        relabel = (shown['name'] != title or not shown['isPrerelease']
+                   or shown['body'].strip() != notes.strip())
+        if relabel:
+            print('Title, pre-release flag or notes differ and will be updated.')
         for name, data in files.items():
             if name in published and published[name] != sha256(data):
                 raise SystemExit(f'The release already has a different {name}. Published files are never replaced.')
@@ -107,7 +114,7 @@ def main():
 
     if not args.publish:
         print('Nothing changed. Run again with --publish to do this.')
-        return
+        return 1 if (missing or relabel or not remote or existing.returncode != 0) else 0
     if not remote:
         git('tag', '-a', tag, target, '-m', f'{args.runtime} runtime: patched Wine modules\n\n'
             f'The patches and the build script that reproduce {asset}\n(SHA-256 {expected}) byte for byte.')
@@ -121,12 +128,18 @@ def main():
         if existing.returncode != 0:
             notes_file = Path(temporary) / 'notes.md'
             notes_file.write_text(notes)
-            gh('release', 'create', tag, '--repo', repository, '--verify-tag', '--latest=false',
-               '--title', f'{args.runtime} runtime: patched Wine modules', '--notes-file', str(notes_file), *paths)
-        elif paths:
-            gh('release', 'upload', tag, '--repo', repository, *paths)
+            gh('release', 'create', tag, '--repo', repository, '--verify-tag', '--latest=false', '--prerelease',
+               '--title', title, '--notes-file', str(notes_file), *paths)
+        else:
+            if paths:
+                gh('release', 'upload', tag, '--repo', repository, *paths)
+            if relabel:
+                notes_file = Path(temporary) / 'notes.md'
+                notes_file.write_text(notes)
+                gh('release', 'edit', tag, '--repo', repository, '--prerelease', '--latest=false',
+                   '--title', title, '--notes-file', str(notes_file))
     print('Published', f'https://github.com/{repository}/releases/tag/{tag}')
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
