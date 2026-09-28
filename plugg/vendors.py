@@ -513,16 +513,16 @@ def finish_installation(store, job_id, *, busy=None, before_scan=None, after_sca
     finally:
         if after_scan:
             after_scan()
-    message = f"{result['added']} added · {result['unchanged']} already in your library."
+    message = f"{result['added']} added to your DAW · {result['unchanged']} already there."
     if result['removed']:
         message += f" {len(result['removed'])} removed."
     unchecked = len(result['failures']) + len(result['waiting'])
     if unchecked and _cfg_group(directory) == 'ilok':
         # In the iLok environment an unpublished plug-in almost always means an
         # unactivated one, and the remedy is the same for all of them at once.
-        report('needs_attention', message + f" {unchecked} plug-in{'s' if unchecked != 1 else ''} not published "
-               "yet, most likely because they need activation. Activate them in iLok License Manager, "
-               "then close it: they are checked again and published then.")
+        report('needs_attention', message + f" {unchecked} plug-in{'s' if unchecked != 1 else ''} not in your "
+               "DAW yet, most likely because they are not activated. Activate them in iLok License Manager "
+               "and close it: Plugg then checks them again and adds the ones that load.")
     elif result['failures']:
         report('needs_attention', message + ' ' + result['failures'][0])
     else:
