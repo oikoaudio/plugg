@@ -86,7 +86,13 @@ jobs:
             *a[0-9]*|*b[0-9]*|*rc[0-9]*|*dev[0-9]*) candidate=--prerelease ;;
             *) candidate= ;;
           esac
+          # The notes are a file in the repository when one exists for this tag.
+          if [ -f "packaging/release-notes/$GITHUB_REF_NAME.md" ]; then
+            notes=(--notes-file "packaging/release-notes/$GITHUB_REF_NAME.md")
+          else
+            notes=(--notes "Built from $GITHUB_REF_NAME by the release workflow. Write the notes before publishing.")
+          fi
           gh release create "$GITHUB_REF_NAME" --draft $candidate --verify-tag --title "Plugg ${GITHUB_REF_NAME#v}" \
-            --notes "Built from $GITHUB_REF_NAME by the release workflow. Write the notes before publishing." \
+            "${notes[@]}" \
             dist/plugg-*.whl dist/plugg-bridge-*.tar.gz dist/plugg_*_amd64.deb dist/plugg-*.x86_64.rpm \
             dist/plugg-[0-9]*-x86_64.tar.gz dist/SHA256SUMS
