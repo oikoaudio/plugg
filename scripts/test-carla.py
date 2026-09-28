@@ -282,6 +282,9 @@ def main():
         except subprocess.TimeoutExpired as expired:
             said = expired.stdout or ''
             output, code = said.decode(errors='replace') if isinstance(said, bytes) else said, None
+            # A hang is when the host's log matters most: keep what it said.
+            told = expired.stderr or ''
+            (scratch / 'carla.log').write_text(told.decode(errors='replace') if isinstance(told, bytes) else told)
         for line in output.splitlines():
             if line.startswith('{'):
                 results.update(json.loads(line))

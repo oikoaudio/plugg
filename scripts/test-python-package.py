@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import re
 import tomllib
 import zipfile
 
@@ -23,7 +24,8 @@ def main():
                 *package.glob('recipes/community/*.toml'), *package.glob('leads/*/*.toml'),
                  *package.glob('assets/*')]
     expected_names = {path.relative_to(root).as_posix() for path in expected}
-    version = tomllib.loads((root / 'pyproject.toml').read_text())['project']['version']
+    # The version is written once, in plugg/__init__.py (pyproject.toml reads it).
+    version = re.search(r'^__version__ = "(.+)"', (root / 'plugg/__init__.py').read_text(), re.M).group(1)
     metadata_root = 'plugg-' + version + '.dist-info'
     with zipfile.ZipFile(wheel) as archive:
         unexpected_roots = {name.split('/')[0] for name in archive.namelist()
