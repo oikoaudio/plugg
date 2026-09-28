@@ -1,4 +1,6 @@
 # Generated builds and downloaded third-party implementation/runtime files
+# (bridge-release.json is written by the release workflow for its wheel only)
+/plugg/recipes/bridge-release.json
 /build/
 /bundle/
 /vendor/

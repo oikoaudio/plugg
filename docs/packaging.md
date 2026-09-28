@@ -19,6 +19,18 @@ PLUGG_SOURCE="git+file://$(git rev-parse --show-toplevel)#branch=$(git branch --
 
 The package has been built and installed in a clean `archlinux:latest` container with Wine 11.17 and Python 3.14. The unit suite passed inside `check()`. The installed command ran `runtime plan` and `doctor`, the installed bridge passed `bridge_bundle.inspect`, and the GTK front end imported under Xvfb. Nothing in that container ran Proton or a plug-in. The package is `-git` because there is no tagged release yet. An AUR submission needs the repository to be public.
 
+## Release bridge
+
+A release carries a prebuilt bridge, so an installed Plugg needs no compiler, Wine headers or Meson. `scripts/build-release-bridge.py` builds it in the container defined by `packaging/bridge/Dockerfile`: Ubuntu 22.04 pinned by digest, WineHQ's Wine 10.0 (the Wine UMU-Proton 10.0-4 is based on), and Meson 1.5.2 from PyPI pinned by hash. The checkout's tracked files go into a fresh container on stdin and the built bridge comes back on stdout. The script uses no host mounts and removes only its own container.
+
+```sh
+python3 scripts/build-release-bridge.py --output dist
+```
+
+The result is `plugg-bridge-<version>-x86_64.tar.gz` and its `.sha256`. The archive holds the six bridge files and `build.json`, as a checkout build does, plus `NOTICE.md` and `licenses/`. Those carry the licences of the VST3 SDK (used under its GPLv3 option), asio, bitsery, function2, toml++ and ghc::filesystem, and say where the source is. The build prints the newest glibc and libstdc++ symbol versions the binaries need: GLIBC_2.34 and GLIBCXX_3.4.29, which Ubuntu 22.04, Debian 12, Fedora 35 and Arch all have.
+
+The release workflow (`.github/workflows/release.yml`) runs this on a `v<version>` tag with `--pin`, which writes `plugg/recipes/bridge-release.json` with the archive's release URL and SHA-256 before it builds the wheel. An installed wheel with that file and no other bridge downloads exactly that archive the first time it needs a bridge, checks the hash and the build manifest, and keeps it under `~/.local/share/plugg/bridge-downloads/` (see `plugg/bridge_download.py`). A checkout never has the file, and the Arch package ships its own bridge in `/usr/lib/plugg/bridge`, which comes first. The workflow leaves a draft release. The maintainer writes the notes and publishes it.
+
 ## Build the manager as a wheel
 
 You can also build the manager as a Python wheel. The native bridge is a separate, versioned artifact. This is a developer packaging path, not a turnkey Linux installer. The sections below say what the container checks cover and what they do not.
@@ -59,7 +71,6 @@ Under ordinary Docker isolation, as tested so far, UMU/pressure-vessel cannot cr
 - Validate the Ubuntu-built Windows host and full audio path in a suitable runner.
 - Test on another supported distribution and establish the oldest supported ABI.
 - Turn the wheel and validated bridge into an installable release with desktop integration and clear dependency handling.
-- Publish the corresponding source, patch series and license notices with native artifacts.
 - Decide artifact signing and update policy before public distribution.
 
 Keep candidate bridges in a stable location. A new library can select one with `--bridge-dir`, and its published plug-ins keep depending on it. Do not replace a live library's recorded bridge or runtime as part of a packaging test.
