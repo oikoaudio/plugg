@@ -8,7 +8,7 @@
 | feature branches | local, then GitHub if reviewed there | Work in progress, merged into `main` when done. |
 | `archive/dev` | local only | The full development history from before `main` was squashed. It is never pushed to the shared repository. |
 
-The squash was a one-time step. From then on, `main` only moves forward with ordinary pushes. Nothing should need a force-push again.
+The squash was meant as a one-time step. Before the repository went public, `main` was rewritten twice more, both times with nothing lost: once to describe what the first commit holds, and once to give every commit a Conventional Commit title. Once the repository is public, `main` only moves forward with ordinary pushes.
 
 The archive branch shares no ancestor with `main`, so it can't be merged. It is still useful. `git diff archive/dev main` compares trees, `git log archive/dev -- <path>` shows why a file became what it is, and `git cherry-pick` works across the two. The branch exists only on the machine that holds it, so keep a copy somewhere else:
 
