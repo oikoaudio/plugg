@@ -61,6 +61,7 @@ class Manager(Gtk.Application):
         self.breakdown = None
         self.pending = {}
         self.helper_offers_cache = {}
+        self.known_cache = {}
         #: Measured once, on request. Walking a Proton prefix is felt, and this
         #: interface refreshes continuously.
         self.sizes = {}
@@ -251,10 +252,12 @@ class Manager(Gtk.Application):
         self.catalogue_scope.set_selected(scope)
         self.stack.set_visible_child_name('recipes')
 
-    def troubleshoot(self, record=None):
-        # For now this opens the reusable fixes. A guided version would start
-        # from the symptom and try a fix on a copy; see the sketch notes.
-        self.open_recipes(scope=2)
+    def troubleshoot(self, record=None, vendor=None):
+        """The fixes others found, already searched for this vendor when there is one."""
+        from . import environments as survey
+        vendor = vendor or (survey.summarize(record) if record else '')
+        self.open_recipes(scope=0 if vendor else 2)
+        self.catalogue_search.set_text(vendor if vendor and 'iLok' not in vendor else '')
 
     def show_path(self, path):
         Gio.AppInfo.launch_default_for_uri(Path(path).as_uri(), None)
@@ -339,28 +342,189 @@ class Manager(Gtk.Application):
         return dialog
 
     def help(self, *_):
-        from .help_content import SECTIONS
+        """Questions people ask, what has been tested, and what to do when neither helps."""
+        from .help_content import FAQ, VENDORS, UNTESTED
         dialog = Gtk.Window(title="Help · Plugg", transient_for=self.window)
-        dialog.set_default_size(660, 640)
+        dialog.set_default_size(700, 680)
         scroll = Gtk.ScrolledWindow()
-        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         for side in ('top', 'bottom', 'start', 'end'):
             getattr(body, 'set_margin_' + side)(20)
-        body.append(label("Compatibility and getting started", 'section-title'))
-        for title, text in SECTIONS:
-            body.append(label(title, 'plugin-name'))
-            paragraph = label(text, wrap=True)
+        for group, entries in FAQ:
+            body.append(label(group, 'section-title'))
+            for question, answer in entries:
+                # One line per question, the answer when asked: the list is
+                # scanned for the question you have, not read top to bottom.
+                expander = Gtk.Expander(label=question)
+                expander.add_css_class('faq')
+                paragraph = label(answer, wrap=True)
+                paragraph.set_selectable(True)
+                paragraph.set_max_width_chars(76)
+                paragraph.set_margin_start(18)
+                paragraph.set_margin_bottom(6)
+                expander.set_child(paragraph)
+                body.append(expander)
+        body.append(label('What has been tested', 'section-title'))
+        for vendor, (status, note) in VENDORS.items():
+            expander = Gtk.Expander(label='%s · %s' % (vendor, status))
+            expander.add_css_class('faq')
+            paragraph = label(note, wrap=True)
             paragraph.set_selectable(True)
-            paragraph.set_max_width_chars(72)
-            body.append(paragraph)
-        open_recipes = Gtk.Button(label="Open recipes & fixes")
-        open_recipes.set_halign(Gtk.Align.START)
-        open_recipes.connect("clicked", self.go_to_recipes)
-        body.append(open_recipes)
-        body.append(label("A recipe chooses the components installed when you add a matching plug-in "
-                          "or installer. Recipes & fixes lists every one you have, says what each is "
-                          "allowed to do, and shows you that before adding one you did not write.",
-                          "muted", True))
+            paragraph.set_max_width_chars(76)
+            paragraph.set_margin_start(18)
+            expander.set_child(paragraph)
+            body.append(expander)
+        body.append(label(UNTESTED, 'muted', True))
+        body.append(label('Plugg has no helpdesk', 'section-title'))
+        body.append(label("Plugg is made by one person, with no support desk behind it. Most answers are "
+                          "above, in the known fixes Plugg shows when you install something, and under "
+                          "Recipes & fixes. Good bug reports get read and fixed; a request to get one "
+                          "particular setup working usually cannot be answered. A compatibility finding, "
+                          "what you tried and how far it got, helps everyone after you.", wrap=True))
+        actions = Gtk.Box(spacing=8)
+        for title, handler in (("Open recipes & fixes", self.go_to_recipes),
+                               ("Report a bug in Plugg…", lambda *_: self.report('bug')),
+                               ("Share a compatibility finding…", lambda *_: self.report('compatibility'))):
+            button = Gtk.Button(label=title)
+            button.add_css_class('compact')
+            button.connect("clicked", handler)
+            actions.append(button)
+        body.append(actions)
+        scroll.set_child(body)
+        dialog.set_child(scroll)
+        dialog.present()
+        return dialog
+
+    def report(self, kind='bug', record=None):
+        """A guided report: known fixes first, then the answers a report needs, then the issue form.
+
+        Nothing goes further until the answers that make a report useful are
+        there and the person says they looked at the known fixes. The issue form
+        opens with their answers filled in; they review and submit it on GitHub.
+        """
+        from . import environments as survey, known_fixes, report as reporting
+        records = survey.survey(self.store)
+        jobs = self.store.jobs()
+        setups = self.last[2] if self.last else []
+        focus = record['id'] if record else None
+        dialog = Gtk.Window(title='Report a bug' if kind == 'bug' else 'Share a compatibility finding',
+                            transient_for=self.window, modal=True)
+        dialog.set_default_size(640, 720)
+        scroll = Gtk.ScrolledWindow()
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for side in ('top', 'bottom', 'start', 'end'):
+            getattr(body, 'set_margin_' + side)(20)
+        body.append(label('Plugg has no helpdesk', 'section-title'))
+        body.append(label('Good bug reports get read and fixed. A good one says what you did, what happened, '
+                          'what you expected and how often, and Plugg adds the facts about your setup.'
+                          if kind == 'bug' else
+                          'A finding says how far a plug-in got and what you tried, so the next person '
+                          'starts from there. The best ones end with a fix.', 'muted', True))
+        if record:
+            installer = next((j.get('installer') for j in jobs if j['env_id'] == record['id']), None)
+            known = known_fixes.lookup(installer, None, vendor=survey.summarize(record)) if installer else []
+            if known:
+                body.append(label('Did any of these help?', 'plugin-name'))
+                for item in known:
+                    body.append(label('· ' + item['text'], 'status', True))
+        answers = {}
+        fields = [('daw', 'DAW and version', False, 'Bitwig Studio 5.3')]
+        if kind == 'bug':
+            fields = [('what', 'What happened, and what you expected', True, ''),
+                      ('steps', 'Steps to make it happen', True, '1. …\n2. …')] + fields
+        else:
+            fields = [('product', 'Product and exact version', False, 'Example Synth 1.2.3'),
+                      ('steps', 'The smallest way to reproduce it', True, ''),
+                      ('tried', 'What you tried, and what each changed', True, '')] + fields
+        entries = {}
+        for key, title, multiline, hint in fields:
+            body.append(label(title, 'status'))
+            if multiline:
+                view = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR)
+                view.set_size_request(-1, 90)
+                view.add_css_class('report-field')
+                if hint:
+                    view.get_buffer().set_text(hint)
+                entries[key] = view
+                body.append(view)
+            else:
+                entry = Gtk.Entry(placeholder_text=hint)
+                entries[key] = entry
+                body.append(entry)
+        frequency = None
+        stages = {}
+        if kind == 'bug':
+            body.append(label('How often', 'status'))
+            frequency = Gtk.DropDown.new_from_strings(['Choose…'] + list(reporting.FREQUENCY))
+            body.append(frequency)
+        else:
+            body.append(label('How far it got (leave a stage empty if you did not get there)', 'status'))
+            grid = Gtk.Grid(column_spacing=10, row_spacing=6)
+            for row_index, stage in enumerate(reporting.STAGES):
+                grid.attach(label(stage, 'muted'), 0, row_index, 1, 1)
+                entry = Gtk.Entry(placeholder_text='worked, failed, not tried…')
+                entry.set_hexpand(True)
+                stages[stage] = entry
+                grid.attach(entry, 1, row_index, 1, 1)
+            body.append(grid)
+        body.append(label('About your setup (added for you; edit anything you would rather not share)', 'status'))
+        summary_view = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, monospace=True)
+        summary_view.get_buffer().set_text(reporting.setup_summary(self.store, records, setups, jobs, focus))
+        summary_view.set_size_request(-1, 140)
+        summary_view.add_css_class('report-summary')
+        body.append(summary_view)
+        looked = Gtk.CheckButton(label='I read Help and tried the known fixes and Recipes & fixes.')
+        body.append(looked)
+        still = label('', 'status', True)
+        body.append(still)
+        open_form = Gtk.Button(label='Open the issue form')
+        open_form.add_css_class('suggested-action')
+        open_form.set_halign(Gtk.Align.END)
+        body.append(open_form)
+
+        def text_of(widget):
+            if isinstance(widget, Gtk.TextView):
+                buffer = widget.get_buffer()
+                return buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
+            return widget.get_text()
+
+        def collect():
+            answers.clear()
+            for key, widget in entries.items():
+                value = text_of(widget)
+                answers[key] = '' if value in ('1. …\n2. …',) else value
+            if frequency is not None:
+                chosen = frequency.get_selected()
+                answers['frequency'] = reporting.FREQUENCY[chosen - 1] if chosen > 0 else ''
+            if stages:
+                answers['stages'] = {stage: entry.get_text().strip() for stage, entry in stages.items()
+                                     if entry.get_text().strip()}
+            return reporting.missing(kind, answers)
+
+        def update(*_):
+            gaps = collect()
+            if not looked.get_active():
+                gaps = gaps + ['a look at the known fixes first']
+            still.set_text('Still needed: ' + '; '.join(gaps) + '.' if gaps else
+                           'Ready. The form opens on GitHub with your answers; you check it and submit it there.')
+            open_form.set_sensitive(not gaps)
+        for widget in entries.values():
+            (widget.get_buffer() if isinstance(widget, Gtk.TextView) else widget).connect('changed', update)
+        for entry in stages.values():
+            entry.connect('changed', update)
+        if frequency is not None:
+            frequency.connect('notify::selected', update)
+        looked.connect('toggled', update)
+
+        def submit(*_):
+            if collect() or not looked.get_active():
+                return
+            summary = text_of(summary_view)
+            Gio.AppInfo.launch_default_for_uri(reporting.issue_url(kind, reporting.fields(kind, answers, summary)),
+                                               None)
+            dialog.close()
+        open_form.connect('clicked', submit)
+        update()
         scroll.set_child(body)
         dialog.set_child(scroll)
         dialog.present()
@@ -1546,7 +1710,23 @@ class Manager(Gtk.Application):
         self.last = None
         self.refresh()
 
-    def busy_row(self, title, detail):
+    def troubleshoot_job(self, job):
+        """Troubleshoot an installation that did not finish, searched for its installer's maker."""
+        from . import known_fixes
+        self.troubleshoot(vendor=known_fixes.vendor_of(job.get('installer')))
+
+    def known_about(self, job, known):
+        """What is already known about an installer, once per installer."""
+        from . import known_fixes
+        key = job.get('hash')
+        if key not in self.known_cache:
+            try:
+                self.known_cache[key] = known_fixes.lookup(job.get('installer'), key, known_modules=known)
+            except Exception:
+                self.known_cache[key] = []
+        return self.known_cache[key]
+
+    def busy_row(self, title, detail, known=()):
         """One line of "this is happening", with a spinner that is actually spinning."""
         row = Gtk.Box(spacing=12)
         row.add_css_class('card')
@@ -1562,6 +1742,10 @@ class Manager(Gtk.Application):
         message.set_ellipsize(Pango.EllipsizeMode.END)
         message.set_tooltip_text(detail or '')
         text.append(message)
+        for line in known:
+            # What is already known about this installer, while it installs.
+            said = label(line, 'running-note', True)
+            text.append(said)
         row.append(text)
         return row
 
@@ -1650,8 +1834,10 @@ class Manager(Gtk.Application):
             for job in jobs:
                 if job['status'] in TERMINAL or job['archived']:
                     continue
+                from . import known_fixes
                 stage = installation_progress(self.store.root, job)
-                row = self.busy_row(job['name'], stage[0] if stage else job['message'])
+                row = self.busy_row(job['name'], stage[0] if stage else job['message'],
+                                    known_fixes.summary(self.known_about(job, known)))
                 cancel = Gtk.Button(label='Cancel')
                 cancel.add_css_class('compact')
                 cancel.set_valign(Gtk.Align.CENTER)
@@ -1678,6 +1864,9 @@ class Manager(Gtk.Application):
                 why.set_ellipsize(Pango.EllipsizeMode.END)
                 why.set_tooltip_text(job['message'] or '')
                 text.append(why)
+                from . import known_fixes
+                for line in known_fixes.summary(self.known_about(job, known), limit=3):
+                    text.append(label(line, 'status', True))
                 row.append(text)
                 controls = []
                 if self.store.prefix(job['id']).is_dir():
@@ -1687,7 +1876,7 @@ class Manager(Gtk.Application):
                 controls.append(('Details', 'What was recorded about this attempt',
                                  lambda _, j=job: self.job_details(j)))
                 controls.append(('Troubleshoot…', 'Reusable fixes for installers and plug-ins that do not '
-                                 'work at first', lambda *_: self.troubleshoot()))
+                                 'work at first', lambda *_, j=job: self.troubleshoot_job(j)))
                 controls.append(('Dismiss', 'Forget this attempt and the installer copy it kept. '
                                  'Anything it left on disk is listed under cleanup.',
                                  lambda _, j=job['id']: self.discard_job(j)))

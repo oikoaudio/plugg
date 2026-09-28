@@ -23,6 +23,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import environments as survey  # noqa: E402
+from .vendors import vendor_name  # noqa: E402,F401
 
 #: The library folder's own parts, by what they hold. Anything else there is
 #: counted as unaccounted for and, past a threshold, shown as needing a look.
@@ -102,26 +103,8 @@ def display_names(records):
     return names
 
 
-SUFFIXES = (', inc.', ', inc', ' inc.', ' inc', ' gmbh', ' ltd.', ' ltd', ' llc', ' ab', ' oy', ' s.r.l.', ' bv')
-
 #: Vendor apps that live in a shared environment, and whose plug-ins they manage.
 APP_VENDOR = {'UA Connect': 'universal audio', 'Softube Central': 'softube'}
-
-
-def vendor_name(raw):
-    """The vendor as a person would write it, from a plug-in's own metadata.
-
-    Plug-ins name their maker inconsistently ("Universal Audio, Inc.",
-    "Native Instruments GmbH"). Dropping the company form is enough to put
-    one vendor's plug-ins on one row, without a table someone has to keep.
-    """
-    name = ' '.join((raw or '').split())
-    lowered = name.casefold()
-    for suffix in SUFFIXES:
-        if lowered.endswith(suffix):
-            name = name[:-len(suffix)].rstrip(' ,')
-            break
-    return name or 'Unknown vendor'
 
 
 def plugins_by_vendor(plugins, spelled=None):
@@ -937,6 +920,8 @@ class LibraryView:
         item('Rename…', lambda: self.host.rename_environment(record))
         item('Troubleshoot…', lambda: self.host.troubleshoot(record),
              tooltip='Reusable fixes for plug-ins that load badly, draw wrongly or crash')
+        item('Report a bug or finding…', lambda: self.host.report('compatibility', record),
+             tooltip='Plugg has no helpdesk, but good reports and findings get read')
         # Recorded or not, it can be looked at and changed again: a wrong
         # answer, once given, must not become permanent.
         item('Licence handling ✓' if record.get('protected') else 'Licence handling…',
@@ -1259,7 +1244,7 @@ PREVIEW_ACTIONS = {
     'reclaim_runtime': 'reclaim the unused runtime', 'delete_environment': 'ask to delete the environment',
     'delete_nested': 'ask to delete the separate library', 'show_path': 'open the folder',
     'show_folder': 'open the folder', 'rename_environment': 'rename the environment',
-    'record_licensing': 'open licence handling for', 'remove_dead_bundle': 'remove the leftover adapter', 'rescan': 'check again for plug-ins from the installation', 'troubleshoot': 'open the fixes for',
+    'record_licensing': 'open licence handling for', 'report': 'open the report form', 'remove_dead_bundle': 'remove the leftover adapter', 'rescan': 'check again for plug-ins from the installation', 'troubleshoot': 'open the fixes for',
     'open_recipes': 'open recipes and fixes', 'stop_helper': 'force close the apps of',
     'show_helper': 'bring back the window of', 'vendor_action': 'open the helper of',
     'manager_action': 'open', 'open_ilok': 'open iLok License Manager in', 'softube_action': 'open Softube Central in',

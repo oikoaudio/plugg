@@ -91,7 +91,27 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
                 help_window = self.help()
                 assert any(isinstance(w, Gtk.Button) and w.get_label() == 'Open recipes & fixes'
                            for w in descendants(help_window))
+                assert any(isinstance(w, Gtk.Expander) and w.get_label() == 'How do I add a plug-in?'
+                           for w in descendants(help_window))
+                assert any(isinstance(w, Gtk.Label) and w.get_text() == 'Plugg has no helpdesk'
+                           for w in descendants(help_window))
                 help_window.close()
+
+                # A bug report goes nowhere until it has the answers that make
+                # it useful and the person has looked at the known fixes.
+                form = self.report('bug')
+                go = next(w for w in descendants(form)
+                          if isinstance(w, Gtk.Button) and w.get_label() == 'Open the issue form')
+                assert not go.get_sensitive(), 'an empty report must not open the issue form'
+                views = [w for w in descendants(form) if isinstance(w, Gtk.TextView) and w.has_css_class('report-field')]
+                views[0].get_buffer().set_text('The row stays amber after activating the plug-in in iLok.')
+                views[1].get_buffer().set_text('1. Activate in iLok\n2. Close iLok License Manager')
+                next(w for w in descendants(form) if isinstance(w, Gtk.Entry)).set_text('Bitwig Studio 5.3')
+                next(w for w in descendants(form) if isinstance(w, Gtk.DropDown)).set_selected(1)
+                assert not go.get_sensitive(), 'it also needs the known fixes looked at'
+                next(w for w in descendants(form) if isinstance(w, Gtk.CheckButton)).set_active(True)
+                assert go.get_sensitive(), 'a complete report can go to the form'
+                form.close()
 
                 # The library list works from the keyboard and tells a screen
                 # reader what each row is: a row is an activatable list row with
@@ -317,9 +337,9 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
                 self.save_interface_state()
                 assert Manager(store).tab == 'recipes', 'the recipe tab should survive reopening'
                 result['passed'] = True
-                print('GTK checks passed: the library list by keyboard and screen reader, pages, vendor '
-                      'row and settings, search, plug-in details, theme, the recipe report and its '
-                      'refusal, and malformed-recipe isolation.', flush=True)
+                print('GTK checks passed: help and the guided bug report, the library list by keyboard '
+                      'and screen reader, pages, vendor row and settings, search, plug-in details, theme, '
+                      'the recipe report and its refusal, and malformed-recipe isolation.', flush=True)
             except Exception as exc:
                 import traceback
                 traceback.print_exc()

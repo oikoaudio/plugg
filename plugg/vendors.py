@@ -24,6 +24,24 @@ SERVICES = {'services.exe', 'explorer.exe', 'winedevice.exe', 'plugplay.exe', 'r
             'tabtip.exe', 'xalia.exe'}
 
 
+
+SUFFIXES = (', inc.', ', inc', ' inc.', ' inc', ' gmbh', ' ltd.', ' ltd', ' llc', ' ab', ' oy', ' s.r.l.', ' bv')
+
+def vendor_name(raw):
+    """The vendor as a person would write it, from a plug-in's own metadata.
+
+    Plug-ins name their maker inconsistently ("Universal Audio, Inc.",
+    "Native Instruments GmbH"). Dropping the company form is enough to put
+    one vendor's plug-ins on one row, without a table someone has to keep.
+    """
+    name = ' '.join((raw or '').split())
+    lowered = name.casefold()
+    for suffix in SUFFIXES:
+        if lowered.endswith(suffix):
+            name = name[:-len(suffix)].rstrip(' ,')
+            break
+    return name or 'Unknown vendor'
+
 def configuration(store, job_id):
     job = store.job(job_id)
     directory = store.root / 'environments' / job['env_id']

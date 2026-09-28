@@ -130,6 +130,10 @@ button.lib-danger:hover { background: alpha(@oiko_error, 0.12); }
 .lib-dot-running { background: @oiko_selection; }
 label.credit { font-size: 0.86em; }
 label.credit link, label.credit link:visited { color: @oiko_selection; }
+expander.faq > title { padding: 4px 0; font-size: 1em; }
+/* A text view paints on its inner text node; the frame goes on the view. */
+textview.report-field, textview.report-summary { border: 1px solid @oiko_border; border-radius: 6px; padding: 6px; }
+textview.report-field text, textview.report-summary text { background: @oiko_field; color: @oiko_text; }
 .lib-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid alpha(@oiko_border, 0.6); }
 /* Text size follows the desktop's own setting: every size above is relative
    to the window font, which GTK takes from the system (Large Text included). */
