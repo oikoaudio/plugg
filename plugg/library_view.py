@@ -106,10 +106,15 @@ def vendor_name(raw):
     return name or 'Unknown vendor'
 
 
-def plugins_by_vendor(plugins):
-    """{environment id: {vendor: [plug-in names]}}, from each plug-in's metadata."""
+def plugins_by_vendor(plugins, spelled=None):
+    """{environment id: {vendor: [plug-in names]}}, from each plug-in's metadata.
+
+    `spelled` maps a casefolded vendor to the spelling first seen, so that
+    "SoundToys" and "Soundtoys" from two sources end up on one row.
+    """
     import json
-    found, spelled = {}, {}
+    found = {}
+    spelled = {} if spelled is None else spelled
     for plugin in plugins:
         try:
             classes = json.loads(plugin.get('metadata') or '{}').get('classes') or []
@@ -125,10 +130,98 @@ def plugins_by_vendor(plugins):
     return found
 
 
+def is_setup_program(record, setup):
+    """Whether a vendor app is a setup program kept for reinstalling, not a manager.
+
+    Some installers leave only a cached copy of themselves behind, and that
+    copy gets adopted as the vendor's app. Its version resource says what it
+    is: an InstallShield or InstallScript launcher, or a plain "Setup".
+    """
+    import json
+    try:
+        entry = json.loads((Path(record['path']) / 'helper-entry.json').read_text())['helper']['executable']
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    if 'installshield installation information' in entry.casefold() or 'package cache' in entry.casefold():
+        return True
+    info = module_version(Path(record['path']) / 'prefix' / 'drive_c' / entry)
+    described = (info.get('FileDescription') or '').casefold()
+    return any(word in described for word in ('setup launcher', 'installscript', 'installshield')) \
+        or described in ('setup', 'installer')
+
+
 def app_title(name):
     """A helper adopted from its file name, without the version it happened to carry."""
     import re
     return re.sub(r'[\s._-]*v?\d+(?:\.\d+)+$', '', name).strip() or name
+
+
+#: Where Windows VST3 plug-ins install, inside an environment.
+VST3_FOLDER = ('prefix', 'drive_c', 'Program Files', 'Common Files', 'VST3')
+UNIDENTIFIED = 'Not identified yet'
+_versions = {}
+
+
+def installed_modules(environment):
+    """[(module path, bundle-or-file path)] for every VST3 installed in an environment.
+
+    Walks only the standard VST3 folder, follows no symlink, and does not
+    descend into bundles. Cheap enough to run whenever the library changes.
+    """
+    import os
+    from . import pe_version
+    root = Path(environment).joinpath(*VST3_FOLDER)
+    found = []
+    for parent, dirs, files in os.walk(root, followlinks=False):
+        here = Path(parent)
+        for name in list(dirs):
+            if name.lower().endswith('.vst3'):
+                dirs.remove(name)
+                module = pe_version.module_of(here / name)
+                if module is not None and not module.is_symlink():
+                    found.append((module, here / name))
+        for name in files:
+            path = here / name
+            if name.lower().endswith('.vst3') and not path.is_symlink():
+                found.append((path, path))
+    return found
+
+
+def module_version(path):
+    """Version info for a file, cached until the file changes."""
+    from . import pe_version
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return {}
+    key = (str(path), stat.st_size, stat.st_mtime_ns)
+    if key not in _versions:
+        _versions[key] = pe_version.version_info(path)
+    return _versions[key]
+
+
+def unpublished(records, known_modules):
+    """{environment id: {vendor: [names]}} for plug-ins installed but never published.
+
+    The vendor comes from each file's version resource. A plug-in that was
+    published once and then retired is not "not published yet", so every
+    module the library has a record of is left out.
+    """
+    known = {str(Path(m)) for m in known_modules if m}
+    found = {}
+    for record in records:
+        if record.get('dangling'):
+            continue
+        for module, shown in installed_modules(record['path']):
+            if str(module) in known:
+                continue
+            info = module_version(module)
+            vendor = vendor_name(info['CompanyName']) if info.get('CompanyName') else UNIDENTIFIED
+            name = info.get('ProductName') or shown.stem
+            names = found.setdefault(record['id'], {}).setdefault(vendor, [])
+            if name not in names:
+                names.append(name)
+    return found
 
 
 def plural(count, word):
@@ -190,6 +283,7 @@ class LibraryView:
         self.host = host
         self.query = ''
         self.vendor_plugins = {}
+        self.waiting = {}
         self.softube = set()
         self.expanded = set()
         self.menus = {}
@@ -214,8 +308,16 @@ class LibraryView:
 
     # ------------------------------------------------------------ the model
 
-    def update(self, records, setups, jobs, sizes, breakdown, spare_runtimes, nested, plugins=(), softube=()):
-        self.vendor_plugins = plugins_by_vendor(plugins)
+    def update(self, records, setups, jobs, sizes, breakdown, spare_runtimes, nested, plugins=(), softube=(),
+               known_modules=None):
+        spelled = {}
+        self.vendor_plugins = plugins_by_vendor(plugins, spelled)
+        known = known_modules if known_modules is not None else [p.get('module') for p in plugins]
+        self.waiting = {}
+        for env_id, groups in unpublished(records, known).items():
+            for vendor, names in groups.items():
+                vendor = spelled.setdefault(vendor.casefold(), vendor)
+                self.waiting.setdefault(env_id, {}).setdefault(vendor, []).extend(names)
         self.softube = set(softube)
         self.last = (records, setups, jobs, sizes, breakdown, spare_runtimes, nested)
         self.render(*self.last)
@@ -303,7 +405,9 @@ class LibraryView:
         listing = group()
         if shown:
             self.body.append(listing)
-        for row, hits in sorted(shown, key=lambda item: item[0]['title'].casefold()):
+        # By name, with what could not be identified at the end.
+        for row, hits in sorted(shown, key=lambda item: (item[0]['title'] == UNIDENTIFIED,
+                                                         item[0]['title'].casefold())):
             listing.append(self.vendor_row(row, hits, largest))
 
         items = len(leftovers) + len(spare_runtimes) + len(nested) + len(unaccounted)
@@ -362,15 +466,17 @@ class LibraryView:
         apps = self.helper_apps(record, helpers)
         note = next((s.get('message') for s in helpers if s.get('needs_attention') and s.get('message')), None)
         by_vendor = self.vendor_plugins.get(record['id'], {})
+        waiting = self.waiting.get(record['id'], {})
         if record.get('licensing_group') != 'ilok':
             name = self.names.get(record['id'], survey.summarize(record))
             return [{'key': record['id'], 'title': name, 'record': record, 'owner': True, 'size': size,
-                     'plugins': record['plugins'], 'apps': [widget for _, widget in apps], 'note': note,
-                     'helpers': helpers}]
+                     'plugins': record['plugins'], 'waiting': [n for names in waiting.values() for n in names],
+                     'apps': [widget for _, widget in apps], 'note': note, 'helpers': helpers}]
         members = {}
-        for vendor, names in by_vendor.items():
+        for vendor in list(by_vendor) + [v for v in waiting if v not in by_vendor]:
             members[vendor] = {'key': record['id'] + ':' + vendor, 'title': vendor, 'record': record,
-                               'owner': False, 'size': None, 'plugins': names, 'apps': []}
+                               'owner': False, 'size': None, 'plugins': by_vendor.get(vendor, []),
+                               'waiting': waiting.get(vendor, []), 'apps': []}
         own = []
         for app, widget in apps:
             wanted = APP_VENDOR.get(app)
@@ -381,11 +487,11 @@ class LibraryView:
                 title = {'UA': 'Universal Audio'}.get(title, title)
                 member = members.setdefault(title, {'key': record['id'] + ':' + title, 'title': title,
                                                     'record': record, 'owner': False, 'size': None,
-                                                    'plugins': [], 'apps': []})
+                                                    'plugins': [], 'waiting': [], 'apps': []})
             (member['apps'] if member else own).append(widget)
-        vendors = sorted(members, key=str.casefold)
+        vendors = sorted((v for v in members if v != UNIDENTIFIED), key=str.casefold)
         head = {'key': record['id'], 'title': record.get('name') or 'iLok', 'record': record, 'owner': True,
-                'size': size, 'plugins': [], 'apps': own,
+                'size': size, 'plugins': [], 'waiting': [], 'apps': own,
                 'meta': 'License Manager · shared by ' + (', '.join(vendors) if vendors else 'no vendor yet'),
                 'note': note, 'helpers': helpers}
         return [head] + list(members.values())
@@ -396,7 +502,7 @@ class LibraryView:
             return []
         if self.query in row['title'].casefold():
             return []
-        hits = [name for name in row['plugins'] if self.query in name.casefold()]
+        hits = [name for name in row['plugins'] + row.get('waiting', []) if self.query in name.casefold()]
         return hits or None
 
     def vendor_row(self, row, hits, largest):
@@ -408,6 +514,9 @@ class LibraryView:
         titles.set_hexpand(True)
         titles.append(text(row['title'], 'lib-name', ellipsize=True))
         meta = row.get('meta') or plural(len(row['plugins']), 'plug-in')
+        if row.get('waiting') and not row.get('meta'):
+            meta = ('%d installed, not published yet' % len(row['waiting']) if not row['plugins']
+                    else meta + '  ·  %d not published yet' % len(row['waiting']))
         if row['owner'] and record.get('retired') and not row.get('meta'):
             meta += '  ·  %d retired' % len(record['retired'])
         if not row['owner']:
@@ -440,19 +549,20 @@ class LibraryView:
         toggle.add_css_class('lib-toggle')
         toggle.set_valign(Gtk.Align.CENTER)
         toggle.set_tooltip_text('Show its plug-ins')
-        toggle.set_sensitive(bool(row['plugins']))
-        toggle.set_opacity(1.0 if row['plugins'] else 0.0)
+        listed = row['plugins'] + row.get('waiting', [])
+        toggle.set_sensitive(bool(listed))
+        toggle.set_opacity(1.0 if listed else 0.0)
         head.append(toggle)
         box.append(head)
         if row['owner']:
             box.append(bar((row['size'] or 0) / largest))
         revealer = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN, transition_duration=140)
-        revealer.set_reveal_child(opened and bool(row['plugins']))
-        revealer.set_child(self.details(row['plugins'], hits))
+        revealer.set_reveal_child(opened and bool(listed))
+        revealer.set_child(self.details(row['plugins'], hits, row.get('waiting', [])))
         box.append(revealer)
 
         def flip(*_):
-            if not row['plugins']:
+            if not listed:
                 return
             now = not revealer.get_reveal_child()
             revealer.set_reveal_child(now)
@@ -464,18 +574,28 @@ class LibraryView:
         titles.add_controller(click)
         return box
 
-    def details(self, plugins, hits):
+    def details(self, plugins, hits, waiting=()):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.add_css_class('lib-details')
-        if plugins:
+
+        def chips(names, *classes, tooltip=None):
             flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=6, row_spacing=6,
                                max_children_per_line=30, homogeneous=False)
-            for name in plugins:
-                chip = text(name, 'lib-plugin', *(('lib-plugin-hit',) if name in hits else ()))
+            for name in names:
+                chip = text(name, 'lib-plugin', *classes, *(('lib-plugin-hit',) if name in hits else ()))
                 chip.set_halign(Gtk.Align.START)
+                if tooltip:
+                    chip.set_tooltip_text(tooltip)
                 flow.append(chip)
-            box.append(flow)
-        else:
+            return flow
+        if plugins:
+            box.append(chips(plugins))
+        if waiting:
+            box.append(text('Installed, not published yet', 'lib-meta'))
+            box.append(chips(waiting, 'lib-plugin-waiting',
+                             tooltip='Installed but not in your DAW yet. iLok and other copy-protected plug-ins '
+                                     'are published once they are activated.'))
+        if not plugins and not waiting:
             box.append(text('No plug-ins published from here yet.', 'lib-dim'))
         return box
 
@@ -536,12 +656,12 @@ class LibraryView:
         """
         apps = []
 
-        def add(app, title, opener, running, busy, job):
+        def add(app, title, opener, running, busy, job, tooltip=None):
             if running:
                 apps.append((app, button(title, lambda: self.host.show_helper(job), 'compact', 'running',
-                                         tooltip='Running. Bring its window back.')))
+                                         tooltip=(tooltip or app) + '. Running: bring its window back.')))
             else:
-                apps.append((app, button(title, opener, 'compact', sensitive=not busy)))
+                apps.append((app, button(title, opener, 'compact', sensitive=not busy, tooltip=tooltip)))
         for setup in helpers:
             job, running, busy = setup['job'], setup.get('running') or [], setup.get('busy')
             managers = setup.get('managers') or []
@@ -556,15 +676,17 @@ class LibraryView:
                     if manager == 'iLok License Manager':
                         continue
                     live = any(manager.split()[0].casefold() in n.casefold() for n in running)
-                    add(manager, 'Open ' + manager, lambda j=job, m=manager: self.host.manager_action(j, m),
-                        live, busy, job)
+                    add(manager, 'Open manager', lambda j=job, m=manager: self.host.manager_action(j, m),
+                        live, busy, job, tooltip='Opens ' + manager)
             else:
                 title = HELPER_TITLES.get(setup['recipe']) or app_title(setup.get('name') or 'helper')
-                add(title, 'Open ' + title, lambda j=job: self.host.vendor_action(j, False), bool(running), busy, job)
+                label = 'Run installer' if is_setup_program(record, setup) else 'Open manager'
+                add(title, label, lambda j=job: self.host.vendor_action(j, False), bool(running), busy, job,
+                    tooltip='Opens ' + title)
         if record['id'] in self.softube and not any(app == 'Softube Central' for app, _ in apps):
             directory = Path(record['path'])
-            apps.append(('Softube Central', button('Open Softube Central',
-                                                   lambda d=directory: self.host.softube_action(d), 'compact')))
+            apps.append(('Softube Central', button('Open manager', lambda d=directory: self.host.softube_action(d),
+                                                   'compact', tooltip='Opens Softube Central')))
         return apps
 
     def urgent_row(self, record, problem, helpers):
@@ -725,13 +847,14 @@ def library_data(root):
     records = survey.survey(store)
     setups = vendors.cards(store)
     jobs = store.jobs()
-    plugins = [p for p in store.plugins() if p['status'] != 'removed']
+    every = store.plugins()
+    plugins = [p for p in every if p['status'] != 'removed']
     sizes = {r['id']: survey.measure(r['path']) for r in records if not r.get('dangling')}
     breakdown = {k: v for k, v in measure_breakdown(store.root).items() if k != 'environments'}
     breakdown['environments'] = sum(sizes.values())
     soft = {r['id'] for r in records if not r.get('dangling') and softube.configured(Path(r['path']))}
     return (records, setups, jobs, sizes, breakdown, survey.unused_runtimes(store),
-            survey.nested_libraries(store)), plugins, soft, store.root
+            survey.nested_libraries(store)), plugins, soft, store.root, [p['module'] for p in every]
 
 
 SAMPLE = {
@@ -819,9 +942,10 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
     from . import theme
 
     if library:
-        data, plugins, soft, root = library_data(library)
+        data, plugins, soft, root, known = library_data(library)
     else:
         data, plugins, soft, root = demo_data(), demo_plugins(), {'8c1f02aa77e14c0b'}, Path.home() / '.local/share/plugg'
+        known = None
 
     notice = text('Read-only preview. Buttons show what they would do and change nothing.', 'lib-preview', wrap=True)
 
@@ -854,7 +978,7 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         view = LibraryView(Host())
         view.expanded.update(expand)
-        view.update(*data, plugins=plugins, softube=soft)
+        view.update(*data, plugins=plugins, softube=soft, known_modules=known)
         if search:
             view.search.set_text(search)
         scroll = Gtk.ScrolledWindow()

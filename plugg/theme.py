@@ -95,6 +95,7 @@ popover.lib-menu separator { margin: 4px 0; background: alpha(@oiko_border, 0.6)
 .lib-chip-caution { color: @oiko_accent; border-color: alpha(@oiko_accent, 0.6); }
 .lib-plugin { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: alpha(@oiko_text, 0.05);
               color: @oiko_text; }
+.lib-plugin-waiting { background: transparent; border: 1px dashed alpha(@oiko_text, 0.25); color: @oiko_muted; }
 .lib-plugin-hit { background: alpha(@oiko_selection, 0.25); }
 progressbar.lib-bar trough { min-height: 3px; background: alpha(@oiko_text, 0.07); border: none; border-radius: 2px; }
 progressbar.lib-bar progress { min-height: 3px; background: alpha(@oiko_text, 0.35); border: none; border-radius: 2px; }

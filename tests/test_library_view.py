@@ -103,3 +103,37 @@ class NamesTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class UnpublishedTests(unittest.TestCase):
+    """Plug-ins installed but not published still get a vendor, from the file itself."""
+
+    def setUp(self):
+        import tempfile
+        from test_pe_version import pe_with, version_resource
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = __import__('pathlib').Path(self.tmp.name) / 'env'
+        vst3 = self.env.joinpath(*view.VST3_FOLDER)
+        vst3.mkdir(parents=True)
+        (vst3 / 'soothe64.vst3').write_bytes(pe_with(version_resource({'CompanyName': 'oeksound',
+                                                                       'ProductName': 'soothe'})))
+        (vst3 / 'Soundtoys').mkdir()
+        (vst3 / 'Soundtoys' / 'EchoBoyJr.vst3').write_bytes(pe_with(version_resource({'CompanyName': 'SoundToys',
+                                                                                      'ProductName': 'EchoBoy Jr'})))
+        bundle = vst3 / 'Fix Phaser.vst3' / 'Contents' / 'x86_64-win'
+        bundle.mkdir(parents=True)
+        (bundle / 'Fix Phaser.vst3').write_bytes(b'MZ' + b'\0' * 200)
+        self.published = vst3 / 'Dirty Tape.vst3'
+        self.published.write_bytes(pe_with(version_resource({'CompanyName': 'Softube'})))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_each_unpublished_plug_in_is_named_by_its_own_file(self):
+        found = view.unpublished([record(id='e', path=str(self.env))], [str(self.published)])
+        self.assertEqual(found['e'], {'oeksound': ['soothe'], 'SoundToys': ['EchoBoy Jr'],
+                                      view.UNIDENTIFIED: ['Fix Phaser']})
+
+    def test_published_or_retired_modules_are_not_counted_again(self):
+        found = view.unpublished([record(id='e', path=str(self.env))], [str(self.published)])
+        self.assertNotIn('Softube', found['e'])
