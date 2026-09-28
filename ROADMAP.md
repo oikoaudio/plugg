@@ -24,7 +24,7 @@ Roughly in order of how much each would change the project's usefulness.
 
 ### 1. Packages beyond Arch
 
-On Arch-based systems, `makepkg -si` builds and installs everything: the manager, the bridge, the scanner and the PowerShell forwarder, from pinned sources. Everywhere else you build from a checkout, which reaches only people comfortable doing that. The next step is a package for another family of distributions, or a Flatpak if the bridge and runtimes can work inside one.
+On Arch-based systems, `makepkg -si` builds and installs everything: the manager, the bridge, the scanner and the PowerShell forwarder, from pinned sources. Everywhere else you build from a checkout, which reaches only people comfortable doing that. The next step is a package for another family of distributions, or a Flatpak if the bridge and runtimes can work inside one. [The Flatpak decision](docs/decisions/0003-flatpak.md) lists what has to be proven first.
 
 ### 2. DAW regression
 

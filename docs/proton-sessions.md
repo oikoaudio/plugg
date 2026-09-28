@@ -28,6 +28,25 @@ With DXVK selected, fixture audio passed before and after an idle restart. On th
 
 Some vendor manager applications do not work through `runinprefix`. Klevgrand Helper, for example, needs a full Proton launch, so its environment stops the idle managed session before opening Helper. See [the vendor Helper workflow](vendor-helper-workflow.md#helper-uses-the-full-proton-launch).
 
+## When a plug-in takes its host down
+
+A plug-in can kill the Windows host's main thread, for example with a stack overflow in `initialize`. The process stays alive in its other threads, and its leader shows as a zombie in `ps`. Wine's launcher (`start.exe`) keeps waiting for it, so the DAW waits too, and a crashed plug-in looks like a frozen DAW. [The host-stack diagnosis](../diagnostics/host-stack/README.md) describes one such case.
+
+The session therefore watches the host itself. Every two seconds it looks for the host in the launch's own process group. Wine keeps new processes in that group, even after they are reparented. When the host has exited, or its leader is a zombie, the session ends the launch and reports exit status 127 to the bridge. The DAW then sees a failed load instead of a hang.
+
+The session recognises the host by its program name, not by its path appearing in a command line. Proton's `runinprefix` and Wine's `start.exe` carry the host's Unix path as an argument, and they are the launcher. The host's own `argv[0]` is the same path in Windows form, such as `X:\...\yabridge-host.exe.so`. The first version of this check matched the path anywhere, found the launcher, and so never fired. Matching by process group also keeps one healthy instance from hiding another instance that has died, because every instance runs the same host program.
+
+`scripts/test-carla.py` checks this with the `Plugg Test Crash` fixture, which ends the host's main thread in `initialize`. With the check in place, Carla's load fails after about five seconds. Without it, Carla was still waiting when a 45-second timeout ended the test.
+
+Environments keep the session manager they were created with. To give existing environments the current one:
+
+```sh
+plugg environment update-launcher            # every environment in the library
+plugg environment update-launcher <id>       # one environment
+```
+
+This replaces only the launcher script and its recorded fingerprint, and keeps a backup. It does not touch the prefix, the runtime or the machine identity, so the licensing guard allows it for protected environments. Stop the environment's plug-ins first.
+
 ## Validation
 
 From the repository, run:

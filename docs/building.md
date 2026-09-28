@@ -83,3 +83,46 @@ python3 scripts/test-proton-lifecycle.py --managed-session --rounds 3 --survival
 ```
 
 The original per-launch-container comparison still has known lifecycle failures. It is not the managed-session release test. Both harnesses use the project's own installer and gain plug-in in fresh environments, with no vendor accounts. Results go under ignored `.test-*` directories. The timings are not a latency benchmark.
+
+## Testing in a real host
+
+`scripts/test-carla.py` loads Plugg's own test plug-ins in Carla, the way a DAW would. It uses a disposable library in `.test-carla/`, which holds only the project's fixtures, and a private headless weston with Xwayland as the display. It needs Carla with its Python API (the Arch `carla` package has it), weston and xdotool.
+
+```sh
+scripts/build-fixture.sh
+python3 scripts/test-carla.py
+```
+
+The first run installs the fixtures into the test library, and that downloads the Proton runtime into it once. The fixtures are:
+
+- `Plugg Test Editor`, a gain with an edit controller and a 400x300 Win32 editor. A left click reports where it landed, in the editor's own coordinates, through the plug-in's three parameters.
+- `Plugg Test Crash`, the same plug-in, which ends the host's main thread in `initialize`.
+
+The test checks that two instances load, and that clicks at four known points arrive at those points in every one of several editor open and close cycles. An editor drawn off its frame, or input with an offset, fails this check. The test also checks that the crashing plug-in fails to load within seconds while the other instance keeps answering, that closing everything returns, and that no host process stays behind.
+
+The older `Plugg Test Gain` fixture has no edit controller. Carla's JUCE-based VST3 host crashes on it, so this test does not use it. Real plug-ins always have a controller.
+
+On weston, the first click after the editor's first open does not reach the plug-in. Every later click lands at the exact pixel. The cause is not known yet, so the editor check fails. `--outputs 2`, for two monitors side by side, is not implemented, because weston 15's headless backend creates only one output.
+
+`--x-display` runs against an X display you already have. It must have a window manager. On a bare Xvfb, Carla's JUCE window code sets properties with atoms that only a window manager creates, and it either dies with `BadAtom` or waits forever.
+
+## Checking whether a Wine patch is still needed
+
+Each Wine patch in Plugg's runtimes exists because stock Wine fails in a specific way, and each has a probe in `diagnostics/` that shows that failure without vendor software. `scripts/test-runtime-patches.py` runs every probe in a fresh disposable prefix on each runtime in a library, and reports each patch:
+
+| Result | Meaning |
+| --- | --- |
+| still needed | The runtime lacks the patch and has the bug. |
+| can retire? | The runtime lacks the patch and the bug is gone. Upstream probably fixed it. Check that release, then drop the patch. |
+| works | The runtime carries the patch and the bug is gone. |
+| REGRESSION | The runtime carries the patch and still has the bug. |
+
+```sh
+for b in diagnostics/*/build.sh; do sh "$b"; done
+python3 scripts/test-runtime-patches.py --library .test-carla/library
+python3 scripts/test-runtime-patches.py --runtime /path/to/a/newer/Proton
+```
+
+On 2026-09-28, stock UMU-Proton 10.0-4 had all four bugs, and `plugg-1` fixed the three it carries patches for. A copy of `plugg-1` with a local build of the patched `ntdll.dll` (the `plugg-2` fix) passed the unwind probe. The script reports that copy as "can retire?" rather than "works", because `runtime-overlays.json` does not record the `plugg-2` module's hash yet. To learn when a patch can go, point `--runtime` at each new UMU-Proton release. The script exits with status 2 when a patch may be retired.
+
+Never point either script at a library that holds activations.
