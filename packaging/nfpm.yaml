@@ -1,0 +1,126 @@
+# nfpm configuration for Plugg's .deb and .rpm packages.
+#
+# scripts/build-release-packages.py runs nfpm with the staging directory as
+# its working directory, so every src below is relative to that directory.
+# It also sets PLUGG_PACKAGE_VERSION (the version from plugg/__init__.py,
+# converted for deb and rpm) and SOURCE_DATE_EPOCH (the commit time, used as
+# every file's mtime). Build the packages with that script, not by hand.
+#
+# Each dependency below was installed and checked in a clean container by
+# packaging/test-packages.py: Ubuntu 24.04, Debian 13, Fedora 42 and Fedora 44.
+name: plugg
+arch: amd64
+platform: linux
+version: ${PLUGG_PACKAGE_VERSION}
+# The version is already in each format's own syntax (0.1.0~~dev0 for
+# 0.1.0.dev0); nfpm must not reinterpret it as semver.
+version_schema: none
+release: 1
+section: sound
+priority: optional
+maintainer: David Fredman <1152707+davfre@users.noreply.github.com>
+vendor: Oiko Audio
+homepage: https://github.com/oikoaudio/plugg
+license: GPL-3.0-or-later
+description: |-
+  Windows VST3 plug-ins in your Linux DAW
+  Plugg installs a Windows plug-in with the vendor's own installer into a
+  private Proton environment and publishes it as a native VST3 for Linux
+  DAWs, through a patched yabridge bridge. It downloads a pinned Proton
+  runtime on first use and checks its hash, so it does not need Wine.
+
+contents:
+  # The manager (the files the wheel holds), the prebuilt bridge and the
+  # PowerShell forwarder. The package owns /usr/lib/plugg and everything in it.
+  - src: tree/usr/lib/plugg
+    dst: /usr/lib/plugg
+    type: tree
+  - src: tree/usr/bin/plugg
+    dst: /usr/bin/plugg
+    file_info:
+      mode: 0755
+  - src: tree/usr/share/applications/com.oikoaudio.Plugg.desktop
+    dst: /usr/share/applications/com.oikoaudio.Plugg.desktop
+  - dst: /usr/share/doc/plugg
+    type: dir
+  # nfpm's doc and license types exist only for rpm (%doc, %license), so the
+  # .deb lists the same files as plain files. Debian keeps the licence in the
+  # copyright file, Fedora in /usr/share/licenses.
+  - src: tree/usr/share/doc/plugg/README.md
+    dst: /usr/share/doc/plugg/README.md
+    packager: deb
+  - src: tree/usr/share/doc/plugg/third-party.md
+    dst: /usr/share/doc/plugg/third-party.md
+    packager: deb
+  - src: deb/copyright
+    dst: /usr/share/doc/plugg/copyright
+    packager: deb
+  - src: tree/usr/share/doc/plugg/README.md
+    dst: /usr/share/doc/plugg/README.md
+    type: doc
+    packager: rpm
+  - src: tree/usr/share/doc/plugg/third-party.md
+    dst: /usr/share/doc/plugg/third-party.md
+    type: doc
+    packager: rpm
+  - dst: /usr/share/licenses/plugg
+    type: dir
+    packager: rpm
+  - src: tree/usr/share/licenses/plugg/LICENSE
+    dst: /usr/share/licenses/plugg/LICENSE
+    type: license
+    packager: rpm
+
+# Byte-compile the app on install and remove the compiled files on removal
+# (copied into the staging directory from packaging/nfpm-scripts/).
+scripts:
+  postinstall: scripts/postinstall.sh
+  preremove: scripts/preremove.sh
+
+overrides:
+  deb:
+    depends:
+      - python3 (>= 3.12)
+      - python3-gi
+      - gir1.2-gtk-4.0 (>= 4.10)
+      - libc6 (>= 2.34)
+      - libstdc++6 (>= 11)
+      - libgcc-s1
+      - libxcb1
+      - libdbus-1-3
+      - zstd
+      - libarchive-tools
+      - bubblewrap
+      - xdg-utils
+      - ca-certificates
+    recommends:
+      - libnotify-bin
+  rpm:
+    depends:
+      - python3 >= 3.12
+      - python3-gobject
+      - gtk4 >= 4.10
+      - glibc >= 2.34
+      - libstdc++ >= 11
+      - libgcc
+      - libxcb
+      - dbus-libs
+      - zstd
+      - bsdtar
+      - bubblewrap
+      - xdg-utils
+      - ca-certificates
+    recommends:
+      - libnotify
+
+rpm:
+  summary: Windows VST3 plug-ins in your Linux DAW
+  group: Applications/Multimedia
+  compression: zstd
+  # Not the build machine's name, so two builds of one commit match.
+  buildhost: plugg-release
+
+deb:
+  compression: xz
+  fields:
+    Bugs: https://github.com/oikoaudio/plugg/issues

@@ -37,6 +37,8 @@ core.[0-9]*
 *.7z
 *.tar
 *.tar.*
+*.deb
+*.rpm
 *.vst3/
 *.aaxplugin/
 
