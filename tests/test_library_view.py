@@ -6,6 +6,12 @@ check the rules that decide which is which, without a display.
 """
 import unittest
 
+try:
+    import gi  # noqa: F401  the module builds GTK widgets, so it imports GTK
+except ImportError:
+    # The Tests job has no PyGObject; the Interface job, which has GTK, runs these.
+    raise unittest.SkipTest('needs PyGObject')
+
 from plugg import library_view as view
 
 

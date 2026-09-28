@@ -90,3 +90,8 @@ jobs:
             libgtk-4-1 gir1.2-gtk-4.0 python3-gi python3-gi-cairo xvfb
       - name: Build the window and exercise its controls
         run: xvfb-run -a python3 scripts/test-ui.py
+      # The library list's rules need GTK to import, so they run here, not in Tests.
+      - name: Library list rules
+        run: python3 -m unittest -v tests.test_library_view
+        env:
+          PYTHONPATH: .:tests
