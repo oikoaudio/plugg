@@ -26,7 +26,14 @@ sha256sums=('SKIP' 'SKIP')
 
 pkgver() {
     cd plugg
-    printf '0.1.0.dev0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    # From the latest v<version> tag, as 0.1.0.r3.gabc1234; before the first
+    # tag, from the version plugg/__init__.py declares.
+    if git describe --long --tags --match 'v[0-9]*' >/dev/null 2>&1; then
+        git describe --long --tags --match 'v[0-9]*' | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+    else
+        printf '%s.r%s.g%s' "$(sed -n 's/^__version__ = "\(.*\)"/\1/p' plugg/__init__.py)" \
+            "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    fi
 }
 
 prepare() {

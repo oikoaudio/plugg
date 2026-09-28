@@ -1,6 +1,6 @@
 [project]
 name = "plugg"
-version = "0.1.0.dev0"
+dynamic = ["version"]
 description = "Managed Windows plug-ins for native Linux DAWs"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
@@ -14,6 +14,10 @@ line-length = 120
 [build-system]
 requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+# plugg/__init__.py is the one place the version is written.
+version = {attr = "plugg.__version__"}
 
 [tool.setuptools]
 packages = ["plugg"]

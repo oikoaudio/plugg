@@ -1373,7 +1373,8 @@ def doctor(store: Store):
                  "problems": adoption["problems"]}
     except (HostError, OSError) as exc:
         older = {"error": str(exc)}
-    return {"version": "0.1.0-dev", "data": str(store.root), "publication": str(store.publication), "bridge": bridge,
+    from . import __version__
+    return {"version": __version__, "data": str(store.root), "publication": str(store.publication), "bridge": bridge,
             "bridge_directory": str(store.bridge_directory()), "bridge_error": bridge_error,
             # Published bundles that depend on something outside the library;
             # `relink-bundles` moves them.
