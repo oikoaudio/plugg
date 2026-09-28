@@ -544,7 +544,7 @@ class LibraryView:
         shown = [(row, self.row_matches(row)) for row in rows]
         shown = [(row, hits) for row, hits in shown if hits is not None]
         count = sum(len(r['plugins']) for r, _ in vendors)
-        self.body.append(Section('vendors', plural(count, 'plug-in')))
+        self.body.append(Section('vendors', '%d in your DAW' % count))
         if not rows:
             self.body.append(text('Nothing installed yet. Drop an installer or a VST3 above.', 'lib-dim'))
         elif not shown:
@@ -623,12 +623,17 @@ class LibraryView:
             name = self.names.get(record['id'], survey.summarize(record))
             return [{'key': record['id'], 'title': name, 'record': record, 'owner': True, 'size': size,
                      'plugins': record['plugins'], 'waiting': [n for names in waiting.values() for n in names],
+                     'recheck': next((j['id'] for j in record['jobs'] if not j.get('archived')), None),
                      'apps': [widget for _, widget in apps], 'note': note, 'helpers': helpers}]
+        # What activating needs: the iLok helper's job, and whether it can
+        # open the License Manager directly.
+        ilok = next(({'job': s['job'], 'direct': 'iLok License Manager' in (s.get('managers') or [])}
+                     for s in helpers if s.get('has_ilok')), None)
         members = {}
         for vendor in list(by_vendor) + [v for v in waiting if v not in by_vendor]:
             members[vendor] = {'key': record['id'] + ':' + vendor, 'title': vendor, 'record': record,
                                'owner': False, 'size': None, 'plugins': by_vendor.get(vendor, []),
-                               'waiting': waiting.get(vendor, []), 'apps': []}
+                               'waiting': waiting.get(vendor, []), 'apps': [], 'ilok': ilok}
         own = []
         for app, widget in apps:
             wanted = APP_VENDOR.get(app)
@@ -669,10 +674,15 @@ class LibraryView:
             running = any(c.has_css_class('running') for c in row['apps'])
             state = ('running' if running else 'waiting' if row.get('waiting')
                      else 'ok' if row['plugins'] else 'idle')
+            if row.get('meta'):
+                state = None
             line = Gtk.Box(spacing=8)
             dot = Gtk.Box(accessible_role=Gtk.AccessibleRole.PRESENTATION)
             dot.add_css_class('lib-dot')
-            dot.add_css_class('lib-dot-' + state)
+            dot.add_css_class('lib-dot-' + (state or 'none'))
+            dot.set_tooltip_text({'running': 'Its app is running', 'ok': 'Its plug-ins are in your DAW',
+                                  'waiting': 'Something is waiting for you: see the button on this row',
+                                  'idle': 'Nothing in your DAW yet'}.get(state))
             dot.set_valign(Gtk.Align.CENTER)
             line.append(dot)
             line.append(name)
@@ -687,10 +697,16 @@ class LibraryView:
             tile.set_xalign(0.5)
             tile.set_valign(Gtk.Align.CENTER)
             head.append(tile)
-        meta = row.get('meta') or plural(len(row['plugins']), 'plug-in')
-        if row.get('waiting') and not row.get('meta'):
-            meta = ('%d installed, not published yet' % len(row['waiting']) if not row['plugins']
-                    else meta + '  ·  %d not published yet' % len(row['waiting']))
+        waiting = row.get('waiting') or []
+        activation = row.get('ilok') is not None
+        if row.get('meta'):
+            meta = row['meta']
+        else:
+            parts = [plural(len(row['plugins']), 'plug-in')] if row['plugins'] else []
+            if waiting:
+                parts.append(('%d waiting for iLok activation' if activation else '%d not in your DAW yet')
+                             % len(waiting))
+            meta = '  ·  '.join(parts) or 'nothing in your DAW yet'
         if row['owner'] and record.get('retired') and not row.get('meta'):
             meta += '  ·  %d retired' % len(record['retired'])
         if not row['owner']:
@@ -703,6 +719,23 @@ class LibraryView:
             said.set_tooltip_text(row['note'])
             titles.append(said)
         head.append(titles)
+        todo = None
+        if waiting and activation:
+            job, direct = row['ilok']['job'], row['ilok']['direct']
+            todo = button('Activate in iLok', (lambda: self.host.manager_action(job, 'iLok License Manager'))
+                          if direct else (lambda: self.host.open_ilok(job)), 'compact',
+                          tooltip='Opens iLok License Manager. Activate your licences there and close it: '
+                                  'Plugg then checks these plug-ins again and adds the ones that load.')
+            hint = text('Activate in iLok License Manager, then close it. Plugg checks again and adds '
+                        'what loads to your DAW.', 'lib-note', wrap=True)
+            titles.append(hint)
+        elif waiting and row.get('recheck'):
+            todo = button('Check again', lambda j=row['recheck']: self.host.rescan(j), 'compact',
+                          tooltip='Look for plug-ins in this environment again, for example after '
+                                  'authorising them in the vendor\'s app.')
+        if todo is not None:
+            speak(todo, '%s for %s' % (todo.get_label(), row['title']), todo.get_tooltip_text())
+            head.append(todo)
         for control in row['apps']:
             # "Open manager" five times over says nothing to someone who hears it.
             speak(control, '%s for %s' % (control.get_label(), row['title']), control.get_tooltip_text())
@@ -739,7 +772,7 @@ class LibraryView:
             box.append(bar((row['size'] or 0) / largest))
         revealer = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN, transition_duration=140)
         revealer.set_reveal_child(opened and bool(listed))
-        revealer.set_child(self.details(row['plugins'], hits, row.get('waiting', [])))
+        revealer.set_child(self.details(row['plugins'], hits, waiting, activation))
         box.append(revealer)
 
         def flip(*_):
@@ -758,7 +791,7 @@ class LibraryView:
             spoken += '. ' + row['note']
         return box, (flip if listed else None), menu, opened and bool(listed), spoken
 
-    def details(self, plugins, hits, waiting=()):
+    def details(self, plugins, hits, waiting=(), activation=False):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.add_css_class('lib-details')
 
@@ -775,12 +808,13 @@ class LibraryView:
         if plugins:
             box.append(chips(plugins))
         if waiting:
-            box.append(text('Installed, not published yet', 'lib-meta'))
+            box.append(text('Waiting for iLok activation' if activation else 'Installed, not in your DAW yet',
+                            'lib-meta'))
             box.append(chips(waiting, 'lib-plugin-waiting',
                              tooltip='Installed but not in your DAW yet. iLok and other copy-protected plug-ins '
-                                     'are published once they are activated.'))
+                                     'are added once they are activated.'))
         if not plugins and not waiting:
-            box.append(text('No plug-ins published from here yet.', 'lib-dim'))
+            box.append(text('Nothing from here is in your DAW yet.', 'lib-dim'))
         return box
 
     def settings(self, record, helpers=()):
@@ -1113,7 +1147,7 @@ PREVIEW_ACTIONS = {
     'reclaim_runtime': 'reclaim the unused runtime', 'delete_environment': 'ask to delete the environment',
     'delete_nested': 'ask to delete the separate library', 'show_path': 'open the folder',
     'show_folder': 'open the folder', 'rename_environment': 'rename the environment',
-    'record_licensing': 'open licence handling for', 'troubleshoot': 'open the fixes for',
+    'record_licensing': 'open licence handling for', 'rescan': 'check again for plug-ins from the installation', 'troubleshoot': 'open the fixes for',
     'open_recipes': 'open recipes and fixes', 'stop_helper': 'force close the apps of',
     'show_helper': 'bring back the window of', 'vendor_action': 'open the helper of',
     'manager_action': 'open', 'open_ilok': 'open iLok License Manager in', 'softube_action': 'open Softube Central in',

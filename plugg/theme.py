@@ -122,6 +122,7 @@ button.lib-danger:hover { background: alpha(@oiko_error, 0.12); }
 .lib-preview { font-size: 0.86em; color: @oiko_selection; padding: 8px 12px; border-radius: 6px;
                background: alpha(@oiko_selection, 0.10); }
 .lib-dot { min-width: 8px; min-height: 8px; border-radius: 4px; background: alpha(@oiko_text, 0.25); }
+.lib-dot-none { background: transparent; }
 .lib-dot-ok { background: @oiko_ok; }
 .lib-dot-waiting { background: @oiko_accent; }
 .lib-dot-running { background: @oiko_selection; }
