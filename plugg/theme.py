@@ -63,6 +63,44 @@ button.running:hover { background: alpha(@oiko_accent, 0.12); }
 .flag-danger { color: @oiko_error; }
 .flag-caution { color: @oiko_accent; }
 .pinned { font-family: monospace; font-size: 11px; color: @oiko_muted; }
+/* The library list. Figures and identifiers are monospace with even digits,
+   so sizes line up down the column the way they do in a terminal; everything
+   a person reads as words stays in the interface font. */
+.library searchentry { padding: 6px 10px; }
+.lib-section { margin-top: 18px; margin-bottom: 2px; }
+.lib-section-title { font-family: "JetBrains Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+                     font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: @oiko_muted; }
+.lib-section separator { background: @oiko_border; min-height: 1px; }
+.lib-list { background: @oiko_panel; border: 1px solid alpha(@oiko_border, 0.7); border-radius: 10px; }
+.lib-item { padding: 12px 16px 10px 16px; border-top: 1px solid alpha(@oiko_border, 0.5); }
+.lib-item:first-child { border-top: none; }
+.lib-item:hover { background: alpha(@oiko_text, 0.025); }
+.lib-attention { border-left: 3px solid @oiko_accent; padding-left: 13px; }
+.lib-name { font-size: 15px; font-weight: 500; }
+.lib-meta, .lib-figure, .lib-plugin, .lib-chip { font-family: "JetBrains Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+                                                   font-feature-settings: "tnum"; }
+.lib-meta { font-size: 11px; color: @oiko_muted; }
+.lib-figure { font-size: 13px; color: @oiko_text; }
+.lib-dim { color: @oiko_muted; }
+.lib-note { font-size: 12px; color: @oiko_muted; }
+.lib-chip { font-size: 10px; padding: 1px 7px; border-radius: 4px; border: 1px solid @oiko_border; color: @oiko_muted; }
+.lib-chip-caution { color: @oiko_accent; border-color: alpha(@oiko_accent, 0.6); }
+.lib-plugin { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: alpha(@oiko_text, 0.05);
+              color: @oiko_text; }
+.lib-plugin-hit { background: alpha(@oiko_selection, 0.25); }
+progressbar.lib-bar trough { min-height: 3px; background: alpha(@oiko_text, 0.07); border: none; border-radius: 2px; }
+progressbar.lib-bar progress { min-height: 3px; background: alpha(@oiko_text, 0.35); border: none; border-radius: 2px; }
+progressbar.lib-bar-attention progress { background: alpha(@oiko_accent, 0.75); }
+.lib-details { padding-top: 8px; }
+button.lib-toggle { padding: 2px; min-height: 22px; min-width: 22px; background: transparent; border: none; }
+button.lib-toggle:hover { background: @oiko_hover; }
+button.lib-quiet { background: transparent; border-color: transparent; color: @oiko_muted; }
+button.lib-quiet:hover { color: @oiko_text; background: @oiko_hover; }
+button.lib-danger { background: transparent; color: @oiko_error; border-color: alpha(@oiko_error, 0.5); }
+button.lib-danger:hover { background: alpha(@oiko_error, 0.12); }
+.drop-area.drop-compact { padding: 10px 14px; min-height: 0; border-color: alpha(@oiko_accent, 0.25); }
+.window-title { font-weight: 600; }
+.lib-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid alpha(@oiko_border, 0.6); }
 ''').encode()
 
 

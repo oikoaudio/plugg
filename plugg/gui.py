@@ -22,6 +22,7 @@ from . import vendors, standalone
 
 
 from . import theme
+from .library_view import LibraryView, measure_breakdown
 
 
 
@@ -52,10 +53,13 @@ class Manager(Gtk.Application):
             saved_theme = 'dark'
         self.theme_mode = saved_theme if saved_theme in theme.PALETTES else 'dark'
         try:
-            saved_tab = json.loads((self.store.root / 'ui.json').read_text()).get('tab', 'plugins')
+            saved_tab = json.loads((self.store.root / 'ui.json').read_text()).get('tab', 'library')
         except (OSError, ValueError):
-            saved_tab = 'plugins'
-        self.tab = saved_tab if saved_tab in ('plugins', 'helpers', 'recipes', 'environments') else 'plugins'
+            saved_tab = 'library'
+        self.tab = saved_tab if saved_tab in ('library', 'plugins', 'helpers', 'recipes', 'environments') else 'library'
+        #: Bytes per top-level entry of the library folder, measured in the
+        #: background, so the library view can add the whole folder up.
+        self.breakdown = None
         self.selected_vendor = "All vendors"
         self.setup_cards = {}
         self.pending = {}
@@ -94,9 +98,14 @@ class Manager(Gtk.Application):
         for side in ("top", "bottom", "start", "end"):
             getattr(content, "set_margin_" + side)(28)
         scroll.set_child(content)
-        content.append(label("Windows audio plug-ins in your Linux DAW", "hero", True))
-        content.append(label("Add a Windows installer or VST3 plug-in. Plugg handles setup and makes your plug-ins available in your DAW.", "subtitle", True))
+        # The welcome is for an empty library. Once there is something in it,
+        # the drop area shrinks to one line and the library gets the room.
+        self.hero = label("Windows audio plug-ins in your Linux DAW", "hero", True)
+        content.append(self.hero)
+        self.subtitle = label("Add a Windows installer or VST3 plug-in. Plugg handles setup and makes your plug-ins available in your DAW.", "subtitle", True)
+        content.append(self.subtitle)
         drop = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        self.drop_area = drop
         drop.add_css_class("drop-area")
         icon = Gtk.Image.new_from_icon_name('folder-download-symbolic')
         icon.set_pixel_size(28)
@@ -106,9 +115,12 @@ class Manager(Gtk.Application):
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         text.set_hexpand(True)
         text.set_valign(Gtk.Align.CENTER)
-        text.append(label("Add your Windows plug-ins", "section-title", True))
-        text.append(label("Drop an installer or VST3 here, or choose a file to get started.", "muted", True))
-        text.append(label("Keep any installer .bin files beside the .exe.", "status", True))
+        self.drop_title = label("Add your Windows plug-ins", "section-title", True)
+        text.append(self.drop_title)
+        self.drop_line = label("Drop an installer or VST3 here, or choose a file to get started.", "muted", True)
+        text.append(self.drop_line)
+        self.drop_hint = label("Keep any installer .bin files beside the .exe.", "status", True)
+        text.append(self.drop_hint)
         # Adding a second, different installer while the first runs is fine and
         # useful. Dropping the SAME one again because nothing acknowledged it
         # is not, and that is what happened -- so the drop area says what is
@@ -140,7 +152,22 @@ class Manager(Gtk.Application):
         self.stack.set_transition_duration(120)
         switcher = Gtk.StackSwitcher(stack=self.stack)
         switcher.add_css_class('app-tabs')
-        header.set_title_widget(switcher)
+        title = Gtk.Box()
+        self.window_title = label('Plugg', 'window-title')
+        title.append(self.window_title)
+        title.append(switcher)
+        header.set_title_widget(title)
+        # The library is the whole window now. The four older views stay one
+        # click away while this is a sketch, so the two can be compared.
+        self.switcher = switcher
+        classic = Gtk.ToggleButton(icon_name='view-grid-symbolic', tooltip_text='Show the older tabbed views')
+        classic.connect('toggled', self.classic_toggled)
+        header.pack_start(classic)
+        self.classic = classic
+        self.library_view = LibraryView(self)
+        library_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        library_page.append(self.library_view.widget)
+        self.stack.add_titled(library_page, 'library', 'Library')
 
         plugins_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         # Heading, search and vendor filter on one row, directly over the list
@@ -231,6 +258,9 @@ class Manager(Gtk.Application):
         self.stack.add_titled(environments_page, 'environments', 'Environments')
 
         content.append(self.stack)
+        switcher.set_visible(self.tab != 'library')
+        self.window_title.set_visible(self.tab == 'library')
+        classic.set_active(self.tab != 'library')
         self.stack.set_visible_child_name(self.tab)
         self.recipe_notice = label("", "status", True)
         self.recipe_notice.set_visible(False)
@@ -247,12 +277,15 @@ class Manager(Gtk.Application):
         content.append(label("Developer preview · Separate environments are not security sandboxes. Compatibility testing is in progress.", "muted", True))
         self.stack.connect('notify::visible-child-name', self.tab_changed)
         self.refresh()
+        if self.tab == 'library':
+            self.measure_environments()
+            self.measure_library()
         if self.tab == 'recipes':
             self.load_recipes()
         GLib.timeout_add(700, self.refresh)
         self.window.present()
         if os.environ.get("PLUGG_UI_SMOKE"):
-            GLib.timeout_add(1800, self.smoke_done)
+            GLib.timeout_add(int(os.environ.get('PLUGG_UI_SMOKE_MS', '1800')), self.smoke_done)
 
     def save_interface_state(self):
         from .core import atomic_json
@@ -263,14 +296,57 @@ class Manager(Gtk.Application):
         self.theme_provider.load_from_data(theme.css(self.theme_mode))
         self.save_interface_state()
 
+    def classic_toggled(self, toggle):
+        self.switcher.set_visible(toggle.get_active())
+        self.window_title.set_visible(not toggle.get_active())
+        if not toggle.get_active():
+            self.stack.set_visible_child_name('library')
+
+    def open_recipes(self, scope=0):
+        """The catalogue, from the library: where a new plug-in goes when it does not just work."""
+        self.catalogue_scope.set_selected(scope)
+        self.classic.set_active(True)
+        self.stack.set_visible_child_name('recipes')
+
+    def troubleshoot(self, record=None):
+        # For now this opens the reusable fixes. A guided version would start
+        # from the symptom and try a fix on a copy; see the sketch notes.
+        self.open_recipes(scope=2)
+
+    def show_path(self, path):
+        Gio.AppInfo.launch_default_for_uri(Path(path).as_uri(), None)
+
+    def show_folder(self, name):
+        self.show_path(self.store.root / name)
+
+    def measure_library(self):
+        import threading
+        if getattr(self, 'measuring_library', False):
+            return
+        self.measuring_library = True
+
+        def task():
+            found = measure_breakdown(self.store.root)
+            GLib.idle_add(self.library_measured, found)
+        threading.Thread(target=task, daemon=True).start()
+
+    def library_measured(self, found):
+        self.measuring_library = False
+        self.breakdown = found
+        self.last = None
+        self.refresh()
+        return False
+
     def tab_changed(self, stack, _):
         """Come back to the view you were working in, and survey only on arrival."""
         self.tab = stack.get_visible_child_name() or 'plugins'
         self.save_interface_state()
         self.last = None
         self.refresh()
-        if self.tab == 'environments':
+        if self.tab in ('environments', 'library'):
             self.measure_environments()
+        if self.tab == 'library':
+            self.measure_library()
         if self.tab == 'recipes':
             self.load_recipes()
 
@@ -301,6 +377,9 @@ class Manager(Gtk.Application):
 
     def smoke_done(self):
         print("GTK smoke test: window presented, controls created, registry read", flush=True)
+        if os.environ.get('PLUGG_UI_SNAPSHOT'):
+            from .library_view import save_snapshot
+            save_snapshot(self.window, os.environ['PLUGG_UI_SNAPSHOT'])
         self.quit()
         return False
 
@@ -1229,6 +1308,8 @@ class Manager(Gtk.Application):
             return
         dialog.close()
         self.sizes.pop(record['id'], None)
+        self.breakdown = None
+        self.measure_library()
         self.last = None
         self.refresh()
 
@@ -2142,8 +2223,19 @@ class Manager(Gtk.Application):
             self.setup_heading.set_text('Vendor installation helpers · %d' % setup_count)
             if not setup_count:
                 self.vendors.append(label('No manager or licensing application for this selection.', 'muted'))
-            self.clear(self.environments)
             from . import environments as survey
+            settled = bool(jobs)
+            self.hero.set_visible(not settled)
+            self.subtitle.set_visible(not settled)
+            self.drop_title.set_visible(not settled)
+            self.drop_hint.set_visible(not settled)
+            self.drop_line.set_text('Drop an installer or VST3 anywhere here to add it. Keep any .bin files beside the .exe.'
+                                    if settled else 'Drop an installer or VST3 here, or choose a file to get started.')
+            (self.drop_area.add_css_class if settled else self.drop_area.remove_css_class)('drop-compact')
+            if self.tab == 'library':
+                self.library_view.update(survey.survey(self.store), setups, jobs, self.sizes, self.breakdown,
+                                         survey.unused_runtimes(self.store), survey.nested_libraries(self.store))
+            self.clear(self.environments)
             # Surveying reads a licensing record and a registry hive per
             # environment. That is nothing once and a stutter every time the
             # library changes, so it happens only while the section is open.

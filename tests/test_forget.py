@@ -613,7 +613,9 @@ class LibraryLayoutTests(unittest.TestCase):
         # are not, which is gone.
         self.assertNotIn("'history', 'History'", self.text)
         self.assertIn('Gtk.StackSwitcher(stack=self.stack)', self.text)
-        self.assertIn('header.set_title_widget(switcher)', self.text)
+        # The library list is the window; the older views sit behind one toggle.
+        self.assertIn("self.stack.add_titled(library_page, 'library', 'Library')", self.text)
+        self.assertIn('title.append(switcher)', self.text)
 
     def test_adding_a_file_stays_reachable_from_every_tab(self):
         drop = self.text.index('content.append(drop)')
