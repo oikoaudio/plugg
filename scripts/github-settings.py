@@ -87,6 +87,23 @@ def main():
         print('repository settings updated')
     drift |= bool(found) and not args.apply
 
+    actions = desired.get('actions')
+    if actions is not None:
+        permissions = {k: v for k, v in actions.items() if k != 'selected'}
+        found = differences(permissions, gh_api(f'repos/{name}/actions/permissions'))
+        if actions.get('selected') is not None and actions.get('allowed_actions') == 'selected' and not found:
+            found = differences(actions['selected'], gh_api(f'repos/{name}/actions/permissions/selected-actions'))
+        elif actions.get('selected') is not None and actions.get('allowed_actions') == 'selected':
+            found.append('selected actions: set with the permissions')
+        for line in found:
+            print('actions', line)
+        if found and args.apply:
+            gh_api(f'repos/{name}/actions/permissions', 'PUT', permissions)
+            if actions.get('allowed_actions') == 'selected':
+                gh_api(f'repos/{name}/actions/permissions/selected-actions', 'PUT', actions['selected'])
+            print('actions permissions updated')
+        drift |= bool(found) and not args.apply
+
     try:
         listed = gh_api(f'repos/{name}/rulesets')
     except RuntimeError as error:
