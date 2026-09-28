@@ -1,23 +1,33 @@
 # The release bridge is built here, not on the packager's machine.
 #
-# Ubuntu 22.04 sets the oldest glibc (2.35) and libstdc++ the bridge needs, so
-# one build runs on current Arch, Fedora, Debian 12 and Ubuntu 22.04 or newer.
+# Ubuntu 22.04 sets how old a system the bridge runs on: built here, it needs
+# glibc 2.34 and GCC 11's libstdc++, so one build runs on Ubuntu 22.04,
+# Debian 12, Fedora 35 and Arch, or anything newer.
 # Wine comes from WineHQ at 10.0, the Wine that UMU-Proton 10.0-4 is based on;
 # Ubuntu's own Wine 6.0 is older than yabridge supports well.
 #
-# The image and the Wine version are pinned. Other packages come from the
-# archive at build time: this is a repeatable build, not a bit-for-bit one,
-# and build.json records what it observed.
+# Everything is pinned: the image by digest, Ubuntu's packages by a dated
+# snapshot of the archive, Wine by version, Meson by hash. Changing the
+# snapshot date is how the compiler and libraries move, on purpose. The one
+# package fetched from the live archive is ca-certificates, which the
+# snapshot's HTTPS needs before anything else can come from it.
 FROM ubuntu@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02
 
 ARG WINE_VERSION=10.0.0.0~jammy-1
 # WineHQ's archive signing key, checked by fingerprint before it is trusted.
 ARG WINEHQ_KEY=D43F640145369C51D786DDEA76F1A20FF987672F
 
+ARG UBUNTU_SNAPSHOT=20260928T000000Z
+
 ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && sed -i -E "s#http://(archive|security)\.ubuntu\.com/ubuntu/?#https://snapshot.ubuntu.com/ubuntu/$UBUNTU_SNAPSHOT/#" \
+      /etc/apt/sources.list \
+ && rm -rf /var/lib/apt/lists/*
 RUN dpkg --add-architecture i386 \
  && apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+ && apt-get install -y --no-install-recommends curl gnupg \
  && curl -fsSL https://dl.winehq.org/wine-builds/winehq.key -o /tmp/winehq.key \
  && gpg --show-keys --with-colons /tmp/winehq.key | grep -q "^fpr:::::::::$WINEHQ_KEY:" \
  && gpg --dearmor -o /usr/share/keyrings/winehq.gpg /tmp/winehq.key \
