@@ -2,8 +2,10 @@
 from pathlib import Path
 
 PALETTES = {
-    'dark': dict(page='#171817', panel='#202220', text='#EEEEE8', muted='#A7AAA1', border='#3A3D38', field='#171817', hover='#30332F', accent='#FFAD5C', selection='#5BAACF', error='#EB5B46', accent_text='#171817'),
-    'light': dict(page='#E8E8E5', panel='#F6F6F2', text='#161715', muted='#4A4D46', border='#AEB3AA', field='#D7D9D3', hover='#C5C9C0', accent='#A63D05', selection='#123797', error='#B02A20', accent_text='#F6F6F2'),
+    'dark': dict(page='#171817', panel='#202220', text='#EEEEE8', muted='#A7AAA1', border='#3A3D38', field='#171817', hover='#30332F', accent='#FFAD5C', selection='#5BAACF', error='#EB5B46', accent_text='#171817', ok='#8CC084',
+                 m0='#4E6B5E', m1='#5E5A80', m2='#80594A', m3='#4A6680', m4='#776D45', m5='#6E4E62', mono_text='#EEEEE8'),
+    'light': dict(page='#E8E8E5', panel='#F6F6F2', text='#161715', muted='#4A4D46', border='#AEB3AA', field='#D7D9D3', hover='#C5C9C0', accent='#A63D05', selection='#123797', error='#B02A20', accent_text='#F6F6F2', ok='#2E7D32',
+                  m0='#B9D3C6', m1='#CAC6E6', m2='#E6C8BC', m3='#BCD0E6', m4='#DDD5B2', m5='#DEC3D3', mono_text='#161715'),
 }
 
 
@@ -119,6 +121,14 @@ button.lib-danger:hover { background: alpha(@oiko_error, 0.12); }
 .window-title { font-weight: 600; }
 .lib-preview { font-size: 0.86em; color: @oiko_selection; padding: 8px 12px; border-radius: 6px;
                background: alpha(@oiko_selection, 0.10); }
+.lib-dot { min-width: 8px; min-height: 8px; border-radius: 4px; background: alpha(@oiko_text, 0.25); }
+.lib-dot-ok { background: @oiko_ok; }
+.lib-dot-waiting { background: @oiko_accent; }
+.lib-dot-running { background: @oiko_selection; }
+.lib-mono { border-radius: 8px; font-weight: 600; font-size: 0.86em; color: @oiko_mono_text; }
+.lib-mono-0 { background: @oiko_m0; } .lib-mono-1 { background: @oiko_m1; } .lib-mono-2 { background: @oiko_m2; }
+.lib-mono-3 { background: @oiko_m3; } .lib-mono-4 { background: @oiko_m4; } .lib-mono-5 { background: @oiko_m5; }
+progressbar.lib-bar-warm progress { background: alpha(@oiko_accent, 0.6); }
 .lib-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid alpha(@oiko_border, 0.6); }
 /* Text size follows the desktop's own setting: every size above is relative
    to the window font, which GTK takes from the system (Large Text included). */
