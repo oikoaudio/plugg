@@ -92,6 +92,12 @@ To test an installed manager instead of source imports, run the same script with
 
 This mode rejects imports from the checkout. Both modes use the library's saved bridge selection. The check uses the supplied artifact root instead of downloading a runtime. Installation, launchers, scans, audio and reopening the helper run as normal. Keep the Python environment in place while inspecting the retained fixture, since its launcher uses that Python.
 
+## Commit messages and releases
+
+Write commit messages as Conventional Commits in the form `type(scope): description`. Use a short imperative description, and add a scope when it helps. Use `feat` for new behaviour, `fix` for corrections, `refactor` for restructuring, `docs` for documentation, `test` for tests, `ci` for workflows, `build` for build tooling, and `chore` for maintenance such as dependency upgrades (`chore(deps)`). Mark a breaking change with `!` before the colon, and explain its impact in a `BREAKING CHANGE:` footer. The body says what changed and why.
+
+The version is written in one place, `plugg/__init__.py`. A release is a pushed `v<version>` tag on `main`, for example `v0.1.0`. Commit types do not trigger releases. The Arch package's version follows the latest tag.
+
 ## Documentation style
 
 Markdown here is stored unwrapped, one line per paragraph. Your editor flows it for reading, and a diff shows the sentence that changed instead of a reflowed block. `scripts/unwrap-markdown.py FILE...` fixes a wrapped file in place, and refuses rather than touching anything it cannot join safely.
