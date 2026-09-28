@@ -13,6 +13,7 @@ for shows up as well. There is no third place for an environment to be.
 
 SPDX-License-Identifier: GPL-3.0-or-later
 """
+import json
 import os
 from pathlib import Path
 
@@ -310,6 +311,7 @@ class LibraryView:
         self.host = host
         self.query = ''
         self.vendor_plugins = {}
+        self.dead_bundles = []
         self.waiting = {}
         self.softube = set()
         self.expanded = set()
@@ -439,7 +441,8 @@ class LibraryView:
     # ------------------------------------------------------------ the model
 
     def update(self, records, setups, jobs, sizes, breakdown, spare_runtimes, nested, plugins=(), softube=(),
-               known_modules=None):
+               known_modules=None, dead_bundles=()):
+        self.dead_bundles = list(dead_bundles)
         spelled = {}
         self.vendor_plugins = plugins_by_vendor(plugins, spelled)
         known = known_modules if known_modules is not None else [p.get('module') for p in plugins]
@@ -545,7 +548,7 @@ class LibraryView:
             self.add_row(listing, widget, activate=flip, menu=menu, label=spoken,
                          expanded=opened if flip else None)
 
-        items = len(leftovers) + len(spare_runtimes) + len(nested) + len(unaccounted)
+        items = len(leftovers) + len(spare_runtimes) + len(nested) + len(unaccounted) + len(self.dead_bundles)
         if items:
             freeable = sum(sizes.get(r['id']) or 0 for r, _ in leftovers) + sum(s for _, s in unaccounted)
             self.body.append(self.cleanup(leftovers, spare_runtimes, nested, unaccounted, sizes, largest,
@@ -588,6 +591,11 @@ class LibraryView:
             self.add_row(listing, self.simple_row(
                 name, 'In the library folder, and nothing here lists it.', size,
                 button('Show folder', lambda n=name: self.host.show_folder(n), 'compact', 'lib-quiet')))
+        for bundle in self.dead_bundles:
+            self.add_row(listing, self.simple_row(
+                'Leftover adapter ' + bundle['name'],
+                'The Windows plug-in it loaded is gone, and your DAW does not see it.', None,
+                button('Remove', lambda n=bundle['name']: self.host.remove_dead_bundle(n), 'compact', 'lib-quiet')))
         expander.set_child(listing)
         return expander
 
@@ -1053,8 +1061,10 @@ def library_data(root):
     breakdown = {k: v for k, v in measure_breakdown(store.root).items() if k != 'environments'}
     breakdown['environments'] = sum(sizes.values())
     soft = {r['id'] for r in records if not r.get('dangling') and softube.configured(Path(r['path']))}
+    store.publication = Path(json.loads((store.root / 'settings.json').read_text()).get('publication', ''))
     return (records, setups, jobs, sizes, breakdown, survey.unused_runtimes(store),
-            survey.nested_libraries(store)), plugins, soft, store.root, [p.get('module') for p in every]
+            survey.nested_libraries(store)), plugins, soft, store.root, [p.get('module') for p in every], \
+        survey.dead_bundles(store)
 
 
 SAMPLE = {
@@ -1128,7 +1138,7 @@ PREVIEW_ACTIONS = {
     'reclaim_runtime': 'reclaim the unused runtime', 'delete_environment': 'ask to delete the environment',
     'delete_nested': 'ask to delete the separate library', 'show_path': 'open the folder',
     'show_folder': 'open the folder', 'rename_environment': 'rename the environment',
-    'record_licensing': 'open licence handling for', 'rescan': 'check again for plug-ins from the installation', 'troubleshoot': 'open the fixes for',
+    'record_licensing': 'open licence handling for', 'remove_dead_bundle': 'remove the leftover adapter', 'rescan': 'check again for plug-ins from the installation', 'troubleshoot': 'open the fixes for',
     'open_recipes': 'open recipes and fixes', 'stop_helper': 'force close the apps of',
     'show_helper': 'bring back the window of', 'vendor_action': 'open the helper of',
     'manager_action': 'open', 'open_ilok': 'open iLok License Manager in', 'softube_action': 'open Softube Central in',
@@ -1142,10 +1152,10 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
     from . import theme
 
     if library:
-        data, plugins, soft, root, known = library_data(library)
+        data, plugins, soft, root, known, dead = library_data(library)
     else:
         data, plugins, soft, root = demo_data(), demo_plugins(), {'8c1f02aa77e14c0b'}, Path.home() / '.local/share/plugg'
-        known = None
+        known, dead = None, []
 
     notice = text('Read-only preview. Buttons show what they would do and change nothing.', 'lib-preview', wrap=True)
 
@@ -1185,7 +1195,7 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         view = LibraryView(Host())
         view.expanded.update(expand)
-        view.update(*data, plugins=plugins, softube=soft, known_modules=known)
+        view.update(*data, plugins=plugins, softube=soft, known_modules=known, dead_bundles=dead)
         if search:
             view.search.set_text(search)
         scroll = Gtk.ScrolledWindow()

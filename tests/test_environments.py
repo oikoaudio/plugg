@@ -370,6 +370,76 @@ class RemovalTests(unittest.TestCase):
                 environments.remove(self.store, record, environments.removal_phrase(record))
 
 
+class BundleTests(unittest.TestCase):
+    """A bundle is the Linux-side adapter a DAW loads for one Windows plug-in.
+
+    Unpublishing keeps it, so the plug-in can be published again. Deleting the
+    environment it loads from leaves nothing to load, so the bundle goes too,
+    and any left over from before are listed for cleanup.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.store = core.Store(root / 'store', root / 'published')
+        for env_id in ('alpha', 'beta'):
+            directory = self.store.root / 'environments' / env_id
+            (directory / 'prefix/drive_c/VST3').mkdir(parents=True)
+            core.atomic_json(directory / 'environment.json', {'id': env_id, 'vendor': env_id.title()})
+
+    def bundle(self, name, env_id, publish=False):
+        module = self.store.root / 'environments' / env_id / 'prefix/drive_c/VST3' / name
+        module.write_bytes(b'MZ')
+        bundle = self.store.root / 'bundles' / name
+        (bundle / 'Contents/x86_64-linux').mkdir(parents=True)
+        (bundle / 'Contents/x86_64-linux/.plugg-managed').write_text('1\n')
+        (bundle / 'Contents/x86_64-win').mkdir()
+        (bundle / 'Contents/x86_64-win' / name).symlink_to(module)
+        core.atomic_json(bundle / 'plugg.json', {'id': name, 'environment': env_id})
+        if publish:
+            self.store.publication.mkdir(parents=True, exist_ok=True)
+            (self.store.publication / name).symlink_to(bundle, target_is_directory=True)
+        return bundle, module
+
+    def record(self, env_id):
+        return next(r for r in environments.survey(self.store) if r['id'] == env_id)
+
+    def test_deleting_an_environment_deletes_its_bundles_and_only_those(self):
+        mine, _ = self.bundle('Mine.vst3', 'alpha')
+        theirs, _ = self.bundle('Theirs.vst3', 'beta')
+        record = self.record('alpha')
+        result = environments.remove(self.store, record, environments.removal_phrase(record))
+        self.assertEqual(result['bundles_removed'], 1)
+        self.assertFalse(mine.exists())
+        self.assertTrue(theirs.is_dir())
+
+    def test_a_bundle_whose_plug_in_is_gone_is_a_leftover(self):
+        bundle, module = self.bundle('Gone.vst3', 'alpha')
+        self.assertEqual(environments.dead_bundles(self.store), [])
+        module.unlink()
+        self.assertEqual([b['name'] for b in environments.dead_bundles(self.store)], ['Gone.vst3'])
+        environments.remove_dead_bundle(self.store, 'Gone.vst3')
+        self.assertFalse(bundle.exists())
+
+    def test_a_bundle_a_daw_can_still_see_is_never_a_leftover(self):
+        bundle, module = self.bundle('Seen.vst3', 'alpha', publish=True)
+        module.unlink()
+        self.assertEqual(environments.dead_bundles(self.store), [])
+        with self.assertRaises(core.HostError):
+            environments.remove_dead_bundle(self.store, 'Seen.vst3')
+        self.assertTrue(bundle.is_dir())
+
+    def test_only_bundles_this_library_built_are_touched(self):
+        stray = self.store.root / 'bundles' / 'Stray.vst3' / 'Contents/x86_64-win'
+        stray.mkdir(parents=True)
+        (stray / 'Stray.vst3').symlink_to(self.store.root / 'nowhere')
+        self.assertEqual(environments.dead_bundles(self.store), [])
+        for bad in ('../environments', 'a/b', '..', ''):
+            with self.assertRaises(core.HostError, msg=bad):
+                environments.remove_dead_bundle(self.store, bad)
+
+
 class RemovalPresentationTests(unittest.TestCase):
     """The destructive path stays out of the interface layer."""
 

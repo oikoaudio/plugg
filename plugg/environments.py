@@ -13,6 +13,7 @@ environment, and the survey is assembled from records that already exist.
 SPDX-License-Identifier: GPL-3.0-or-later
 """
 import json
+import os
 from pathlib import Path
 
 from . import core
@@ -333,6 +334,9 @@ def remove(store, record, confirmation):
         # identity-changing operation follows.
         licensing.acknowledge(path, 'remove_environment', confirmation)
     licensing.guard(path, 'remove_environment')
+    # Found before anything changes: once the environment is gone, its
+    # bundles point at nothing and their manifests are all that tie them to it.
+    bundles = environment_bundles(store, record['id']) if foreign is None else []
     retired = 0
     for plugin in store.plugins():
         if plugin['env_id'] == record['id'] and plugin['status'] != 'removed':
@@ -348,8 +352,100 @@ def remove(store, record, confirmation):
         return {'environment': record['id'], 'retired': retired, 'unlinked': str(foreign),
                 'freed': 0}
     shutil.rmtree(path)
+    # A bundle is kept when a plug-in is only unpublished, so it can be
+    # published again. With the environment gone there is nothing left for it
+    # to load, so it goes too.
+    removed = sum(1 for bundle in bundles if _remove_bundle(store, bundle))
     return {'environment': record['id'], 'retired': retired, 'unlinked': None,
-            'freed': None}
+            'freed': None, 'bundles_removed': removed}
+
+
+def _bundles_dir(store):
+    return Path(store.root) / 'bundles'
+
+
+def _manifest(bundle):
+    try:
+        return json.loads((bundle / 'plugg.json').read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _managed(bundle):
+    """A bundle this library built: its Linux side carries the marker make_bundle writes."""
+    return (bundle / 'Contents' / 'x86_64-linux' / '.plugg-managed').is_file() and not bundle.is_symlink()
+
+
+def _published(store):
+    """The bundles a DAW can see right now: the targets of the links in the publication folder."""
+    seen = set()
+    try:
+        entries = list(Path(store.publication).iterdir())
+    except (OSError, AttributeError, TypeError):
+        return seen
+    for entry in entries:
+        if entry.is_symlink():
+            seen.add(os.path.realpath(entry))
+    return seen
+
+
+def environment_bundles(store, env_id):
+    """The bundles built for one environment, by what their own manifest says."""
+    try:
+        candidates = sorted(_bundles_dir(store).glob('*.vst3'))
+    except OSError:
+        return []
+    return [b for b in candidates if _managed(b) and _manifest(b).get('environment') == env_id]
+
+
+def _windows_module_gone(bundle):
+    link = bundle / 'Contents' / 'x86_64-win' / bundle.name
+    return link.is_symlink() and not link.exists()
+
+
+def dead_bundles(store):
+    """Bundles whose Windows plug-in no longer exists and that nothing publishes.
+
+    Deleting an environment now takes its bundles with it; these are the ones
+    left behind before it did, or by an environment removed some other way.
+    Each is a small folder the DAW never sees, so they are listed under
+    cleanup rather than anywhere that asks for attention.
+    """
+    published = _published(store)
+    found = []
+    try:
+        candidates = sorted(_bundles_dir(store).glob('*.vst3'))
+    except OSError:
+        return found
+    for bundle in candidates:
+        if _managed(bundle) and _windows_module_gone(bundle) and os.path.realpath(bundle) not in published:
+            found.append({'name': bundle.name, 'path': str(bundle),
+                          'environment': _manifest(bundle).get('environment')})
+    return found
+
+
+def _remove_bundle(store, bundle):
+    """Delete one bundle if it is ours and no DAW-visible link still leads to it."""
+    import shutil
+    bundle = Path(bundle)
+    if bundle.parent != _bundles_dir(store) or not _managed(bundle):
+        return False
+    if os.path.realpath(bundle) in _published(store):
+        return False
+    shutil.rmtree(bundle)
+    return True
+
+
+def remove_dead_bundle(store, name):
+    """Delete a bundle dead_bundles() lists. Checked again here, under the publication lock."""
+    if not name or '/' in name or name in ('.', '..'):
+        raise core.HostError('Not a bundle of this library: ' + str(name))
+    with core.lock(Path(store.root) / 'publication.lock'):
+        bundle = _bundles_dir(store) / name
+        if not any(item['path'] == str(bundle) for item in dead_bundles(store)):
+            raise core.HostError(name + ' is still in use, or is not a leftover bundle.')
+        _remove_bundle(store, bundle)
+    return {'removed': name}
 
 
 def runtime_users(store):

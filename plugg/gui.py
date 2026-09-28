@@ -1267,7 +1267,8 @@ class Manager(Gtk.Application):
             lines = ['This deletes the environment, everything installed in it and its settings. '
                      'It cannot be undone, and no recovery point covers it.']
         if record['plugins']:
-            lines.append('Installed here: ' + ', '.join(record['plugins']) + '.')
+            lines.append('Installed here: ' + ', '.join(record['plugins']) + '. Your DAW stops seeing them, '
+                         'and Plugg removes the adapters it built for them.')
         if record['jobs']:
             lines.append('Also forgets %d installation record%s and the installer copies kept '
                          'with them.' % (len(record['jobs']), '' if len(record['jobs']) == 1 else 's'))
@@ -1512,6 +1513,18 @@ class Manager(Gtk.Application):
         except Exception as exc:
             self.message('Could not reclaim this runtime', str(exc))
         self.sizes.clear()
+        self.last = None
+        self.refresh()
+
+    def remove_dead_bundle(self, name):
+        """Remove an adapter whose plug-in is gone. It holds nothing, so nothing needs typing first."""
+        from . import environments as survey
+        try:
+            survey.remove_dead_bundle(self.store, name)
+        except Exception as exc:
+            self.message('Could not remove this leftover', str(exc))
+        self.breakdown = None
+        self.measure_library()
         self.last = None
         self.refresh()
 
@@ -2246,7 +2259,8 @@ class Manager(Gtk.Application):
                 self.library_view.update(survey.survey(self.store), setups, jobs, self.sizes, self.breakdown,
                                          survey.unused_runtimes(self.store), survey.nested_libraries(self.store),
                                          plugins=plugins, softube={d.name for _, d in softube_setups},
-                                         known_modules=[p.get('module') for p in self.store.plugins()])
+                                         known_modules=[p.get('module') for p in self.store.plugins()],
+                                         dead_bundles=survey.dead_bundles(self.store))
             self.clear(self.environments)
             # Surveying reads a licensing record and a registry hive per
             # environment. That is nothing once and a stutter every time the
