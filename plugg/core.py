@@ -233,10 +233,13 @@ def write_module_launcher(launcher: Path, module: str, directory: Path):
 
 
 def default_bridge_directory():
-    """A checkout's own build first, then the one an installed package ships."""
+    """A checkout's own build first, then the one an installed package ships,
+    then the one a released package downloaded (see bridge_download)."""
+    from . import bridge_bundle, bridge_download
     candidates = [REPO / "bundle/bridge", Path(sys.prefix) / "lib/plugg/bridge",
                   Path("/usr/lib/plugg/bridge")]
-    from . import bridge_bundle
+    if (downloaded := bridge_download.downloaded()) is not None:
+        candidates.append(downloaded)
     for candidate in candidates:
         if (candidate / "build.json").is_file():
             try:
@@ -521,8 +524,16 @@ class Store:
         return Path(self.bridge_selection['directory']) if self.bridge_selection else default_bridge_directory()
 
     def bridge(self):
-        """The bridge release new bundles link to, owned by this library."""
-        from . import bridge_bundle
+        """The bridge release new bundles link to, owned by this library.
+
+        A released package without a bridge of its own downloads the one it
+        was released with, here and not in bridge_source(), so that looking
+        at the library (doctor) never starts a download.
+        """
+        from . import bridge_bundle, bridge_download
+        if (not self.bridge_selection and bridge_download.pinned() is not None
+                and not (default_bridge_directory() / "build.json").is_file()):
+            bridge_download.provision(self)
         return bridge_bundle.install_release(self.bridge_source(), self.root / "bridge-releases")
 
     def bridge_source(self):
@@ -534,6 +545,9 @@ class Store:
             return b
         required = ["libyabridge-vst3.so", "libyabridge-chainloader-vst3.so", "yabridge-host.exe", "yabridge-host.exe.so", "plugg-scan"]
         if not all((b / x).is_file() for x in required):
+            from . import bridge_download
+            if bridge_download.pinned() is not None:
+                raise HostError("The plug-in bridge is not downloaded yet. Plugg downloads it when you add a plug-in.")
             raise HostError("The native bridge is missing. For a new library, select a built bridge with --bridge-dir; checkout builds use scripts/build-bridge.sh.")
         return b
 
