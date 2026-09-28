@@ -51,7 +51,7 @@ When changing package data, build a wheel and check recipe commands from an isol
 
 ~~~sh
 uv build --wheel --out-dir /tmp/plugg-wheel
-python3 scripts/test-python-package.py /tmp/plugg-wheel/plugg-0.1.0.dev0-py3-none-any.whl
+python3 scripts/test-python-package.py /tmp/plugg-wheel/plugg-*.whl
 ~~~
 
 The check compares packaged modules and assets with the current checkout, then installs into a disposable environment without resolving dependencies. It checks built-in and local recipes and read-only status outside the source tree. It requires no Wine installation or vendor accounts. Retain third-party attribution. For changes to bridge or runtime behavior, keep patches small and record the upstream revision, reproduction, validation and conditions for removing the patch.

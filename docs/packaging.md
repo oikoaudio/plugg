@@ -187,7 +187,7 @@ It requires Python 3.12+ and uv:
 
 ```sh
 python3 scripts/build-python-package.py --output dist
-python3 scripts/test-python-package.py dist/plugg-0.1.0.dev0-py3-none-any.whl
+python3 scripts/test-python-package.py dist/plugg-*.whl
 ```
 
 Use the isolated build script. Native builds also use the checkout's `build/`, which may hold stale Python build output. The script copies the current package files into a fresh temporary source directory and leaves that shared directory alone. The verification step rejects extra namespaces, missing files and bytes that differ from the checkout, and it tests the installed recipe commands.
@@ -198,7 +198,7 @@ This needs Docker and outbound downloads. From the checkout:
 
 ```sh
 python3 packaging/test-container.py \
-  dist/plugg-0.1.0.dev0-py3-none-any.whl \
+  dist/plugg-*.whl \
   --output .scratch/package-check-001
 ```
 

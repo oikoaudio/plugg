@@ -81,7 +81,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Plugg ${GITHUB_REF_NAME#v}" \
+          # A candidate (0.1.0rc1, 0.2.0b1, ...) is a pre-release, never the latest.
+          case "${GITHUB_REF_NAME#v}" in
+            *a[0-9]*|*b[0-9]*|*rc[0-9]*|*dev[0-9]*) candidate=--prerelease ;;
+            *) candidate= ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" --draft $candidate --verify-tag --title "Plugg ${GITHUB_REF_NAME#v}" \
             --notes "Built from $GITHUB_REF_NAME by the release workflow. Write the notes before publishing." \
             dist/plugg-*.whl dist/plugg-bridge-*.tar.gz dist/plugg_*_amd64.deb dist/plugg-*.x86_64.rpm \
             dist/plugg-[0-9]*-x86_64.tar.gz dist/SHA256SUMS
