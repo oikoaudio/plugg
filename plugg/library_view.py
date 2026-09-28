@@ -33,8 +33,6 @@ UNACCOUNTED_THRESHOLD = 256 * 1024 ** 2
 HELPER_TITLES = {'klevgrand': 'Klevgrand Helper', 'native-instruments-experiment': 'Native Access',
                  'pace-service-experiment': 'UA Connect', 'plugin-alliance-experiment': 'PA Manager'}
 
-SEVERITY_CHIP = {'deactivate-first': 'deactivate first', 'limited-activations': 'limited activations',
-                 'unknown': 'licence unclassified', 'reactivatable': 'serial', 'unlicensed': None}
 
 
 def text(value, *classes, wrap=False, xalign=0.0, ellipsize=False, selectable=False):
@@ -84,6 +82,53 @@ def display_names(records):
         if seen[names[record['id']]] > 1 and record['plugins']:
             names[record['id']] += ' · ' + record['plugins'][0]
     return names
+
+
+SUFFIXES = (', inc.', ', inc', ' inc.', ' inc', ' gmbh', ' ltd.', ' ltd', ' llc', ' ab', ' oy', ' s.r.l.', ' bv')
+
+#: Vendor apps that live in a shared environment, and whose plug-ins they manage.
+APP_VENDOR = {'UA Connect': 'universal audio', 'Softube Central': 'softube'}
+
+
+def vendor_name(raw):
+    """The vendor as a person would write it, from a plug-in's own metadata.
+
+    Plug-ins name their maker inconsistently ("Universal Audio, Inc.",
+    "Native Instruments GmbH"). Dropping the company form is enough to put
+    one vendor's plug-ins on one row, without a table someone has to keep.
+    """
+    name = ' '.join((raw or '').split())
+    lowered = name.casefold()
+    for suffix in SUFFIXES:
+        if lowered.endswith(suffix):
+            name = name[:-len(suffix)].rstrip(' ,')
+            break
+    return name or 'Unknown vendor'
+
+
+def plugins_by_vendor(plugins):
+    """{environment id: {vendor: [plug-in names]}}, from each plug-in's metadata."""
+    import json
+    found, spelled = {}, {}
+    for plugin in plugins:
+        try:
+            classes = json.loads(plugin.get('metadata') or '{}').get('classes') or []
+        except ValueError:
+            classes = []
+        for info in classes or [{'name': plugin['name']}]:
+            vendor = vendor_name(info.get('vendor'))
+            vendor = spelled.setdefault(vendor.casefold(), vendor)
+            names = found.setdefault(plugin['env_id'], {}).setdefault(vendor, [])
+            name = info.get('name') or plugin['name']
+            if name not in names:
+                names.append(name)
+    return found
+
+
+def app_title(name):
+    """A helper adopted from its file name, without the version it happened to carry."""
+    import re
+    return re.sub(r'[\s._-]*v?\d+(?:\.\d+)+$', '', name).strip() or name
 
 
 def plural(count, word):
@@ -144,7 +189,10 @@ class LibraryView:
     def __init__(self, host):
         self.host = host
         self.query = ''
+        self.vendor_plugins = {}
+        self.softube = set()
         self.expanded = set()
+        self.menus = {}
         self.widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         self.widget.add_css_class('library')
         top = Gtk.Box(spacing=12)
@@ -154,9 +202,6 @@ class LibraryView:
         top.append(self.search)
         top.append(button('Recipes & fixes', lambda: self.host.open_recipes(), 'compact', 'lib-quiet',
                           tooltip='Setups for vendors, and reusable fixes for plug-ins that do not work at first'))
-        self.totals = text('', 'lib-figure', 'lib-dim')
-        self.totals.set_valign(Gtk.Align.CENTER)
-        top.append(self.totals)
         self.widget.append(top)
         self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.widget.append(self.body)
@@ -169,7 +214,9 @@ class LibraryView:
 
     # ------------------------------------------------------------ the model
 
-    def update(self, records, setups, jobs, sizes, breakdown, spare_runtimes, nested):
+    def update(self, records, setups, jobs, sizes, breakdown, spare_runtimes, nested, plugins=(), softube=()):
+        self.vendor_plugins = plugins_by_vendor(plugins)
+        self.softube = set(softube)
         self.last = (records, setups, jobs, sizes, breakdown, spare_runtimes, nested)
         self.render(*self.last)
 
@@ -184,7 +231,7 @@ class LibraryView:
         return found
 
     @staticmethod
-    def needs_attention(record, helpers):
+    def leftover(record, helpers):
         """Taking room without anything to show for it, as far as this library knows.
 
         An environment with a helper and no plug-ins yet is a vendor you are
@@ -205,196 +252,336 @@ class LibraryView:
             return 'Nothing in your DAW comes from this environment.'
         return None
 
+    @staticmethod
+    def urgent(record, helpers):
+        """What blocks you or puts an activation at risk now, and so goes above everything.
+
+        Leftovers are not in this list. Cleaning up is housekeeping, and
+        opening a vendor's installer is what the window is for.
+        """
+        if record.get('protected') and record.get('matches_recorded_identity') is False:
+            return ('This environment no longer matches the machine identity recorded for it. '
+                    'Look before installing or activating anything here.')
+        return None
+
     # ------------------------------------------------------------ drawing
 
     def render(self, records, setups, jobs, sizes, breakdown, spare_runtimes, nested):
         clear(self.body)
         helpers = self.helpers_by_environment(setups, jobs)
         self.names = display_names(records)
-        attention, vendors = [], []
+        leftovers, vendors, urgent = [], [], []
         for record in records:
-            reason = self.needs_attention(record, helpers.get(record['id']))
-            (attention if reason else vendors).append((record, reason))
+            mine = helpers.get(record['id'])
+            reason = self.leftover(record, mine)
+            (leftovers if reason else vendors).append((record, reason))
+            problem = self.urgent(record, mine)
+            if problem:
+                urgent.append((record, problem))
         unaccounted = unlisted(breakdown)
-        measured = [sizes.get(r['id']) for r, _ in attention + vendors]
+        measured = [sizes.get(r['id']) for r, _ in leftovers + vendors]
         largest = max([s for s in measured if s] or [1])
 
-        freeable = sum(sizes.get(r['id']) or 0 for r, _ in attention)
-        if attention or spare_runtimes or nested or unaccounted:
-            self.body.append(Section('needs attention', size_text(freeable) + ' reclaimable' if freeable else ''))
+        if urgent:
+            self.body.append(Section('needs you'))
             listing = group()
             self.body.append(listing)
-            for record, reason in attention:
-                listing.append(self.attention_row(record, reason, sizes.get(record['id']), largest))
-            for name in spare_runtimes:
-                listing.append(self.simple_attention(
-                    'Unused runtime ' + name, 'No environment uses it. It is downloaded again if one ever does.',
-                    None, button('Reclaim', lambda n=name: self.host.reclaim_runtime(n), 'compact')))
-            for library in nested:
-                action = button('Delete…', lambda n=library: self.host.delete_nested(n), 'compact',
-                                sensitive=not library.get('required_by'),
-                                tooltip=('Needed by ' + ', '.join(library['required_by']))
-                                if library.get('required_by') else None)
-                listing.append(self.simple_attention(
-                    'Separate library ' + library['name'],
-                    plural(library['environments'], 'environment') + ' with its own downloads and runtimes',
-                    None, action))
-            for name, size in unaccounted:
-                listing.append(self.simple_attention(
-                    name, 'In the library folder, and nothing here lists it.', size,
-                    button('Show folder', lambda n=name: self.host.show_folder(n), 'compact')))
+            for record, problem in urgent:
+                listing.append(self.urgent_row(record, problem, helpers.get(record['id'], [])))
 
-        shown = [(r, self.matches(r)) for r, _ in vendors]
-        shown = [(r, m) for r, m in shown if m is not None]
+        rows = []
+        for record, _ in vendors:
+            rows.extend(self.vendor_entries(record, helpers.get(record['id'], []), sizes.get(record['id'])))
+        shown = [(row, self.row_matches(row)) for row in rows]
+        shown = [(row, hits) for row, hits in shown if hits is not None]
         count = sum(len(r['plugins']) for r, _ in vendors)
         self.body.append(Section('vendors', plural(count, 'plug-in')))
-        if not vendors:
+        if not rows:
             self.body.append(text('Nothing installed yet. Drop an installer or a VST3 above.', 'lib-dim'))
         elif not shown:
             self.body.append(text('Nothing matches “%s”.' % self.query, 'lib-dim'))
-        order = sorted(shown, key=lambda item: (-(sizes.get(item[0]['id']) or 0), self.names.get(item[0]['id'], '').casefold()))
         listing = group()
-        if order:
+        if shown:
             self.body.append(listing)
-        for record, hits in order:
-            listing.append(self.vendor_row(record, hits, helpers.get(record['id'], []),
-                                             sizes.get(record['id']), largest))
+        for row, hits in sorted(shown, key=lambda item: item[0]['title'].casefold()):
+            listing.append(self.vendor_row(row, hits, largest))
+
+        items = len(leftovers) + len(spare_runtimes) + len(nested) + len(unaccounted)
+        if items:
+            freeable = sum(sizes.get(r['id']) or 0 for r, _ in leftovers) + sum(s for _, s in unaccounted)
+            self.body.append(self.cleanup(leftovers, spare_runtimes, nested, unaccounted, sizes, largest,
+                                          items, freeable))
 
         self.body.append(self.footer(breakdown, sizes, records))
-        total = sum((breakdown or {}).values()) if breakdown else None
-        self.totals.set_text(plural(len(vendors), 'vendor') + ' · ' + size_text(total))
 
-    def matches(self, record):
+    def cleanup(self, leftovers, spare_runtimes, nested, unaccounted, sizes, largest, items, freeable):
+        """Housekeeping, folded away below the vendors, with what it would give back."""
+        expander = Gtk.Expander()
+        expander.add_css_class('lib-cleanup')
+        expander.set_expanded('cleanup' in self.expanded)
+        expander.connect('notify::expanded', lambda e, _: (self.expanded.add if e.get_expanded()
+                                                            else self.expanded.discard)('cleanup'))
+        title = Gtk.Box(spacing=10)
+        title.append(text('cleanup', 'lib-section-title'))
+        title.append(text(plural(items, 'item') + (' · ' + size_text(freeable) + ' reclaimable' if freeable else ''),
+                          'lib-figure', 'lib-dim'))
+        expander.set_label_widget(title)
+        listing = group()
+        listing.set_margin_top(8)
+        for record, reason in leftovers:
+            listing.append(self.leftover_row(record, reason, sizes.get(record['id']), largest))
+        for name in spare_runtimes:
+            listing.append(self.simple_row(
+                'Unused runtime ' + name, 'No environment uses it. It is downloaded again if one ever does.',
+                None, button('Reclaim', lambda n=name: self.host.reclaim_runtime(n), 'compact', 'lib-quiet')))
+        for library in nested:
+            action = button('Delete…', lambda n=library: self.host.delete_nested(n), 'compact', 'lib-quiet',
+                            sensitive=not library.get('required_by'),
+                            tooltip=('Needed by ' + ', '.join(library['required_by']))
+                            if library.get('required_by') else None)
+            listing.append(self.simple_row(
+                'Separate library ' + library['name'],
+                plural(library['environments'], 'environment') + ' with its own downloads and runtimes',
+                None, action))
+        for name, size in unaccounted:
+            listing.append(self.simple_row(
+                name, 'In the library folder, and nothing here lists it.', size,
+                button('Show folder', lambda n=name: self.host.show_folder(n), 'compact', 'lib-quiet')))
+        expander.set_child(listing)
+        return expander
+
+    def vendor_entries(self, record, helpers, size):
+        """The rows one environment contributes: usually one, several when it is shared.
+
+        A shared environment (iLok) holds several vendors. Each gets its own
+        row with its own app and plug-ins, because that is how people look for
+        them. The environment itself is the iLok row, and only that row
+        carries the size and the settings, since deleting or measuring
+        happens to the environment, not to one vendor in it.
+        """
+        apps = self.helper_apps(record, helpers)
+        note = next((s.get('message') for s in helpers if s.get('needs_attention') and s.get('message')), None)
+        by_vendor = self.vendor_plugins.get(record['id'], {})
+        if record.get('licensing_group') != 'ilok':
+            name = self.names.get(record['id'], survey.summarize(record))
+            return [{'key': record['id'], 'title': name, 'record': record, 'owner': True, 'size': size,
+                     'plugins': record['plugins'], 'apps': [widget for _, widget in apps], 'note': note,
+                     'helpers': helpers}]
+        members = {}
+        for vendor, names in by_vendor.items():
+            members[vendor] = {'key': record['id'] + ':' + vendor, 'title': vendor, 'record': record,
+                               'owner': False, 'size': None, 'plugins': names, 'apps': []}
+        own = []
+        for app, widget in apps:
+            wanted = APP_VENDOR.get(app)
+            member = next((m for v, m in members.items() if wanted and v.casefold().startswith(wanted)), None)
+            if wanted and member is None:
+                # The app is installed, but none of its plug-ins are yet.
+                title = app.replace(' Connect', '').replace(' Central', '')
+                title = {'UA': 'Universal Audio'}.get(title, title)
+                member = members.setdefault(title, {'key': record['id'] + ':' + title, 'title': title,
+                                                    'record': record, 'owner': False, 'size': None,
+                                                    'plugins': [], 'apps': []})
+            (member['apps'] if member else own).append(widget)
+        vendors = sorted(members, key=str.casefold)
+        head = {'key': record['id'], 'title': record.get('name') or 'iLok', 'record': record, 'owner': True,
+                'size': size, 'plugins': [], 'apps': own,
+                'meta': 'License Manager · shared by ' + (', '.join(vendors) if vendors else 'no vendor yet'),
+                'note': note, 'helpers': helpers}
+        return [head] + list(members.values())
+
+    def row_matches(self, row):
         """None when the search excludes this row, else the plug-ins it matched."""
         if not self.query:
             return []
-        if self.query in self.names.get(record['id'], survey.summarize(record)).casefold():
+        if self.query in row['title'].casefold():
             return []
-        hits = [name for name in record['plugins'] if self.query in name.casefold()]
+        hits = [name for name in row['plugins'] if self.query in name.casefold()]
         return hits or None
 
-    def vendor_row(self, record, hits, helpers, size, largest):
-        row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        row.add_css_class('lib-item')
+    def vendor_row(self, row, hits, largest):
+        record = row['record']
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.add_css_class('lib-item')
         head = Gtk.Box(spacing=12)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
-        name_line = Gtk.Box(spacing=8)
-        name_line.append(text(self.names.get(record['id'], survey.summarize(record)), 'lib-name', ellipsize=True))
-        chip = SEVERITY_CHIP.get(record.get('severity')) if record.get('protected') else None
-        if record.get('protected') is None:
-            chip = 'licence note unreadable'
-        if chip:
-            badge = text(chip, 'lib-chip', 'lib-chip-caution' if record.get('severity') != 'reactivatable' else 'lib-chip')
-            badge.set_valign(Gtk.Align.CENTER)
-            badge.set_tooltip_text(survey.licensing_line(record) or '')
-            name_line.append(badge)
-        titles.append(name_line)
-        meta = [plural(len(record['plugins']), 'plug-in'), short_runtime(record), record['id'][:8]]
-        if record.get('retired'):
-            meta.insert(1, '%d retired' % len(record['retired']))
-        titles.append(text('  ·  '.join(meta), 'lib-meta', ellipsize=True))
+        titles.append(text(row['title'], 'lib-name', ellipsize=True))
+        meta = row.get('meta') or plural(len(row['plugins']), 'plug-in')
+        if row['owner'] and record.get('retired') and not row.get('meta'):
+            meta += '  ·  %d retired' % len(record['retired'])
+        if not row['owner']:
+            meta += '  ·  in the shared iLok environment'
+        titles.append(text(meta, 'lib-meta', ellipsize=True))
+        if row.get('note'):
+            # What the helper last said, such as plug-ins waiting for
+            # activation. News about this vendor, not an alarm.
+            said = text(row['note'], 'lib-note', ellipsize=True)
+            said.set_tooltip_text(row['note'])
+            titles.append(said)
         head.append(titles)
-        for control in self.helper_buttons(record, helpers)[:1]:
+        for control in row['apps']:
             head.append(control)
-        figure = text(size_text(size), 'lib-figure')
+        # Every row keeps the size and settings columns, so the app buttons line
+        # up down the list; a vendor sharing an environment leaves them empty.
+        figure = text(size_text(row['size']) if row['owner'] else '', 'lib-figure')
         figure.set_width_chars(9)
         figure.set_xalign(1.0)
         figure.set_valign(Gtk.Align.CENTER)
         head.append(figure)
-        opened = record['id'] in self.expanded or bool(hits)
+        if row['owner']:
+            head.append(self.settings(record, row.get('helpers') or []))
+        else:
+            slot = Gtk.Box()
+            slot.set_size_request(26, -1)
+            head.append(slot)
+        opened = row['key'] in self.expanded or bool(hits)
         toggle = Gtk.Button(icon_name='pan-down-symbolic' if opened else 'pan-end-symbolic')
         toggle.add_css_class('lib-toggle')
         toggle.set_valign(Gtk.Align.CENTER)
-        toggle.set_tooltip_text('Plug-ins, licence handling and removal')
+        toggle.set_tooltip_text('Show its plug-ins')
+        toggle.set_sensitive(bool(row['plugins']))
+        toggle.set_opacity(1.0 if row['plugins'] else 0.0)
         head.append(toggle)
-        row.append(head)
-        row.append(bar((size or 0) / largest))
+        box.append(head)
+        if row['owner']:
+            box.append(bar((row['size'] or 0) / largest))
         revealer = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN, transition_duration=140)
-        revealer.set_reveal_child(opened)
-        revealer.set_child(self.details(record, hits, helpers))
-        row.append(revealer)
+        revealer.set_reveal_child(opened and bool(row['plugins']))
+        revealer.set_child(self.details(row['plugins'], hits))
+        box.append(revealer)
 
         def flip(*_):
+            if not row['plugins']:
+                return
             now = not revealer.get_reveal_child()
             revealer.set_reveal_child(now)
             toggle.set_icon_name('pan-down-symbolic' if now else 'pan-end-symbolic')
-            (self.expanded.add if now else self.expanded.discard)(record['id'])
+            (self.expanded.add if now else self.expanded.discard)(row['key'])
         toggle.connect('clicked', flip)
         click = Gtk.GestureClick()
         click.connect('released', lambda gesture, n, x, y: flip() if gesture.get_current_button() == 1 else None)
         titles.add_controller(click)
-        return row
+        return box
 
-    def details(self, record, hits, helpers):
+    def details(self, plugins, hits):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.add_css_class('lib-details')
-        if record['plugins']:
+        if plugins:
             flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=6, row_spacing=6,
                                max_children_per_line=30, homogeneous=False)
-            for name in record['plugins']:
+            for name in plugins:
                 chip = text(name, 'lib-plugin', *(('lib-plugin-hit',) if name in hits else ()))
                 chip.set_halign(Gtk.Align.START)
                 flow.append(chip)
             box.append(flow)
         else:
             box.append(text('No plug-ins published from here yet.', 'lib-dim'))
-        line = survey.licensing_line(record)
-        if line:
-            box.append(text(line, 'lib-note', wrap=True))
-        actions = Gtk.Box(spacing=8)
-        for control in self.helper_buttons(record, helpers)[1:]:
-            actions.append(control)
-        actions.append(button('Licence handling…', lambda: self.host.record_licensing(record), 'compact',
-                              tooltip='How licences work for what is installed here; protects the environment'))
-        actions.append(button('Rename…', lambda: self.host.rename_environment(record), 'compact'))
-        actions.append(button('Troubleshoot…', lambda: self.host.troubleshoot(record), 'compact',
-                              tooltip='Reusable fixes for plug-ins that load badly, draw wrongly or crash'))
-        spacer = Gtk.Box()
-        spacer.set_hexpand(True)
-        actions.append(spacer)
-        actions.append(button('Show folder', lambda: self.host.show_path(record['path']), 'compact', 'lib-quiet'))
-        actions.append(button('Delete…', lambda: self.host.delete_environment(record), 'compact', 'lib-danger'))
-        box.append(actions)
         return box
 
-    def helper_buttons(self, record, helpers):
-        """The vendor's own app first: that is what a row is opened for most often."""
-        controls = []
+    def settings(self, record, helpers=()):
+        """Everything done to an environment rather than with it, behind one cogwheel.
+
+        Deleting is the rarest of these and comes last. What deleting would
+        cost in licences is said right above it, which is the only place that
+        is a warning rather than a call to action.
+        """
+        menu = Gtk.MenuButton(icon_name='emblem-system-symbolic', tooltip_text='Settings for this environment')
+        menu.add_css_class('lib-toggle')
+        menu.set_valign(Gtk.Align.CENTER)
+        popover = Gtk.Popover()
+        popover.add_css_class('lib-menu')
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        for side in ('top', 'bottom', 'start', 'end'):
+            getattr(box, 'set_margin_' + side)(6)
+        about = '  ·  '.join([short_runtime(record), record['id'][:12]])
+        box.append(text(about, 'lib-meta'))
+        where = text(record['path'], 'lib-meta', 'lib-dim', ellipsize=True)
+        where.set_tooltip_text(record['path'])
+        box.append(where)
+        box.append(Gtk.Separator())
+
+        def item(title, handler, *classes, tooltip=None):
+            entry = button(title, lambda: (popover.popdown(), handler()), 'lib-menu-item', *classes, tooltip=tooltip)
+            entry.get_child().set_xalign(0.0)
+            box.append(entry)
+        item('Show folder', lambda: self.host.show_path(record['path']))
+        item('Rename…', lambda: self.host.rename_environment(record))
+        item('Troubleshoot…', lambda: self.host.troubleshoot(record),
+             tooltip='Reusable fixes for plug-ins that load badly, draw wrongly or crash')
+        item('Licence handling…', lambda: self.host.record_licensing(record),
+             tooltip='How licences work for what is installed here')
+        live = [s for s in helpers if s.get('running') or s.get('busy') or s.get('needs_attention')]
+        if live:
+            item('Force close its apps', lambda j=live[0]['job']: self.host.stop_helper(j, 'this environment'),
+                 tooltip='End the Windows programs still running in this environment')
+        box.append(Gtk.Separator())
+        note = survey.licensing_line(record)
+        if note:
+            warning = text(note, 'lib-note', wrap=True)
+            warning.set_max_width_chars(44)
+            box.append(warning)
+        item('Delete…', lambda: self.host.delete_environment(record), 'lib-menu-danger')
+        popover.set_child(box)
+        menu.set_popover(popover)
+        self.menus[record['id']] = menu
+        return menu
+
+    def helper_apps(self, record, helpers):
+        """[(app name, button)]: the vendor apps an environment holds, ready to open.
+
+        A running app gets an outlined button that brings its window back.
+        Force close is not offered for a running app, only for a stuck one;
+        otherwise it sits in the settings menu.
+        """
+        apps = []
+
+        def add(app, title, opener, running, busy, job):
+            if running:
+                apps.append((app, button(title, lambda: self.host.show_helper(job), 'compact', 'running',
+                                         tooltip='Running. Bring its window back.')))
+            else:
+                apps.append((app, button(title, opener, 'compact', sensitive=not busy)))
         for setup in helpers:
             job, running, busy = setup['job'], setup.get('running') or [], setup.get('busy')
             managers = setup.get('managers') or []
             if setup.get('has_ilok'):
-                named = [('Open iLok', 'iLok License Manager')] + [
-                    ('Open ' + m, m) for m in managers if m not in ('iLok License Manager',)]
-                for title, manager in named:
-                    live = any(manager.split()[0].casefold() in n.casefold() for n in running)
-                    if live:
-                        controls.append(button(title, lambda j=job: self.host.show_helper(j), 'compact', 'running',
-                                               tooltip='Running. Bring its window back.'))
-                    elif manager in managers:
-                        controls.append(button(title, lambda j=job, m=manager: self.host.manager_action(j, m),
-                                               'compact', sensitive=not busy))
-                    elif manager == 'iLok License Manager':
-                        controls.append(button(title, lambda j=job: self.host.open_ilok(j), 'compact',
-                                               sensitive=not busy))
-            else:
-                title = 'Open ' + HELPER_TITLES.get(setup['recipe'], setup.get('name') or 'helper')
-                if running:
-                    controls.append(button(title, lambda j=job: self.host.show_helper(j), 'compact', 'running',
-                                           tooltip='Running. Bring its window back.'))
+                live = any('ilok' in n.casefold() for n in running)
+                if 'iLok License Manager' in managers:
+                    add('iLok License Manager', 'Open iLok',
+                        lambda j=job: self.host.manager_action(j, 'iLok License Manager'), live, busy, job)
                 else:
-                    controls.append(button(title, lambda j=job: self.host.vendor_action(j, False), 'compact',
-                                           sensitive=not busy))
-            if busy or setup.get('needs_attention') or running:
-                controls.append(button('Force close', lambda j=job: self.host.stop_helper(j, 'this environment'),
-                                       'compact', tooltip='End the Windows programs still running here'))
-        return controls
+                    add('iLok License Manager', 'Open iLok', lambda j=job: self.host.open_ilok(j), live, busy, job)
+                for manager in managers:
+                    if manager == 'iLok License Manager':
+                        continue
+                    live = any(manager.split()[0].casefold() in n.casefold() for n in running)
+                    add(manager, 'Open ' + manager, lambda j=job, m=manager: self.host.manager_action(j, m),
+                        live, busy, job)
+            else:
+                title = HELPER_TITLES.get(setup['recipe']) or app_title(setup.get('name') or 'helper')
+                add(title, 'Open ' + title, lambda j=job: self.host.vendor_action(j, False), bool(running), busy, job)
+        if record['id'] in self.softube and not any(app == 'Softube Central' for app, _ in apps):
+            directory = Path(record['path'])
+            apps.append(('Softube Central', button('Open Softube Central',
+                                                   lambda d=directory: self.host.softube_action(d), 'compact')))
+        return apps
 
-    def attention_row(self, record, reason, size, largest):
+    def urgent_row(self, record, problem, helpers):
+        row = Gtk.Box(spacing=12)
+        row.add_css_class('lib-item')
+        row.add_css_class('lib-urgent')
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        titles.set_hexpand(True)
+        titles.append(text(self.names.get(record['id'], survey.summarize(record)), 'lib-name', ellipsize=True))
+        titles.append(text(problem, 'lib-note', wrap=True))
+        row.append(titles)
+        row.append(button('Licence handling…', lambda: self.host.record_licensing(record), 'compact'))
+        return row
+
+    def leftover_row(self, record, reason, size, largest):
         row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         row.add_css_class('lib-item')
-        row.add_css_class('lib-attention')
         head = Gtk.Box(spacing=12)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
@@ -407,15 +594,14 @@ class LibraryView:
         figure.set_valign(Gtk.Align.CENTER)
         head.append(figure)
         head.append(button('Show folder', lambda: self.host.show_path(record['path']), 'compact', 'lib-quiet'))
-        head.append(button('Delete…', lambda: self.host.delete_environment(record), 'compact', 'lib-danger'))
+        head.append(button('Delete…', lambda: self.host.delete_environment(record), 'compact', 'lib-quiet'))
         row.append(head)
-        row.append(bar((size or 0) / largest, 'lib-bar-attention'))
+        row.append(bar((size or 0) / largest))
         return row
 
-    def simple_attention(self, title, reason, size, action):
+    def simple_row(self, title, reason, size, action):
         row = Gtk.Box(spacing=12)
         row.add_css_class('lib-item')
-        row.add_css_class('lib-attention')
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.set_hexpand(True)
         titles.append(text(title, 'lib-name', ellipsize=True))
@@ -482,37 +668,112 @@ def measure_breakdown(root):
 
 # ---------------------------------------------------------------- demo
 
+class ReadOnlyLibrary:
+    """Just enough of a Store to survey a library without writing to it.
+
+    Opening a real Store creates tables and settings when they are missing
+    and prepares module runners. Looking at someone's library must do none
+    of that, so this reads the database with SQLite's read-only mode.
+    """
+
+    def __init__(self, root):
+        self.root = Path(root).expanduser().resolve()
+        database = self.root / 'library.sqlite3'
+        if not database.is_file():
+            raise SystemExit(f'No library at {self.root}')
+        self.uri = database.as_uri() + '?mode=ro'
+
+    def query(self, sql):
+        import sqlite3
+        db = sqlite3.connect(self.uri, uri=True, timeout=5)
+        db.row_factory = sqlite3.Row
+        try:
+            return [dict(x) for x in db.execute(sql)]
+        finally:
+            db.close()
+
+    def jobs(self):
+        return self.query('SELECT jobs.*, EXISTS(SELECT 1 FROM archived_jobs WHERE job_id=jobs.id) AS archived '
+                          'FROM jobs ORDER BY created DESC')
+
+    def plugins(self):
+        return self.query('SELECT * FROM plugins ORDER BY name')
+
+    def job(self, job_id):
+        for job in self.jobs():
+            if job['id'] == job_id:
+                return job
+        raise KeyError(job_id)
+
+    def prefix(self, job_id):
+        return self.root / 'environments' / self.job(job_id)['env_id'] / 'prefix'
+
+
+def library_data(root):
+    """Everything the view shows, read from a real library without changing it."""
+    from . import softube, vendors
+    store = ReadOnlyLibrary(root)
+    records = survey.survey(store)
+    setups = vendors.cards(store)
+    jobs = store.jobs()
+    plugins = [p for p in store.plugins() if p['status'] != 'removed']
+    sizes = {r['id']: survey.measure(r['path']) for r in records if not r.get('dangling')}
+    breakdown = {k: v for k, v in measure_breakdown(store.root).items() if k != 'environments'}
+    breakdown['environments'] = sum(sizes.values())
+    soft = {r['id'] for r in records if not r.get('dangling') and softube.configured(Path(r['path']))}
+    return (records, setups, jobs, sizes, breakdown, survey.unused_runtimes(store),
+            survey.nested_libraries(store)), plugins, soft, store.root
+
+
+SAMPLE = {
+    # environment id: (vendor as its plug-ins report it, [plug-ins])
+    '8c1f02aa77e14c0b': [('Universal Audio, Inc.', ['UADx LA-2A']), ('Softube', ['Dirty Tape', 'Harmonics', 'Tape']),
+                         ('oeksound', ['soothe'])],
+    '3a9d11b2c0e94f21': [('Kilohearts', ['kHs %s' % n for n in (
+        '3-Band EQ', 'Bitcrush', 'Channel Mixer', 'Chorus', 'Clipper', 'Comb Filter', 'Compactor', 'Delay',
+        'Distortion', 'Filter', 'Flanger', 'Gain', 'Gate', 'Haas', 'Ladder Filter', 'Limiter', 'Phaser',
+        'Resonator', 'Reverb')])],
+    '71be42d09a3c4e88': [('XLN Audio', ['Addictive Drums 2', 'Addictive Keys'])],
+    'c2f4e6a8b0d24c61': [('Klevgrand', ['Skaka', 'Slammer', 'DAW Cassette', 'Brusfri'])],
+    'b7a6c5d4e3f21098': [('Plugin Alliance', ['bx_masterdesk', 'bx_opto', 'Shadow Hills Mastering Compressor'])],
+    'e5d3c1b9a7f54e33': [],
+}
+
+
+def demo_plugins():
+    import json
+    return [{'env_id': env_id, 'name': name, 'status': 'ready',
+             'metadata': json.dumps({'classes': [{'name': name, 'vendor': vendor}]})}
+            for env_id, groups in SAMPLE.items() for vendor, names in groups for name in names]
+
+
 def demo_data():
-    """A library that looks like a real one, for working on the layout."""
+    """Sample data for working on the layout. Invented, not anyone's library:
+    use --library to look at a real one."""
     gb = 1024 ** 3
 
-    def record(env_id, vendor, plugins, size, runtime='UMU-Proton-10.0-4', **extra):
+    def record(env_id, vendor, size, runtime='UMU-Proton-10.0-4', **extra):
+        plugins = [n for _, names in SAMPLE.get(env_id, []) for n in names]
         base = {'id': env_id, 'name': None, 'vendor': vendor, 'recipe': 'installer', 'plugins': plugins,
-                'retired': [], 'runtime': runtime, 'path': '/demo/environments/' + env_id, 'jobs': [{'id': 'j'}],
+                'retired': [], 'runtime': runtime, 'path': '/sample/environments/' + env_id, 'jobs': [{'id': 'j'}],
                 'in_use': True, 'orphaned': False, 'dangling': False, 'protected': False, 'severity': None,
-                'products': [], 'licensing_group': None, 'plugin_vendors': [vendor]}
+                'products': [], 'licensing_group': None, 'plugin_vendors': [vendor] if vendor else []}
         base.update(extra)
         return base, size
 
-    kh = ['kHs %s' % n for n in ('3-Band EQ', 'Bitcrush', 'Channel Mixer', 'Chorus', 'Clipper', 'Comb Filter',
-                                 'Compactor', 'Delay', 'Distortion', 'Filter', 'Flanger', 'Gain', 'Gate',
-                                 'Haas', 'Ladder Filter', 'Limiter', 'Phaser', 'Resonator', 'Reverb')]
     rows = [
-        record('8c1f02aa77e14c0b', 'iLok (shared by iLok-licensed vendors)',
-               ['bx_masterdesk', 'bx_opto', 'Shadow Hills Mastering Compressor', 'UADx LA-2A', 'Dirty Tape',
-                'Harmonics', 'Tape', 'Weiss DS1-MK3'], 9.8 * gb,
-               runtime='UMU-Proton-10.0-4 (pace-ab)', protected=True, severity='deactivate-first',
-               products=['bx_masterdesk', 'UADx LA-2A'], licensing_group='ilok', deactivate_at=['iLok License Manager']),
-        record('3a9d11b2c0e94f21', 'Kilohearts', kh, 1.1 * gb, runtime='UMU-Proton-10.0-4 (plugg-1)'),
-        record('71be42d09a3c4e88', 'XLN Audio', ['Addictive Drums 2', 'Addictive Keys'], 4.2 * gb,
-               protected=True, severity='reactivatable', products=['Addictive Keys']),
-        record('c2f4e6a8b0d24c61', 'Klevgrand', ['Skaka', 'Slammer', 'DAW Cassette', 'Brusfri'], 0.9 * gb,
-               protected=True, severity='deactivate-first', products=['Skaka'], deactivate_at=['Klevgrand Helper']),
-        record('e5d3c1b9a7f54e33', 'Native Instruments', [], 1.6 * gb),
-        record('0f9e8d7c6b5a4938', None, [], 2.4 * gb, orphaned=True, in_use=False, jobs=[],
-               plugin_vendors=[], recipe='softube-v2'),
-        record('9a8b7c6d5e4f3a21', None, [], 0.3 * gb, in_use=False, jobs=[{'id': 'x', 'name': 'Setup.exe'}],
-               plugin_vendors=[]),
+        record('8c1f02aa77e14c0b', None, 9.8 * gb, runtime='UMU-Proton-10.0-4 (pace-ab)', protected=True,
+               severity='deactivate-first', products=['UADx LA-2A'], licensing_group='ilok',
+               deactivate_at=['iLok License Manager'], matches_recorded_identity=True),
+        record('3a9d11b2c0e94f21', 'Kilohearts', 1.1 * gb, runtime='UMU-Proton-10.0-4 (plugg-1)'),
+        record('71be42d09a3c4e88', 'XLN Audio', 4.2 * gb, protected=True, severity='reactivatable',
+               products=['Addictive Keys']),
+        record('c2f4e6a8b0d24c61', 'Klevgrand', 0.9 * gb, protected=True, severity='deactivate-first',
+               products=['Skaka'], deactivate_at=['Klevgrand Helper']),
+        record('b7a6c5d4e3f21098', 'Plugin Alliance', 1.4 * gb),
+        record('e5d3c1b9a7f54e33', 'Native Instruments', 1.6 * gb),
+        record('0f9e8d7c6b5a4938', None, 2.4 * gb, orphaned=True, in_use=False, jobs=[], recipe='softube-v2'),
+        record('9a8b7c6d5e4f3a21', None, 0.3 * gb, in_use=False, jobs=[{'id': 'x', 'name': 'Setup.exe'}]),
     ]
     records = [r for r, _ in rows]
     sizes = {r['id']: int(s) for r, s in rows}
@@ -522,22 +783,29 @@ def demo_data():
         {'job': 'ni-job', 'recipe': 'native-instruments-experiment', 'name': 'Native Access',
          'running': ['Native Access'], 'busy': False},
         {'job': 'kg-job', 'recipe': 'klevgrand', 'name': 'Klevgrand Helper', 'running': [], 'busy': False},
+        {'job': 'pa-job', 'recipe': 'plugin-alliance-experiment', 'name': 'PA Manager', 'running': [], 'busy': False},
     ]
     jobs = [{'id': 'ilok-job', 'env_id': '8c1f02aa77e14c0b'}, {'id': 'ni-job', 'env_id': 'e5d3c1b9a7f54e33'},
-            {'id': 'kg-job', 'env_id': 'c2f4e6a8b0d24c61'}]
-    breakdown = {'environments': int(20.3 * gb), 'runtimes': int(2.1 * gb), 'downloads': int(0.6 * gb),
+            {'id': 'kg-job', 'env_id': 'c2f4e6a8b0d24c61'}, {'id': 'pa-job', 'env_id': 'b7a6c5d4e3f21098'}]
+    breakdown = {'environments': int(21.7 * gb), 'runtimes': int(2.1 * gb), 'downloads': int(0.6 * gb),
                  'jobs': int(1.2 * gb), 'bridge-releases': int(0.05 * gb), 'old-experiment': int(0.7 * gb)}
     return records, setups, jobs, sizes, breakdown, ['proton-10.0-4-pace-ab-old'], []
 
 
-def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search=''):
+def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='', menu=None, library=None):
     import json
     import sys
     from gi.repository import Gdk
     from . import theme
 
+    if library:
+        data, plugins, soft, root = library_data(library)
+    else:
+        data, plugins, soft, root = demo_data(), demo_plugins(), {'8c1f02aa77e14c0b'}, Path.home() / '.local/share/plugg'
+
     class Host:
-        store = type('Store', (), {'root': Path.home() / '.local/share/plugg'})()
+        # Every action only prints. Nothing here opens, stops or deletes.
+        store = type('Store', (), {'root': root})()
 
         def __getattr__(self, name):
             return lambda *args: print('demo:', name, *[getattr(a, 'get', lambda k: a)('id') if isinstance(a, dict)
@@ -555,7 +823,7 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         view = LibraryView(Host())
         view.expanded.update(expand)
-        view.update(*demo_data())
+        view.update(*data, plugins=plugins, softube=soft)
         if search:
             view.search.set_text(search)
         scroll = Gtk.ScrolledWindow()
@@ -567,8 +835,13 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
         window.set_child(scroll)
         window.present()
         if snapshot:
+            if menu:
+                GLib.timeout_add(800, lambda: view.menus[menu].popup() or False)
+
             def shoot():
                 save_snapshot(window, snapshot)
+                if menu:
+                    save_snapshot(view.menus[menu].get_popover(), snapshot.replace('.png', '-menu.png'))
                 print(json.dumps({'snapshot': snapshot}), flush=True)
                 app.quit()
                 return False
@@ -587,5 +860,8 @@ if __name__ == '__main__':
     ap.add_argument('--expand', action='append', default=[], help='environment id to show opened')
     ap.add_argument('--search', default='')
     ap.add_argument('--height', type=int, default=900)
+    ap.add_argument('--menu', help='environment id whose settings menu to open')
+    ap.add_argument('--library', help='show this library, read-only, instead of sample data')
     a = ap.parse_args()
-    demo(a.snapshot, 'light' if a.light else 'dark', height=a.height, expand=a.expand, search=a.search)
+    demo(a.snapshot, 'light' if a.light else 'dark', height=a.height, expand=a.expand, search=a.search,
+         menu=a.menu, library=a.library)

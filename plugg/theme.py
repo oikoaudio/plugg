@@ -75,7 +75,15 @@ button.running:hover { background: alpha(@oiko_accent, 0.12); }
 .lib-item { padding: 12px 16px 10px 16px; border-top: 1px solid alpha(@oiko_border, 0.5); }
 .lib-item:first-child { border-top: none; }
 .lib-item:hover { background: alpha(@oiko_text, 0.025); }
-.lib-attention { border-left: 3px solid @oiko_accent; padding-left: 13px; }
+.lib-urgent { border-left: 3px solid @oiko_accent; padding-left: 13px; }
+/* Cleanup is housekeeping: a folded line under the vendors, not a banner. */
+expander.lib-cleanup { margin-top: 18px; }
+expander.lib-cleanup > title { padding: 4px 0; }
+popover.lib-menu > contents { padding: 4px; min-width: 260px; }
+button.lib-menu-item { background: transparent; border: none; padding: 6px 10px; min-height: 22px; font-weight: normal; }
+button.lib-menu-item:hover { background: @oiko_hover; }
+button.lib-menu-danger { color: @oiko_error; }
+popover.lib-menu separator { margin: 4px 0; background: alpha(@oiko_border, 0.6); }
 .lib-name { font-size: 15px; font-weight: 500; }
 .lib-meta, .lib-figure, .lib-plugin, .lib-chip { font-family: "JetBrains Mono", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
                                                    font-feature-settings: "tnum"; }
@@ -90,10 +98,12 @@ button.running:hover { background: alpha(@oiko_accent, 0.12); }
 .lib-plugin-hit { background: alpha(@oiko_selection, 0.25); }
 progressbar.lib-bar trough { min-height: 3px; background: alpha(@oiko_text, 0.07); border: none; border-radius: 2px; }
 progressbar.lib-bar progress { min-height: 3px; background: alpha(@oiko_text, 0.35); border: none; border-radius: 2px; }
-progressbar.lib-bar-attention progress { background: alpha(@oiko_accent, 0.75); }
 .lib-details { padding-top: 8px; }
 button.lib-toggle { padding: 2px; min-height: 22px; min-width: 22px; background: transparent; border: none; }
 button.lib-toggle:hover { background: @oiko_hover; }
+menubutton.lib-toggle > button { padding: 2px; min-height: 22px; min-width: 22px; background: transparent; border: none;
+                                 color: @oiko_muted; }
+menubutton.lib-toggle > button:hover { background: @oiko_hover; color: @oiko_text; }
 button.lib-quiet { background: transparent; border-color: transparent; color: @oiko_muted; }
 button.lib-quiet:hover { color: @oiko_text; background: @oiko_hover; }
 button.lib-danger { background: transparent; color: @oiko_error; border-color: alpha(@oiko_error, 0.5); }

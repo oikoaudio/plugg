@@ -2234,7 +2234,8 @@ class Manager(Gtk.Application):
             (self.drop_area.add_css_class if settled else self.drop_area.remove_css_class)('drop-compact')
             if self.tab == 'library':
                 self.library_view.update(survey.survey(self.store), setups, jobs, self.sizes, self.breakdown,
-                                         survey.unused_runtimes(self.store), survey.nested_libraries(self.store))
+                                         survey.unused_runtimes(self.store), survey.nested_libraries(self.store),
+                                         plugins=plugins, softube={d.name for _, d in softube_setups})
             self.clear(self.environments)
             # Surveying reads a licensing record and a registry hive per
             # environment. That is nothing once and a stutter every time the
