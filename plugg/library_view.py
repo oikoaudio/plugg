@@ -311,12 +311,14 @@ class LibraryView:
         self.host = host
         self.query = ''
         self.vendor_plugins = {}
+        self.plugin_index = {}
         self.dead_bundles = []
         self.waiting = {}
         self.softube = set()
         self.expanded = set()
         self.menus = {}
         self.row_actions = {}
+        self.chip_fillers = {}
         self.vendor_list = None
         self.widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         self.widget.add_css_class('library')
@@ -345,6 +347,27 @@ class LibraryView:
         self.query = entry.get_text().strip().casefold()
         if self.last:
             self.render(*self.last)
+            # After layout, so the position is the new one.
+            GLib.idle_add(self.scroll_to_results, priority=GLib.PRIORITY_LOW)
+
+    def scroll_to_results(self):
+        """Put the search box at the top after a search changes the list.
+
+        Searching shortens the list, and a scrolled window keeps its position by
+        clamping it to what is left, which lands at the end of the results or
+        past them. Showing the box you typed into, with the results under it,
+        answers that and the question behind it: whether anything happened.
+        """
+        scrolled = self.widget.get_ancestor(Gtk.ScrolledWindow)
+        if scrolled is None or scrolled.get_child() is None:
+            return False
+        point = self.search.translate_coordinates(scrolled.get_child(), 0, 0)
+        adjustment = scrolled.get_vadjustment()
+        if point is not None and adjustment is not None:
+            top = max(0.0, point[1] - 8)
+            reachable = max(0.0, adjustment.get_upper() - adjustment.get_page_size())
+            adjustment.set_value(min(top, reachable))
+        return False
 
     # ------------------------------------------------------------ keyboard
 
@@ -445,6 +468,18 @@ class LibraryView:
         self.dead_bundles = list(dead_bundles)
         spelled = {}
         self.vendor_plugins = plugins_by_vendor(plugins, spelled)
+        # Each published plug-in's record, by the names rows show it under, so a
+        # chip can say what the DAW sees and where the plug-in came from.
+        self.plugin_index = {}
+        for plugin in plugins:
+            keys = [plugin['name']]
+            try:
+                keys += [c.get('name') for c in json.loads(plugin.get('metadata') or '{}').get('classes') or []]
+            except ValueError:
+                pass
+            for key in keys:
+                if key:
+                    self.plugin_index.setdefault((plugin['env_id'], key), plugin)
         known = known_modules if known_modules is not None else [p.get('module') for p in plugins]
         self.waiting = {}
         for env_id, groups in unpublished(records, known).items():
@@ -572,6 +607,15 @@ class LibraryView:
                                                                if freeable else ''))
         listing = self.listing()
         listing.set_margin_top(8)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        if leftovers:
+            # Not the same as knowing they are inactive. This library knows what
+            # it published and what it was told to protect; a vendor may count a
+            # machine it was never told about.
+            box.append(text('Nothing in your DAW comes from these environments. That is not proof they hold '
+                            'nothing: a vendor may still count one as a machine if its licensing was never '
+                            'recorded here.', 'lib-note', wrap=True))
+        box.append(listing)
         for record, reason in leftovers:
             self.add_row(listing, self.leftover_row(record, reason, sizes.get(record['id']), largest))
         for name in spare_runtimes:
@@ -596,7 +640,7 @@ class LibraryView:
                 'Leftover adapter ' + bundle['name'],
                 'The Windows plug-in it loaded is gone, and your DAW does not see it.', None,
                 button('Remove', lambda n=bundle['name']: self.host.remove_dead_bundle(n), 'compact', 'lib-quiet')))
-        expander.set_child(listing)
+        expander.set_child(box)
         return expander
 
     def vendor_entries(self, record, helpers, size):
@@ -659,7 +703,15 @@ class LibraryView:
             return []
         if self.query in row['title'].casefold():
             return []
-        hits = [name for name in row['plugins'] + row.get('waiting', []) if self.query in name.casefold()]
+        env = row['record']['id']
+
+        def found(name):
+            # A DAW that refuses a plug-in names only its file, so the search
+            # finds a plug-in by that file name too.
+            plugin = self.plugin_index.get((env, name))
+            shown = Path(plugin['publication']).stem if plugin and plugin.get('publication') else ''
+            return self.query in name.casefold() or self.query in shown.casefold()
+        hits = [name for name in row['plugins'] + row.get('waiting', []) if found(name)]
         return hits or None
 
     def vendor_row(self, row, hits, largest):
@@ -706,6 +758,15 @@ class LibraryView:
         titles.append(text(meta, 'lib-meta', ellipsize=True))
         head.append(titles)
         todo = None
+        offers = [] if row['apps'] or not row['owner'] else (self.host.helper_offers(record) or [])
+        if len(offers) == 1:
+            program = offers[0]
+            todo = button('Use ' + Path(program).stem, lambda: self.host.use_helper(record['id'], program), 'compact',
+                          tooltip='The installer left this app here. Use it to add or update products; '
+                                  'closing it checks for new plug-ins.')
+        elif offers:
+            todo = button('Choose app…', lambda: self.host.adopt_helper(record), 'compact',
+                          tooltip='The installer left apps here. Choose the one that adds or updates products.')
         if waiting and activation:
             job, direct = row['ilok']['job'], row['ilok']['direct']
             todo = button('Activate in iLok', (lambda: self.host.manager_action(job, 'iLok License Manager'))
@@ -761,7 +822,8 @@ class LibraryView:
             box.append(bar((row['size'] or 0) / largest))
         revealer = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN, transition_duration=140)
         revealer.set_reveal_child(opened and bool(listed))
-        revealer.set_child(self.details(row['plugins'], hits, waiting, activation, row.get('extra', [])))
+        revealer.set_child(self.details(row['plugins'], hits, waiting, activation, row.get('extra', []),
+                                        env=record['id']))
         box.append(revealer)
 
         def flip(*_):
@@ -778,7 +840,7 @@ class LibraryView:
                                         size_text(row['size']) if row['owner'] else None) if x)
         return box, (flip if listed else None), menu, opened and bool(listed), spoken
 
-    def details(self, plugins, hits, waiting=(), activation=False, extra=()):
+    def details(self, plugins, hits, waiting=(), activation=False, extra=(), env=None):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.add_css_class('lib-details')
         for line in extra:
@@ -790,6 +852,10 @@ class LibraryView:
             for name in names:
                 chip = text(name, 'lib-plugin', *classes, *(('lib-plugin-hit',) if name in hits else ()))
                 chip.set_halign(Gtk.Align.START)
+                plugin = self.plugin_index.get((env, name)) if not classes else None
+                if plugin is not None:
+                    flow.append(self.plugin_chip(chip, name, plugin))
+                    continue
                 if tooltip:
                     chip.set_tooltip_text(tooltip)
                 flow.append(chip)
@@ -805,6 +871,41 @@ class LibraryView:
         if not plugins and not waiting and not extra:
             box.append(text('Nothing from here is in your DAW yet.', 'lib-dim'))
         return box
+
+    def plugin_chip(self, chip, name, plugin):
+        """A plug-in you can ask about: what the DAW sees, where it came from, its version."""
+        menu = Gtk.MenuButton()
+        menu.add_css_class('lib-chip-button')
+        menu.set_child(chip)
+        menu.set_halign(Gtk.Align.START)
+        problem = plugin.get('status') not in (None, 'ready')
+        if problem:
+            chip.add_css_class('lib-plugin-problem')
+        speak(menu, name + (', needs attention' if problem else ''), 'Details about this plug-in')
+        popover = Gtk.Popover()
+        popover.add_css_class('lib-menu')
+        menu.set_popover(popover)
+
+        def fill(*_):
+            facts = self.host.plugin_facts(plugin) or {}
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            for side in ('top', 'bottom', 'start', 'end'):
+                getattr(box, 'set_margin_' + side)(8)
+            box.append(text(name, 'lib-name', wrap=True))
+            for line in facts.get('lines', []):
+                shown = text(line, 'lib-meta', wrap=True, selectable=True)
+                shown.set_max_width_chars(52)
+                box.append(shown)
+            if facts.get('problem'):
+                box.append(text(facts['problem'], 'lib-note', wrap=True))
+            for title, handler in facts.get('actions', []):
+                box.append(button(title, lambda h=handler: (popover.popdown(), h()), 'lib-menu-item'))
+            popover.set_child(box)
+        popover.connect('show', fill)
+        # Built when it opens, since it reads the library; kept so a test can
+        # build it without opening a popup.
+        self.chip_fillers[menu] = fill
+        return menu
 
     def settings(self, record, helpers=()):
         """Everything done to an environment rather than with it, behind one cogwheel.
@@ -836,8 +937,25 @@ class LibraryView:
         item('Rename…', lambda: self.host.rename_environment(record))
         item('Troubleshoot…', lambda: self.host.troubleshoot(record),
              tooltip='Reusable fixes for plug-ins that load badly, draw wrongly or crash')
-        item('Licence handling…', lambda: self.host.record_licensing(record),
-             tooltip='How licences work for what is installed here')
+        # Recorded or not, it can be looked at and changed again: a wrong
+        # answer, once given, must not become permanent.
+        item('Licence handling ✓' if record.get('protected') else 'Licence handling…',
+             lambda: self.host.record_licensing(record),
+             tooltip=survey.recorded_detail(record) or 'How licences work for what is installed here')
+        for setup in helpers:
+            if setup.get('can_refresh'):
+                item('Refresh library', lambda j=setup['job']: self.host.vendor_action(j, True),
+                     tooltip='Check again for plug-ins, after installing them some other way')
+            if setup.get('helper_profile') == 'native-access':
+                item('Complete sign-in…', lambda j=setup['job']: self.host.native_access_sign_in(j),
+                     tooltip='Finish a Native Access sign-in that opened in your browser')
+            if setup.get('installer'):
+                item('Installer files', lambda i=setup['installer']: self.host.show_path(str(Path(i).parent)),
+                     tooltip='The installer Plugg kept for this vendor')
+        if not helpers and record.get('recipe') in ('installer', 'standalone-vst3') \
+                and (Path(record['path']) / 'launch-full-proton').is_file():
+            item('Use as helper…', lambda: self.host.adopt_helper(record),
+                 tooltip='Choose the vendor app the installer left here, so it gets a button like other vendors')
         live = [s for s in helpers if s.get('running') or s.get('busy') or s.get('needs_attention')]
         if live:
             item('Force close its apps', lambda j=live[0]['job']: self.host.stop_helper(j, 'this environment'),
@@ -950,6 +1068,9 @@ class LibraryView:
         """The whole folder, added up, so that nothing can take room unseen."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.add_css_class('lib-footer')
+        identity = survey.identity_summary(records)
+        if identity:
+            box.append(text(identity, 'lib-note', wrap=True))
         if not breakdown:
             box.append(text('Measuring the library folder…', 'lib-meta'))
             return box
@@ -1163,6 +1284,15 @@ def demo(snapshot=None, mode='dark', width=1120, height=900, expand=(), search='
         # Every action only says what it would have done. Nothing here opens,
         # stops or deletes anything.
         store = type('Store', (), {'root': root})()
+
+        def helper_offers(self, record):
+            return []
+
+        def plugin_facts(self, plugin):
+            lines = []
+            if plugin.get('publication'):
+                lines.append('Your DAW sees: ' + Path(plugin['publication']).name)
+            return {'lines': lines}
 
         def __getattr__(self, name):
             def said(*args):

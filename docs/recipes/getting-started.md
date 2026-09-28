@@ -263,7 +263,7 @@ The manager checks the helper operation lock before it shows a recorded running,
 
 ## Browsing reusable components
 
-In the Recipes tab, choose **Components** to browse reusable parts or **Vendor setups** to browse complete recipes. **All** shows both. Search matches component names, IDs, problem descriptions and the names of recipes that use a component. The Used by links open the exact vendor recipe revision. Each card shows the problem the component addresses, whether it configures or installs something or only checks for an existing fix, and the vendor recipes that depend on it. The component details keep the full capability report and the exact technical requirements.
+Under **Recipes & fixes**, choose **Components** to browse reusable parts or **Vendor setups** to browse complete recipes. **All** shows both. Search matches component names, IDs, problem descriptions and the names of recipes that use a component. The Used by links open the exact vendor recipe revision. Each card shows the problem the component addresses, whether it configures or installs something or only checks for an existing fix, and the vendor recipes that depend on it. The component details keep the full capability report and the exact technical requirements.
 
 Built-in components have curated evidence summaries in `plugg/recipes/component-evidence.json`. Each summary names its source notes, describes the limits of the test and is tied to the SHA-256 of the recipe file. Editing a recipe breaks that link, and Plugg does not silently carry the old evidence forward. The UI shows missing evidence as missing. These summaries are records of past tests. They do not check the current installation or claim universal compatibility.
 

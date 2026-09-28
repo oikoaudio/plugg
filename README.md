@@ -69,7 +69,7 @@ plugg recipe explain ./downloaded-recipe.toml
 
 That prints what the recipe can do in plain language, every download URL and hash, the exact arguments any installer would get, and anything worth a second look. Where a recipe lives caps what it may declare. An unreviewed recipe can't ask to run a vendor installer at all, and CI refuses anything over the ceiling. If you'd rather not trust anyone's finished recipe, `recipe components` lists the reviewed parts, each with the problem it solves, and you can assemble your own.
 
-The Recipes tab in the app shows the same report before you add a recipe. The person most likely to open a file someone posted is the one least likely to be at a terminal.
+The app shows the same report before you add a recipe, under **Recipes & fixes**. The person most likely to open a file someone posted is the one least likely to be at a terminal.
 
 See [recipe trust](docs/recipe-trust.md) for the model, [getting started](docs/recipes/getting-started.md) to write a recipe, and [CONTRIBUTING](CONTRIBUTING.md) for how to share what works.
 

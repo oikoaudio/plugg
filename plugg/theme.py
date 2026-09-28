@@ -102,6 +102,10 @@ popover.lib-menu separator { margin: 4px 0; background: alpha(@oiko_border, 0.6)
 .lib-plugin { font-size: 0.79em; padding: 2px 8px; border-radius: 4px; background: alpha(@oiko_text, 0.05);
               color: @oiko_text; }
 .lib-plugin-waiting { background: transparent; border: 1px dashed alpha(@oiko_text, 0.25); color: @oiko_muted; }
+menubutton.lib-chip-button > button { padding: 0; min-height: 0; min-width: 0; background: transparent; border: none; }
+menubutton.lib-chip-button > button:hover .lib-plugin { background: alpha(@oiko_text, 0.12); }
+menubutton.lib-chip-button > button:focus-visible .lib-plugin { box-shadow: inset 0 0 0 2px @oiko_selection; }
+.lib-plugin-problem { box-shadow: inset 0 0 0 1px @oiko_accent; }
 .lib-plugin-hit { background: alpha(@oiko_selection, 0.25); }
 progressbar.lib-bar trough { min-height: 3px; background: alpha(@oiko_text, 0.07); border: none; border-radius: 2px; }
 progressbar.lib-bar progress { min-height: 3px; background: alpha(@oiko_text, 0.35); border: none; border-radius: 2px; }
@@ -124,6 +128,8 @@ button.lib-danger:hover { background: alpha(@oiko_error, 0.12); }
 .lib-dot-ok { background: @oiko_ok; }
 .lib-dot-waiting { background: @oiko_accent; }
 .lib-dot-running { background: @oiko_selection; }
+label.credit { font-size: 0.86em; }
+label.credit link, label.credit link:visited { color: @oiko_selection; }
 .lib-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid alpha(@oiko_border, 0.6); }
 /* Text size follows the desktop's own setting: every size above is relative
    to the window font, which GTK takes from the system (Large Text included). */

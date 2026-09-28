@@ -1,6 +1,6 @@
 # One library list instead of four tabs (sketch)
 
-Proposed in September 2026, on the `gui-vendor-list` branch. Not decided.
+Decided in September 2026. The four tabs are gone; the library is this list, and the recipe catalogue is a page behind **Recipes & fixes**.
 
 ## Problem
 
@@ -19,7 +19,7 @@ Every environment is a vendor row or a cleanup line, so nothing takes room unsee
 
 Rare actions sit behind a settings (cogwheel) button on each environment's row: show folder, rename, troubleshoot, licence handling, force close, and delete last, with the licence note right above Delete, the one place it is a warning and not a call to action. Runtime, ID and path are the menu's header, not the row's.
 
-The view calls the manager's existing actions, so deletion still needs the typed confirmation and passes the licensing guard. Recipes open from "Recipes & fixes" in the top bar and from "Troubleshoot…" in the settings menu. The older tabs are still there, behind the grid button at the left of the title bar, for comparison.
+The view calls the manager's existing actions, so deletion still needs the typed confirmation and passes the licensing guard. Recipes open from "Recipes & fixes" in the top bar and from "Troubleshoot…" in the settings menu. Everything the old tabs did has a place here: each plug-in's details (what the DAW sees, where it came from, its version and status) open from its name in the row, and a helper's less frequent actions (refresh library, Native Access sign-in, installer files, choosing a helper) are in the row's settings.
 
 ## Keyboard and accessibility
 
@@ -40,10 +40,9 @@ PLUGG_UI_SMOKE=1 PLUGG_UI_SNAPSHOT=app.png bin/plugg --data <test library> gui
 
 Run either on a headless weston (`weston --backend=headless --socket=x`, then `WAYLAND_DISPLAY=x`) to keep it off your desktop.
 
-## Open before this could replace the tabs
+## Still open
 
-- **Guided troubleshooting.** "Troubleshoot…" only opens the fix catalogue. The useful version starts from a symptom ("the editor is black", "it crashes on load", "the installer stops"). It suggests the fixes whose recipe says they solve it, tries one on a copy of the environment, and keeps it only if the plug-in then works. It must refuse to experiment on a protected environment, following `docs/licensing-safety.md`.
-- **Unidentified plug-ins.** A vendor comes from a published plug-in's own VST3 metadata, or, for a plug-in installed but not published (an iLok plug-in before activation, say), from the Windows version resource in its file (`plugg/pe_version.py`, read without running it). A file with neither is listed under "Not identified yet" rather than guessed; in one real library that was two of 58, a UA and a Softube plug-in whose modules carry no version resource.
-- **Failed installs** still appear in the activity strip above the list. They should link to the same troubleshooting.
+- **Guided troubleshooting.** "Troubleshoot…" opens the fix catalogue. The useful version starts from a symptom ("the editor is black", "it crashes on load", "the installer stops"). It suggests the fixes whose recipe says they solve it, tries one on a copy of the environment, and keeps it only if the plug-in then works. It must refuse to experiment on a protected environment, following `docs/licensing-safety.md`.
+- **What happened after a check.** A row cannot yet say "still not loading after activation", because Plugg does not record when it last checked each plug-in.
 - **Survey cost.** The view runs `environments.survey`, which reads a licensing record and a registry hive per environment, whenever the library changes. That is fine for tens of environments. Measure it on a large library.
-- **Retiring the old tabs.** They go once the list covers everything they do. The plug-in list's per-plug-in details (what the DAW sees, the saved installer) still exist only on the old Plug-ins tab.
+- **Vendor icons.** Each helper app carries its vendor's icon in its own resources, next to the version information Plugg already reads.

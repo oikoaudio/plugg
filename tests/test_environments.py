@@ -186,8 +186,10 @@ class PresentationTests(unittest.TestCase):
     def test_surveying_waits_until_the_tab_is_open(self):
         # A survey reads a licensing record and a registry hive per
         # environment: nothing once, a stutter on every library change.
-        self.assertIn("looking = self.tab == 'environments'", self.text)
-        self.assertIn('survey.survey(self.store) if looking else []', self.text)
+        # Surveying reads a licensing record and a registry hive per
+        # environment, so it happens only while the library is shown.
+        self.assertIn("if self.tab == 'library':\n                self.library_view.update(survey.survey(self.store)",
+                      self.text)
 
     def test_sizes_are_measured_off_the_interface_thread_and_cached(self):
         self.assertIn('def measure_environments', self.text)
@@ -201,20 +203,21 @@ class PresentationTests(unittest.TestCase):
         # label read as a query the app would compute, and it is a form.
         # Not a question the app answers, and not a claim about live state
         # either: it is how the licences behave, which does not change.
-        self.assertIn("label='Licence handling…' if not record['protected']", self.text)
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertIn("item('Licence handling ✓' if record.get('protected') else 'Licence handling…',", view)
         self.assertNotIn("label='Record licensing", self.text)
         self.assertNotIn("label='Cost of rebuilding", self.text)
         self.assertNotIn("label='Note what is activated", self.text)
         self.assertIn('Not what is activated right now', self.text)
-        self.assertIn("if not record.get('dangling'):", self.text)
         self.assertIn('licensing.protect(Path(record[', self.text)
 
     def test_machine_identity_is_stated_once_and_not_as_a_warning(self):
         # It appeared in a warning colour on nearly every row, where it was
         # neither a warning nor actionable -- which teaches the reader to
         # ignore the colour.
-        self.assertIn('note = survey.identity_summary(records)', self.text)
-        self.assertIn("self.environments.append(label(note, 'muted', True))", self.text)
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertEqual(view.count('survey.identity_summary(records)'), 1)
+        self.assertIn("box.append(text(identity, 'lib-note', wrap=True))", view)
         self.assertNotIn("'Not seen as this computer'", self.text)
         self.assertNotIn('survey.identity_line', self.text)
 
@@ -231,9 +234,9 @@ class PresentationTests(unittest.TestCase):
         self.assertIn('for name, chooser in rows:', self.text)
 
     def test_what_was_recorded_can_be_seen_and_changed_afterwards(self):
-        self.assertIn("if not record.get('dangling'):", self.text)
-        self.assertIn("'Licence handling ✓'", self.text)
-        self.assertIn('survey.recorded_detail(record) or cost', self.text)
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertIn("'Licence handling ✓'", view)
+        self.assertIn('tooltip=survey.recorded_detail(record) or', view)
 
 
 class RemovalTests(unittest.TestCase):
@@ -479,22 +482,27 @@ class RemovalPresentationTests(unittest.TestCase):
         # This library knows what it published and what it was told to
         # protect. A vendor may count a machine it was never told about, so
         # claiming these are inactive would be claiming something unknown.
-        self.assertNotIn('Inactive', self.text)
-        self.assertIn('Nothing published from these', self.text)
-        self.assertIn('That is not proof they hold', self.text)
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertNotIn('Inactive', view)
+        self.assertNotIn('inactive', view.replace('knowing they are inactive', ''))
+        self.assertIn('That is not proof they hold', view)
 
     def test_the_groups_are_separated_and_counted(self):
-        self.assertIn('survey.partition(records)', self.text)
-        self.assertIn("bar.add_css_class('section-header')", self.text)
-        self.assertIn("label('%s · %d' % (title, len(group)), 'status')", self.text)
+        # Vendors and cleanup are read with opposite intentions, so they are
+        # apart: cleanup is a counted, folded section below the vendors.
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertIn("Section('vendors'", view)
+        self.assertIn("title.append(text('cleanup', 'lib-section-title'))", view)
+        self.assertIn("plural(items, 'item')", view)
 
     def test_the_two_invisible_leftovers_are_now_listed(self):
         # Both were found only by looking at the disk and wondering what a
         # directory was. Neither had any route through the interface.
         self.assertIn('survey.nested_libraries(self.store)', self.text)
         self.assertIn('survey.unused_runtimes(self.store)', self.text)
-        self.assertIn("label('Separate library: '", self.text)
-        self.assertIn("label('Unused runtime: '", self.text)
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertIn("'Separate library ' + library['name']", view)
+        self.assertIn("'Unused runtime ' + name", view)
 
     def test_a_nested_library_is_deleted_on_the_same_terms_as_an_environment(self):
         # It holds environments, so it can hold activations.

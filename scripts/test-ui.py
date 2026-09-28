@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
                            for w in descendants(details_window))
                 details_window.close()
                 help_window = self.help()
-                assert any(isinstance(w, Gtk.Button) and w.get_label() == 'Open the Recipes tab'
+                assert any(isinstance(w, Gtk.Button) and w.get_label() == 'Open recipes & fixes'
                            for w in descendants(help_window))
                 help_window.close()
 
@@ -116,11 +116,11 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
 
                 # Every view exists and can be entered. Switching tabs is the
                 # one interaction nothing else covers, and each one rebuilds.
-                for name in ('plugins', 'helpers', 'recipes', 'environments'):
+                for name in ('recipes', 'library'):
                     self.stack.set_visible_child_name(name)
                     assert self.stack.get_visible_child_name() == name
                     self.refresh()
-                assert json.loads((root / 'ui.json').read_text())['tab'] == 'environments'
+                assert json.loads((root / 'ui.json').read_text())['tab'] == 'library'
 
                 # The capability report, built as widgets. Nothing else runs
                 # this code: it is the one part of the trust model a GUI user
@@ -227,65 +227,63 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
                 assert not add.get_sensitive(), 'a refused recipe must not be addable'
                 self.preview.close()
 
-                self.stack.set_visible_child_name('plugins')
+                self.stack.set_visible_child_name('library')
+                view = self.library_view
 
-                model = self.vendor_filter.get_model()
-                options = [model.get_string(i) for i in range(model.get_n_items())]
-                assert 'Example Vendor' in options and 'Example Manager' not in options
+                def row_widgets():
+                    return [view.vendor_list.get_row_at_index(i) for i in range(50)
+                            if view.vendor_list and view.vendor_list.get_row_at_index(i)]
 
-                # The card leads with the vendor and names the helper under it.
+                # The row leads with the vendor, and its app is one button that
+                # names the app when you ask.
                 assert any(isinstance(w, Gtk.Label) and w.get_text() == 'Example Vendor'
-                           for w in descendants(self.vendors))
-                assert any(isinstance(w, Gtk.Label) and w.get_text() == 'Example Manager'
-                           for w in descendants(self.vendors))
+                           for w in descendants(view.widget))
+                app = next(w for w in descendants(view.widget)
+                           if isinstance(w, Gtk.Button) and w.get_label() == 'Open manager')
+                assert app.get_tooltip_text() == 'Opens Example Manager'
+
+                # A helper's status is news for its row's expansion, and Force
+                # close is in the environment's settings, never disabled.
                 setups[0]['needs_attention'] = True
                 setups[0]['message'] = 'Example failed to scan'
                 self.last = None
                 self.refresh()
-                assert any(isinstance(w, Gtk.Label) and 'Example failed to scan' in w.get_text()
-                           for w in descendants(self.vendors))
-                assert any(isinstance(w, Gtk.Button) and w.get_label() == 'Force close'
-                           for w in descendants(self.vendors))
+                assert any(isinstance(w, Gtk.Label) and 'Last check: Example failed to scan' in w.get_text()
+                           for w in descendants(view.widget))
+                settings = view.menus['direct'].get_popover()
+                force = next(w for w in descendants(settings)
+                             if isinstance(w, Gtk.Button) and w.get_label() == 'Force close its apps')
+                assert force.get_sensitive()
                 setups[0]['needs_attention'] = False
                 self.last = None
                 self.refresh()
 
-                # A second manager can share the environment without becoming
-                # part of the first vendor's card or disappearing from filters.
+                # A second manager in the same environment gets its own button.
                 with patch('plugg.softube.configured', return_value=True):
                     self.last = None
                     self.refresh()
-                    assert any(isinstance(w, Gtk.Label) and w.get_text() == 'Softube Central'
-                               for w in descendants(self.vendors))
-                    assert any(isinstance(w, Gtk.Label) and 'Shares this Windows environment' in w.get_text()
-                               for w in descendants(self.vendors))
-                    button = next(w for w in descendants(self.vendors)
-                                  if isinstance(w, Gtk.Button) and w.get_label() == 'Open Softube Central')
+                    softube_button = next(w for w in descendants(view.widget)
+                                          if isinstance(w, Gtk.Button) and w.get_tooltip_text() == 'Opens Softube Central')
                     with patch('plugg.softube.start') as launch:
-                        button.emit('clicked')
+                        softube_button.emit('clicked')
                         launch.assert_called_once_with(root / 'environments/direct')
-                    model = self.vendor_filter.get_model()
-                    assert 'Softube' in [model.get_string(i) for i in range(model.get_n_items())]
                 self.last = None
                 self.refresh()
 
-                # One flat list of rows, filtered by the search box.
+                # Search narrows the list, says when nothing matches, and finds a
+                # plug-in by the file name a DAW reports.
                 self.window.set_default_size(700, 820)
-                self.window.set_focus(self.search)
-                rows = lambda: [w for w in children(self.library)
-                                if w.has_css_class('plugin-row')]
-                assert len(rows()) == 1, 'the fixture plug-in should be listed once'
-                assert 'Installed plug-ins · 1' in self.library_heading.get_text()
-                self.search.set_text('not present')
-                self.search_changed(self.search)
-                assert not rows()
-                assert any(isinstance(w, Gtk.Label) and 'No plug-ins' in w.get_text()
-                           for w in descendants(self.library))
-                self.search.set_text('example')
-                self.search_changed(self.search)
-                assert len(rows()) == 1
-                self.search.set_text('')
-                self.search_changed(self.search)
+                assert len(row_widgets()) == 1, 'the fixture vendor should be listed once'
+                view.search.set_text('not present')
+                view.search_changed(view.search)
+                assert not row_widgets()
+                assert any(isinstance(w, Gtk.Label) and 'Nothing matches' in w.get_text()
+                           for w in descendants(view.widget))
+                view.search.set_text('example')
+                view.search_changed(view.search)
+                assert len(row_widgets()) == 1
+                view.search.set_text('')
+                view.search_changed(view.search)
 
                 self.toggle_theme()
                 assert json.loads((root / 'ui.json').read_text())['theme'] == self.theme_mode
@@ -308,25 +306,20 @@ with tempfile.TemporaryDirectory(prefix='plugg-ui-') as temporary:
                 assert not self.recipe_notice.get_visible()
                 assert self.show_recipe_problem() is None
 
-                menu = next(w for w in descendants(self.library) if isinstance(w, Gtk.MenuButton))
-                assert any(isinstance(w, Gtk.Label) and 'Example.vst3' in w.get_text()
-                           for w in descendants(menu.get_popover()))
-                # The published file name, which is all a DAW can tell you when
-                # it refuses one. Searching for it has to find the plug-in.
-                assert any(isinstance(w, Gtk.Label) and 'Your DAW sees: Example.vst3' in w.get_text()
-                           for w in descendants(menu.get_popover()))
-                self.search.set_text('example')
-                self.search_changed(self.search)
-                assert len(rows()) == 1
-                self.search.set_text('')
-                self.search_changed(self.search)
+                # A plug-in's details: the file a DAW sees, which is all a DAW
+                # names when it refuses one, and where it came from.
+                chip = next(w for w in descendants(view.widget)
+                            if isinstance(w, Gtk.MenuButton) and w.has_css_class('lib-chip-button'))
+                view.chip_fillers[chip]()
+                shown = [w.get_text() for w in descendants(chip.get_popover()) if isinstance(w, Gtk.Label)]
+                assert any('Your DAW sees: Example.vst3' in line for line in shown), shown
                 self.tab = 'recipes'
                 self.save_interface_state()
                 assert Manager(store).tab == 'recipes', 'the recipe tab should survive reopening'
                 result['passed'] = True
-                print('GTK checks passed: the library list by keyboard and screen reader, tabs, search, '
-                      'theme, vendor card, source details, the recipe report and its refusal, and '
-                      'malformed-recipe isolation.', flush=True)
+                print('GTK checks passed: the library list by keyboard and screen reader, pages, vendor '
+                      'row and settings, search, plug-in details, theme, the recipe report and its '
+                      'refusal, and malformed-recipe isolation.', flush=True)
             except Exception as exc:
                 import traceback
                 traceback.print_exc()

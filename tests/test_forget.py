@@ -448,7 +448,8 @@ class ForceCloseControlTests(unittest.TestCase):
 
     def test_the_force_close_control_calls_stop_helper(self):
         text = self.SOURCE.read_text()
-        self.assertIn("Gtk.Button(label='Force close')", text)
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertIn("item('Force close its apps', lambda j=live[0]['job']: self.host.stop_helper(", view)
         self.assertIn('vendors.stop_helper(', text)
 
     def test_force_close_is_never_disabled_with_the_other_buttons(self):
@@ -578,7 +579,8 @@ class RunningControlPresentationTests(unittest.TestCase):
 
     def test_a_running_application_gets_a_way_back_in(self):
         text = self.SOURCE.read_text()
-        self.assertIn("add_css_class('running')", text)
+        view = (self.SOURCE.parent / 'library_view.py').read_text()
+        self.assertIn("self.host.show_helper(job), 'compact', 'running'", view)
         self.assertIn('vendors.show_helper(', text)
 
     def test_the_running_style_exists_in_the_theme(self):
@@ -589,139 +591,103 @@ class RunningControlPresentationTests(unittest.TestCase):
 
 
 class LibraryLayoutTests(unittest.TestCase):
-    """Where each section sits, and what a managed plug-in points at.
+    """Where things sit, and what a managed plug-in points at.
 
-    GTK cannot be imported here, so these read the source. They exist because
-    the arrangement is the feature: helpers above the list they fill, one
-    plug-in list with the maker as a column, and a managed plug-in pointing at
-    the helper that manages it rather than at an installer file.
+    GTK cannot be imported here, so these read the source. The window is one
+    list of vendors (docs/decisions/0004-one-library-list.md): a vendor's
+    plug-ins, app, size and settings are on its row, so nothing about one
+    vendor is split across views.
     """
 
     SOURCE = Path(__file__).resolve().parents[1] / 'plugg' / 'gui.py'
+    VIEW = Path(__file__).resolve().parents[1] / 'plugg' / 'library_view.py'
 
     def setUp(self):
         self.text = self.SOURCE.read_text()
+        self.view = self.VIEW.read_text()
 
-    def test_each_view_is_a_tab_rather_than_another_screenful(self):
-        # Stacked down one page these had grown taller than any screen, and the
-        # cost of that is not scrolling: it is that nothing can be found
-        # without scrolling past everything else.
-        for name in ('plugins', 'helpers', 'environments'):
-            self.assertIn("'%s'," % name, self.text)
-        # No tab of past attempts. An attempt is either something you are still
-        # dealing with, which is in the strip above every tab, or something you
-        # are not, which is gone.
-        self.assertNotIn("'history', 'History'", self.text)
-        self.assertIn('Gtk.StackSwitcher(stack=self.stack)', self.text)
-        # The library list is the window; the older views sit behind one toggle.
-        self.assertIn("self.stack.add_titled(library_page, 'library', 'Library')", self.text)
-        self.assertIn('title.append(switcher)', self.text)
+    def test_the_library_is_one_list_not_tabs(self):
+        self.assertIn("self.stack.add_named(library_page, 'library')", self.text)
+        self.assertIn("self.stack.add_named(recipes_page, 'recipes')", self.text)
+        self.assertNotIn('Gtk.StackSwitcher', self.text)
+        # No tab of past attempts: an attempt is either still being dealt
+        # with, in the strip above the list, or gone.
+        self.assertNotIn("'history'", self.text)
 
-    def test_adding_a_file_stays_reachable_from_every_tab(self):
+    def test_adding_a_file_stays_reachable_from_every_page(self):
         drop = self.text.index('content.append(drop)')
         activity = self.text.index('content.append(self.activity)')
         stack = self.text.index('content.append(self.stack)')
-        self.assertLess(drop, stack, 'The drop area must not belong to one tab.')
+        self.assertLess(drop, stack, 'The drop area must not belong to one page.')
         self.assertLess(activity, stack, 'Work in progress must be visible from all of them.')
 
-    def test_the_chosen_tab_is_remembered(self):
+    def test_the_chosen_page_is_remembered(self):
         self.assertIn("'tab': self.tab", self.text)
         self.assertIn('self.stack.set_visible_child_name(self.tab)', self.text)
 
-    def test_every_header_is_one_bar_across_the_window(self):
-        from plugg import theme
-        self.assertIn("toolbar.add_css_class('section-header')", self.text)
-        self.assertIn("heading_row.add_css_class('section-header')", self.text)
-        for mode in ('dark', 'light'):
-            self.assertIn(b'.section-header', theme.css(mode))
+    def test_the_recipe_page_leads_back_to_the_library(self):
+        self.assertIn("recipes_row.add_css_class('section-header')", self.text)
+        self.assertIn("Gtk.Button(label='← Library')", self.text)
 
     def test_a_managed_plug_in_is_pointed_at_its_helper_not_an_installer(self):
-        self.assertIn('self.reveal_helper(', self.text)
-        managed = self.text.index("if managed:")
-        saved = self.text.index("saved = Gtk.Button(label='Open saved files')")
-        self.assertLess(managed, saved, 'The saved-file route must be the branch for plug-ins '
-                                        'that were not installed through a helper.')
+        # The saved installer is the route only for a plug-in no helper manages.
+        facts = self.text.split('    def plugin_facts(self, plugin):', 1)[1]
+        managed = facts.index("if job['id'] not in {s['job'] for s in setups}:")
+        saved = facts.index("'Open saved files'")
+        self.assertLess(managed, saved)
 
-    def test_a_helper_card_shows_a_count_rather_than_every_product(self):
-        self.assertIn("self.listing('Manages %d plug-in'", self.text)
-        # This rule concerns helper cards, not component-to-recipe attribution.
-        refresh = self.text.split('    def refresh(self):', 1)[1]
-        self.assertNotIn("'Used by: '", refresh)
+    def test_a_row_shows_a_count_and_lists_plug_ins_on_expansion(self):
+        self.assertIn("plural(len(row['plugins']), 'plug-in')", self.view)
+        self.assertIn('revealer.set_child(self.details(', self.view)
 
 
-class FilterScrollPositionTests(unittest.TestCase):
-    """Filtering must not leave you at the end of the results you asked for.
+class SearchScrollPositionTests(unittest.TestCase):
+    """Searching must not leave you at the end of the results you asked for.
 
     A scrolled window keeps its position by clamping it to whatever content is
-    left. Shorten the list by filtering and that clamp lands at the bottom, so
-    the answer to "show me this vendor" arrives scrolled past.
+    left. Shorten the list by searching and that clamp lands at the bottom, so
+    the answer arrives scrolled past.
     """
 
-    SOURCE = Path(__file__).resolve().parents[1] / 'plugg' / 'gui.py'
+    VIEW = Path(__file__).resolve().parents[1] / 'plugg' / 'library_view.py'
 
     def setUp(self):
-        self.text = self.SOURCE.read_text()
-
-    def test_changing_either_filter_asks_for_the_list_header(self):
-        import ast
-        tree = ast.parse(self.text)
-        wanted = {'filter_changed', 'search_changed'}
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name in wanted:
-                sets = [n for n in ast.walk(node)
-                        if isinstance(n, ast.Attribute) and n.attr == 'reveal_list']
-                self.assertTrue(sets, node.name + ' must ask for the list header')
-                wanted.discard(node.name)
-        self.assertFalse(wanted, 'missing handlers: ' + ', '.join(sorted(wanted)))
+        self.text = self.VIEW.read_text()
 
     def test_the_position_is_set_after_layout_not_during_it(self):
-        self.assertIn('GLib.idle_add(self.scroll_to_library', self.text)
+        self.assertIn('GLib.idle_add(self.scroll_to_results', self.text)
 
     def test_it_never_scrolls_past_what_exists(self):
         self.assertIn('adjustment.get_upper() - adjustment.get_page_size()', self.text)
 
 
-class HelperCardTests(unittest.TestCase):
-    """What a helper card leads with, and in what order.
+class VendorRowTests(unittest.TestCase):
+    """What a vendor row leads with, and what sits on it rather than under it.
 
-    A row of cards is scanned for whose plug-ins these are; the application
-    that installs them is the next question, not the first. And the controls
-    come before the inventory, because the card exists to be used.
+    A list is scanned for whose plug-ins these are; the application that
+    installs them is the next question, answered on its button. The controls
+    are on the row, because the row exists to be used; what it holds is on
+    expansion.
     """
 
-    SOURCE = Path(__file__).resolve().parents[1] / 'plugg' / 'gui.py'
+    VIEW = Path(__file__).resolve().parents[1] / 'plugg' / 'library_view.py'
 
     def setUp(self):
-        self.text = self.SOURCE.read_text()
+        self.text = self.VIEW.read_text()
 
-    def test_the_card_leads_with_the_vendor_and_names_the_helper_under_it(self):
-        self.assertIn("heading = label(vendor, 'card-title')", self.text)
-        self.assertIn("card.append(label(title, 'status'))", self.text)
-        self.assertLess(self.text.index("card.append(heading)"),
-                        self.text.index("card.append(label(title, 'status'))"))
+    def test_the_row_leads_with_the_vendor_and_names_its_app_on_the_button(self):
+        self.assertIn("name = text(row['title'], 'lib-name', ellipsize=True)", self.text)
+        self.assertIn("tooltip='Opens ' + title", self.text)
 
     def test_the_controls_come_before_the_inventory(self):
-        actions = self.text.index('card.append(self.button_grid(buttons))')
-        listing = self.text.index("self.listing('Manages %d plug-in'")
-        self.assertLess(actions, listing, 'The buttons are what the card is for; the count of '
-                                          'what it manages is reference, and belongs under them.')
+        controls = self.text.index("        for control in row['apps']:")
+        inventory = self.text.index('revealer.set_child(self.details(')
+        self.assertLess(controls, inventory)
 
-    def test_the_controls_sit_on_a_grid_of_equal_columns(self):
-        # Labels differ in length, so a row of them is ragged and a wrapping
-        # box is worse: the break moves as the window resizes.
-        from plugg import theme
-        self.assertIn('Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)', self.text)
-        self.assertIn("button.add_css_class('compact')", self.text)
-        for mode in ('dark', 'light'):
-            self.assertIn(b'button.compact', theme.css(mode))
-
-    def test_a_standing_caveat_is_one_line_with_the_rest_on_hover(self):
-        # Several helper messages are permanent notes about an experimental
-        # integration, not news. As a paragraph they set the height of every
-        # card in the row.
-        self.assertIn("message = label(setup['message'], 'status')", self.text)
-        self.assertIn("message.set_ellipsize(Pango.EllipsizeMode.END)", self.text)
-        self.assertIn("message.set_tooltip_text(setup['message'])", self.text)
+    def test_a_helper_status_is_kept_off_the_front(self):
+        # Many helper messages are standing notes, not news. On the row they
+        # read as diagnostics; they belong on expansion.
+        self.assertIn("'extra': ['Last check: ' + note] if note else []", self.text)
 
 
 class ArchiveCommandTests(unittest.TestCase):

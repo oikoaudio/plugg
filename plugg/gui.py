@@ -44,7 +44,6 @@ class Manager(Gtk.Application):
         super().__init__(application_id="com.oikoaudio.Plugg", flags=Gio.ApplicationFlags.NON_UNIQUE)
         self.store = store
         self.last = None
-        self.query = ""
         self.catalogue_query = ""
         self.catalogue_payload = None
         try:
@@ -56,20 +55,16 @@ class Manager(Gtk.Application):
             saved_tab = json.loads((self.store.root / 'ui.json').read_text()).get('tab', 'library')
         except (OSError, ValueError):
             saved_tab = 'library'
-        self.tab = saved_tab if saved_tab in ('library', 'plugins', 'helpers', 'recipes', 'environments') else 'library'
+        self.tab = saved_tab if saved_tab in ('library', 'recipes') else 'library'
         #: Bytes per top-level entry of the library folder, measured in the
         #: background, so the library view can add the whole folder up.
         self.breakdown = None
-        self.selected_vendor = "All vendors"
-        self.setup_cards = {}
         self.pending = {}
-        self.helper_offers = {}
+        self.helper_offers_cache = {}
         #: Measured once, on request. Walking a Proton prefix is felt, and this
         #: interface refreshes continuously.
         self.sizes = {}
         self.measuring = False
-        self.reveal_list = False
-        self.updating_filter = False
         self.connect("activate", self.activate)
 
     def activate(self, *_):
@@ -142,68 +137,18 @@ class Manager(Gtk.Application):
         # down the window is somewhere you have to already suspect it is.
         self.activity = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         content.append(self.activity)
-        # Four views of one library, one at a time. Stacked down a single page
-        # they had grown taller than any screen, and the price of that is not
-        # scrolling: it is that nothing can be found without scrolling past
-        # everything else. What stays above the tabs is what must be reachable
-        # from all of them -- adding a file, and whatever is going wrong.
+        # One view of the library, and the recipe catalogue behind it. The
+        # four tabs this replaced split one vendor's facts across three of
+        # them; everything they did now lives on the vendor's row or its
+        # settings (docs/decisions/0004-one-library-list.md).
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_transition_duration(120)
-        switcher = Gtk.StackSwitcher(stack=self.stack)
-        switcher.add_css_class('app-tabs')
-        title = Gtk.Box()
-        self.window_title = label('Plugg', 'window-title')
-        title.append(self.window_title)
-        title.append(switcher)
-        header.set_title_widget(title)
-        # The library is the whole window now. The four older views stay one
-        # click away while this is a sketch, so the two can be compared.
-        self.switcher = switcher
-        classic = Gtk.ToggleButton(icon_name='view-grid-symbolic', tooltip_text='Show the older tabbed views')
-        classic.connect('toggled', self.classic_toggled)
-        header.pack_start(classic)
-        self.classic = classic
+        header.set_title_widget(label('Plugg', 'window-title'))
         self.library_view = LibraryView(self)
         library_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         library_page.append(self.library_view.widget)
-        self.stack.add_titled(library_page, 'library', 'Library')
-
-        plugins_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        # Heading, search and vendor filter on one row, directly over the list
-        # they act on.
-        toolbar = Gtk.Box(spacing=12)
-        toolbar.add_css_class('section-header')
-        self.library_heading = label('Installed plug-ins', 'section-title')
-        self.library_heading.set_valign(Gtk.Align.CENTER)
-        toolbar.append(self.library_heading)
-        self.search = Gtk.SearchEntry(placeholder_text='Search plug-ins or vendors…')
-        self.search.set_hexpand(True)
-        self.search.connect('search-changed', self.search_changed)
-        toolbar.append(self.search)
-        self.vendor_filter = Gtk.DropDown.new_from_strings(["All vendors"])
-        self.vendor_filter.set_tooltip_text("Filter plug-ins and installations by vendor")
-        self.vendor_filter.set_valign(Gtk.Align.CENTER)
-        self.vendor_filter.connect("notify::selected", self.filter_changed)
-        toolbar.append(self.vendor_filter)
-        plugins_page.append(toolbar)
-        self.toolbar = toolbar
-        self.library = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        plugins_page.append(self.library)
-        self.stack.add_titled(plugins_page, 'plugins', 'Plug-ins')
-
-        helpers_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        self.setup_heading = label('Vendor installation helpers', 'section-title')
-        heading_row = Gtk.Box(spacing=12)
-        heading_row.add_css_class('section-header')
-        heading_row.append(self.setup_heading)
-        helpers_page.append(heading_row)
-        self.vendors = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,
-                                   min_children_per_line=1, max_children_per_line=3,
-                                   homogeneous=True, column_spacing=12, row_spacing=12)
-        self.vendors.set_valign(Gtk.Align.START)
-        helpers_page.append(self.vendors)
-        self.stack.add_titled(helpers_page, 'helpers', 'Helpers')
+        self.stack.add_named(library_page, 'library')
 
         # Everything a recipe can do is computed from the file, and until now
         # the only way to see any of it was a terminal — which is not where
@@ -212,6 +157,12 @@ class Manager(Gtk.Application):
         recipes_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         recipes_row = Gtk.Box(spacing=12)
         recipes_row.add_css_class('section-header')
+        back = Gtk.Button(label='← Library')
+        back.add_css_class('compact')
+        back.set_valign(Gtk.Align.CENTER)
+        back.set_tooltip_text('Back to your vendors and plug-ins (Escape)')
+        back.connect('clicked', lambda *_: self.stack.set_visible_child_name('library'))
+        recipes_row.append(back)
         self.recipes_heading = label('Setup recipes', 'section-title')
         self.recipes_heading.set_hexpand(True)
         self.recipes_heading.set_valign(Gtk.Align.CENTER)
@@ -238,29 +189,14 @@ class Manager(Gtk.Application):
         recipes_page.append(self.catalogue_history)
         self.recipes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         recipes_page.append(self.recipes)
-        self.stack.add_titled(recipes_page, 'recipes', 'Recipes')
-
-        # Read-only on purpose. Choosing which prefix a plug-in lands in is how
-        # people break their installations, so nothing here offers that. How
-        # many there are and what they cost is a fair question all the same.
-        environments_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        self.environments_heading = label('Environments', 'section-title')
-        environments_row = Gtk.Box(spacing=12)
-        environments_row.add_css_class('section-header')
-        environments_row.append(self.environments_heading)
-        environments_page.append(environments_row)
-        environments_page.append(label('Environments are chosen for you — which prefix a plug-in '
-                                       'lands in is not a decision worth making. What is here is '
-                                       'what that costs, and anything the app should have cleared '
-                                       'up itself and did not.', 'muted', True))
-        self.environments = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        environments_page.append(self.environments)
-        self.stack.add_titled(environments_page, 'environments', 'Environments')
+        self.stack.add_named(recipes_page, 'recipes')
+        escape = Gtk.ShortcutController(scope=Gtk.ShortcutScope.LOCAL)
+        escape.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string('Escape'),
+                                         action=Gtk.CallbackAction.new(
+                                             lambda *_: self.stack.set_visible_child_name('library') or True)))
+        recipes_page.add_controller(escape)
 
         content.append(self.stack)
-        switcher.set_visible(self.tab != 'library')
-        self.window_title.set_visible(self.tab == 'library')
-        classic.set_active(self.tab != 'library')
         self.stack.set_visible_child_name(self.tab)
         self.recipe_notice = label("", "status", True)
         self.recipe_notice.set_visible(False)
@@ -275,6 +211,12 @@ class Manager(Gtk.Application):
         self.recipe_notice_row.set_visible(False)
         content.append(self.recipe_notice_row)
         content.append(label("Developer preview · Separate environments are not security sandboxes. Compatibility testing is in progress.", "muted", True))
+        # Who makes it, and where to find out more. Quiet, once, at the end.
+        credit = Gtk.Label(xalign=0.0)
+        credit.set_markup('Plugg by Oiko Audio · <a href="https://www.oikoaudio.com">oikoaudio.com</a>')
+        credit.add_css_class('muted')
+        credit.add_css_class('credit')
+        content.append(credit)
         self.stack.connect('notify::visible-child-name', self.tab_changed)
         # Keys: typing searches the library, Ctrl+F goes to its search, Ctrl+O adds a file.
         self.library_view.attach(self.window)
@@ -304,16 +246,9 @@ class Manager(Gtk.Application):
         self.theme_provider.load_from_data(theme.css(self.theme_mode))
         self.save_interface_state()
 
-    def classic_toggled(self, toggle):
-        self.switcher.set_visible(toggle.get_active())
-        self.window_title.set_visible(not toggle.get_active())
-        if not toggle.get_active():
-            self.stack.set_visible_child_name('library')
-
     def open_recipes(self, scope=0):
         """The catalogue, from the library: where a new plug-in goes when it does not just work."""
         self.catalogue_scope.set_selected(scope)
-        self.classic.set_active(True)
         self.stack.set_visible_child_name('recipes')
 
     def troubleshoot(self, record=None):
@@ -347,43 +282,17 @@ class Manager(Gtk.Application):
 
     def tab_changed(self, stack, _):
         """Come back to the view you were working in, and survey only on arrival."""
-        self.tab = stack.get_visible_child_name() or 'plugins'
+        self.tab = stack.get_visible_child_name() or 'library'
         # Typing searches the library only while the library is what you see.
         self.library_view.search.set_key_capture_widget(self.window if self.tab == 'library' else None)
         self.save_interface_state()
         self.last = None
         self.refresh()
-        if self.tab in ('environments', 'library'):
-            self.measure_environments()
         if self.tab == 'library':
+            self.measure_environments()
             self.measure_library()
         if self.tab == 'recipes':
             self.load_recipes()
-
-    def search_changed(self, entry):
-        self.query = entry.get_text().strip().casefold()
-        self.last = None
-        self.reveal_list = True
-        self.refresh()
-
-    def scroll_to_library(self):
-        """Put the list's own header at the top after its contents change.
-
-        Filtering shortens the list, and a scrolled window keeps its position
-        by clamping it to whatever is left — which drops you at the end of the
-        results you just asked for. Showing the bar you filtered from answers
-        that and the question behind it, which is whether anything happened.
-        """
-        self.reveal_list = False
-        adjustment = self.scroll.get_vadjustment()
-        try:
-            top = self.toolbar.get_allocation().y - 8
-        except (AttributeError, TypeError):
-            top = 0
-        if adjustment is not None:
-            reachable = max(0.0, adjustment.get_upper() - adjustment.get_page_size())
-            adjustment.set_value(min(max(0.0, float(top)), reachable))
-        return False
 
     def smoke_done(self):
         print("GTK smoke test: window presented, controls created, registry read", flush=True)
@@ -444,12 +353,12 @@ class Manager(Gtk.Application):
             paragraph.set_selectable(True)
             paragraph.set_max_width_chars(72)
             body.append(paragraph)
-        open_recipes = Gtk.Button(label="Open the Recipes tab")
+        open_recipes = Gtk.Button(label="Open recipes & fixes")
         open_recipes.set_halign(Gtk.Align.START)
         open_recipes.connect("clicked", self.go_to_recipes)
         body.append(open_recipes)
         body.append(label("A recipe chooses the components installed when you add a matching plug-in "
-                          "or installer. The Recipes tab lists every one you have, says what each is "
+                          "or installer. Recipes & fixes lists every one you have, says what each is "
                           "allowed to do, and shows you that before adding one you did not write.",
                           "muted", True))
         scroll.set_child(body)
@@ -1202,15 +1111,6 @@ class Manager(Gtk.Application):
         while child := box.get_first_child():
             box.remove(child)
 
-    def filter_changed(self, *_):
-        if self.updating_filter:
-            return
-        item = self.vendor_filter.get_selected_item()
-        self.selected_vendor = item.get_string() if item else "All vendors"
-        self.last = None
-        self.reveal_list = True
-        self.refresh()
-
     def measure_environments(self, force=False):
         import threading
         if self.measuring:
@@ -1324,101 +1224,6 @@ class Manager(Gtk.Application):
         self.last = None
         self.refresh()
 
-    def environment_rows(self, records):
-        """One row per environment: what it is, what it costs, what can be done."""
-        from . import environments as survey
-        for record in records:
-            row = Gtk.Box(spacing=12)
-            row.add_css_class('plugin-row')
-            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-            text.set_hexpand(True)
-            heading = survey.summarize(record)
-            if record.get('dangling'):
-                heading += ' — the link can be removed'
-            elif record['orphaned']:
-                heading += ' — no installation refers to this'
-            elif not record['in_use']:
-                heading += ' — archived, still on disk'
-            name = label(heading)
-            name.set_ellipsize(Pango.EllipsizeMode.END)
-            text.append(name)
-            held = record['plugins'] or record['retired']
-            detail = '%s · %s · %d plug-in%s' % (
-                record['id'][:8], record['runtime'] or 'runtime not recorded',
-                len(record['plugins']), '' if len(record['plugins']) == 1 else 's')
-            if record['retired']:
-                detail += ' · %d retired' % len(record['retired'])
-            line = label(detail, 'status')
-            line.set_ellipsize(Pango.EllipsizeMode.END)
-            line.set_tooltip_text('\n'.join(held) if held else record['path'])
-            text.append(line)
-            # Two different facts, which had been sharing one line: the colour
-            # reported one of them while the words in it said the other.
-            cost = survey.licensing_line(record)
-            if cost:
-                line = label(cost, 'status')
-                line.set_ellipsize(Pango.EllipsizeMode.END)
-                # The line says the strictest case, which is what a decision
-                # turns on; the tooltip says what was actually recorded, which
-                # in a mixed environment is not the same thing.
-                line.set_tooltip_text(survey.recorded_detail(record) or cost)
-                text.append(line)
-            row.append(text)
-            size = label(survey.readable(self.sizes.get(record['id'])), 'muted')
-            size.set_valign(Gtk.Align.CENTER)
-            row.append(size)
-            if not record.get('dangling'):
-                # Shown whether or not anything is recorded. Offering it only
-                # when nothing was recorded meant a wrong answer, once given,
-                # could never be looked at again, let alone corrected.
-                # "Record licensing" was jargon for a plain question, and the
-                # absence of an answer is not a status worth a line of its own.
-                record_button = Gtk.Button(label='Licence handling…' if not record['protected']
-                                           else 'Licence handling ✓')
-                record_button.add_css_class('compact')
-                record_button.set_valign(Gtk.Align.CENTER)
-                record_button.set_tooltip_text(
-                    'How licences work for the products installed here: whether a serial can be '
-                    'entered again, or the seat has to be deactivated first, or there is a fixed '
-                    'number of activations. The app then refuses to destroy this environment '
-                    'without asking. Nothing to set for free plug-ins.')
-                record_button.connect('clicked', lambda _, r=record: self.record_licensing(r))
-                row.append(record_button)
-            if (not record.get('dangling') and record['recipe'] in ('installer', 'standalone-vst3')
-                    and Path(record['path'], 'launch-full-proton').is_file()):
-                adopt = Gtk.Button(label='Use as helper…')
-                adopt.add_css_class('compact')
-                adopt.set_valign(Gtk.Align.CENTER)
-                adopt.set_tooltip_text('Choose the vendor app this installer left here, so it gets a card and opens like other helpers')
-                adopt.connect('clicked', lambda _, r=record: self.adopt_helper(r))
-                row.append(adopt)
-            if not record.get('dangling'):
-                rename = Gtk.Button(label='Rename…')
-                rename.add_css_class('compact')
-                rename.set_valign(Gtk.Align.CENTER)
-                rename.set_tooltip_text('Name this environment. Its folder and everything that refers to it stay as they are.')
-                rename.connect('clicked', lambda _, r=record: self.rename_environment(r))
-                row.append(rename)
-            files = Gtk.Button(label='Open folder')
-            files.add_css_class('compact')
-            files.set_valign(Gtk.Align.CENTER)
-            files.connect('clicked', lambda _, p=record['path']:
-                          Gio.AppInfo.launch_default_for_uri(Path(p).as_uri(), None))
-            row.append(files)
-            delete = Gtk.Button(label='Delete…')
-            delete.add_css_class('compact')
-            delete.set_valign(Gtk.Align.CENTER)
-            delete.set_tooltip_text('Permanently delete this environment and everything in it')
-            if record['in_use']:
-                # Something is still offering what this provides. Archive
-                # that first; the message says so rather than the button
-                # simply doing nothing.
-                delete.add_css_class('dim')
-            delete.connect('clicked', lambda _, r=record: self.delete_environment(r))
-            row.append(delete)
-            self.environments.append(row)
-
-
     def use_helper(self, env_id, program):
         try:
             vendors.adopt_helper(self.store, env_id, program, Path(program).stem)
@@ -1515,6 +1320,55 @@ class Manager(Gtk.Application):
         self.sizes.clear()
         self.last = None
         self.refresh()
+
+    def helper_offers(self, record):
+        """Apps an installer without a recipe left behind, cached until the environment changes."""
+        if record.get('recipe') != 'installer' or record.get('dangling'):
+            return []
+        directory = Path(record['path'])
+        key = (record['id'], max((j.get('updated') or 0) for j in self.store.jobs()
+                                 if j['env_id'] == record['id']) if record['jobs'] else 0)
+        if key not in self.helper_offers_cache:
+            try:
+                self.helper_offers_cache[key] = vendors.helper_candidates(directory)
+            except Exception:
+                self.helper_offers_cache[key] = []
+        return self.helper_offers_cache[key]
+
+    def plugin_facts(self, plugin):
+        """What the library knows about one published plug-in, for its details popover.
+
+        The same facts the old plug-in list showed: maker and version, the file
+        a DAW sees (all a DAW names when it refuses one), where it came from,
+        and the saved installer or setup recipe behind it.
+        """
+        jobs = self.store.jobs()
+        setups = self.last[2] if self.last else []
+        lines, actions = [], []
+        try:
+            classes = json.loads(plugin.get('metadata') or '{}').get('classes') or []
+        except ValueError:
+            classes = []
+        info = classes[0] if classes else {}
+        maker = ' · '.join(x for x in ((info.get('vendor') or '').strip(),
+                                       ('version ' + info['version'].strip()) if (info.get('version') or '').strip()
+                                       else '') if x)
+        if maker:
+            lines.append(maker)
+        if plugin.get('publication'):
+            lines.append('Your DAW sees: ' + Path(plugin['publication']).name)
+        source, job = installation_source(plugin, jobs, setups)
+        if source:
+            lines.append(source)
+        if job:
+            if job['id'] not in {s['job'] for s in setups}:
+                lines.append('Saved file: ' + Path(job['installer']).name)
+                folder = Path(job['installer']).parent
+                actions.append(('Open saved files',
+                                lambda: Gio.AppInfo.launch_default_for_uri(folder.as_uri(), None)))
+            lines.extend(setup_recipe_summary(self.store.root, job))
+        problem = None if plugin.get('status') == 'ready' else (plugin.get('message') or 'This plug-in needs attention.')
+        return {'lines': lines, 'actions': actions, 'problem': problem}
 
     def remove_dead_bundle(self, name):
         """Remove an adapter whose plug-in is gone. It holds nothing, so nothing needs typing first."""
@@ -1750,20 +1604,6 @@ class Manager(Gtk.Application):
         button.set_popover(popover)
         return button
 
-    def reveal_helper(self, job_id, popover=None):
-        """Point at the helper that manages this plug-in, not at an installer.
-
-        The file a managed plug-in came from is the helper's own installer, and
-        nobody goes back to that to change anything. What they want is the card
-        above, so this takes them to it.
-        """
-        if popover is not None:
-            popover.popdown()
-        self.setup_section.set_expanded(True)
-        widget = self.setup_cards.get(job_id)
-        if widget is not None:
-            GLib.idle_add(widget.grab_focus)
-
     def refresh(self):
         try:
             standalone.reconcile_interrupted(self.store)
@@ -1793,56 +1633,12 @@ class Manager(Gtk.Application):
             self.recipe_notice.set_visible(bool(recipe_error))
             self.recipe_notice.set_text("A setup recipe could not be used and was ignored. Everything else remains available." if recipe_error else "")
             self.recipe_notice.set_tooltip_text(recipe_error)
-            rows = {}
-            environment_names = {}
-            environment_vendors = {}
             job_by_id = {j['id']: j for j in jobs}
-            for plugin in plugins:
-                metadata = json.loads(plugin['metadata'])
-                for info in metadata.get('classes') or [{'name': plugin['name']}]:
-                    vendor = info.get('vendor', '').strip() or 'Unknown vendor'
-                    vendor = {'native instruments gmbh': 'Native Instruments', 'native instruments': 'Native Instruments'}.get(vendor.casefold(), vendor)
-                    name = info.get('name') or plugin['name']
-                    rows.setdefault(vendor, []).append((name, info, plugin))
-                    environment_names.setdefault(plugin['env_id'], set()).add(name)
-                    environment_vendors.setdefault(plugin['env_id'], set()).add(vendor)
-            setup_groups = {}
-            for setup in setups:
-                vendor = setup.get('vendor') or {'klevgrand': 'Klevgrand', 'native-instruments-experiment': 'Native Instruments', 'pace-service-experiment': 'Universal Audio'}.get(setup['recipe'], setup['name'])
-                setup_groups.setdefault(vendor, []).append(setup)
-                environment_vendors.setdefault(job_by_id[setup['job']]['env_id'], set()).add(vendor)
-                if 'UA Connect' in setup.get('managers', []):
-                    environment_vendors[job_by_id[setup['job']]['env_id']].add('Universal Audio')
             from . import softube
             softube_setups = [(setup, self.store.root / 'environments' / job_by_id[setup['job']]['env_id'])
-                              for setup in setups]
+                              for setup in setups if setup['job'] in job_by_id]
             softube_setups = [(setup, directory) for setup, directory in softube_setups
                               if softube.configured(directory)]
-            for setup, directory in softube_setups:
-                environment_vendors.setdefault(job_by_id[setup['job']]['env_id'], set()).add('Softube')
-            # Known imports can be filtered before a successful first probe too.
-            for job in jobs:
-                if job['hash'] in known and job['env_id'] not in environment_vendors:
-                    environment_vendors[job['env_id']] = {known[job['hash']]['vendor']}
-            names = sorted(set(rows) | set(setup_groups) | {v for group in environment_vendors.values() for v in group}, key=str.casefold)
-            # Normalize spelling-only differences from vendor-provided metadata.
-            canonical = {name.casefold(): name for name in names}
-            def norm(name):
-                return canonical.get(name.casefold(), name)
-            options = ['All vendors'] + sorted(set(canonical.values()), key=str.casefold)
-            model = self.vendor_filter.get_model()
-            current = [model.get_string(i) for i in range(model.get_n_items())]
-            if current != options:
-                self.updating_filter = True
-                self.vendor_filter.set_model(Gtk.StringList.new(options))
-                if self.selected_vendor not in options:
-                    self.selected_vendor = 'All vendors'
-                self.vendor_filter.set_selected(options.index(self.selected_vendor))
-                self.updating_filter = False
-            def visible(vendor):
-                return self.selected_vendor == 'All vendors' or norm(vendor) == self.selected_vendor
-            self.clear(self.library)
-            self.clear(self.vendors)
             self.clear(self.activity)
             working = 0
             for name in arriving:
@@ -1867,10 +1663,10 @@ class Manager(Gtk.Application):
                 if job['status'] not in ('failed', 'cancelled', 'needs_attention') or job['archived']:
                     continue
                 # Everything that did not work, in the one place that is
-                # visible from every tab. There is no list of past attempts to
-                # visit instead: an attempt is either something you are still
+                # always visible. There is no list of past attempts to visit
+                # instead: an attempt is either something you are still
                 # dealing with, which is here, or something you are not, which
-                # is gone. What it left on disk is under Environments.
+                # is gone. What it left on disk is listed under cleanup.
                 row = Gtk.Box(spacing=12)
                 row.add_css_class('card')
                 text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -1890,8 +1686,10 @@ class Manager(Gtk.Application):
                                      lambda _, j=job['id']: self.rescan(j)))
                 controls.append(('Details', 'What was recorded about this attempt',
                                  lambda _, j=job: self.job_details(j)))
+                controls.append(('Troubleshoot…', 'Reusable fixes for installers and plug-ins that do not '
+                                 'work at first', lambda *_: self.troubleshoot()))
                 controls.append(('Dismiss', 'Forget this attempt and the installer copy it kept. '
-                                 'Anything it left on disk stays, under Environments.',
+                                 'Anything it left on disk is listed under cleanup.',
                                  lambda _, j=job['id']: self.discard_job(j)))
                 for title, tip, handler in controls:
                     button = Gtk.Button(label=title)
@@ -1906,346 +1704,6 @@ class Manager(Gtk.Application):
                                      else '%d installations in progress' % working)
                                     + ' below. You can add another.')
             self.drop_note.set_visible(bool(working))
-            count = 0
-            attached_jobs = set()
-            for plugin in plugins:
-                _, source_job = installation_source(plugin, jobs, setups)
-                if source_job:
-                    attached_jobs.add(source_job['id'])
-            # One list, with the maker as a column. The vendor dropdown and the
-            # search box already do the filtering that per-vendor groups did,
-            # and a row is easier to scan than a group to open.
-            entries = []
-            for vendor in rows:
-                if not visible(vendor):
-                    continue
-                for name, info, plugin in rows[vendor]:
-                    # A DAW that refuses a plug-in can only name the file. The
-                    # search box is where someone arrives holding that name, so
-                    # it matches on it.
-                    published = Path(plugin['publication']).stem
-                    if self.query and self.query not in (name + ' ' + vendor + ' ' + published).casefold():
-                        continue
-                    entries.append((name, vendor, info, plugin))
-            helper_jobs = {s['job'] for s in setups}
-            for name, vendor, info, plugin in sorted(entries, key=lambda row: (row[0].casefold(), row[1].casefold())):
-                row = Gtk.Box(spacing=16)
-                row.add_css_class('plugin-row')
-                title = label(name)
-                title.set_hexpand(True)
-                title.set_ellipsize(Pango.EllipsizeMode.END)
-                title.set_tooltip_text(name)
-                row.append(title)
-                maker = label(vendor, 'muted')
-                maker.set_size_request(160, -1)
-                maker.set_ellipsize(Pango.EllipsizeMode.END)
-                maker.set_tooltip_text(vendor)
-                row.append(maker)
-                version = label(info.get('version', '').strip() or 'Version unknown', 'muted')
-                version.set_size_request(110, -1)
-                version.set_ellipsize(Pango.EllipsizeMode.END)
-                row.append(version)
-                row.append(label('VST3', 'muted'))
-                status = label('Ready' if plugin['status'] == 'ready' else 'Needs attention', 'status')
-                status.set_tooltip_text(plugin['message'])
-                row.append(status)
-                source, source_job = installation_source(plugin, jobs, setups)
-                details = Gtk.MenuButton(icon_name='document-properties-symbolic', tooltip_text=source)
-                details.set_valign(Gtk.Align.CENTER)
-                details.add_css_class('compact-icon')
-                popover = Gtk.Popover()
-                source_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-                for side in ('top', 'bottom', 'start', 'end'):
-                    getattr(source_box, 'set_margin_' + side)(12)
-                source_label = label(source, wrap=True)
-                source_label.set_max_width_chars(48)
-                source_box.append(source_label)
-                # What the DAW calls it. When a host reports a problem it names
-                # this file and nothing else, so it has to be findable here.
-                published_label = label('Your DAW sees: ' + Path(plugin['publication']).name, 'muted', True)
-                published_label.set_max_width_chars(48)
-                published_label.set_selectable(True)
-                source_box.append(published_label)
-                if source_job:
-                    attached_jobs.add(source_job['id'])
-                    managed = source_job['id'] in helper_jobs
-                    if not managed:
-                        # The saved file is what this plug-in came from. For a
-                        # managed product it is the helper's own installer,
-                        # which is not where anyone goes to change anything.
-                        saved_label = label('Saved file: ' + Path(source_job['installer']).name, 'muted', True)
-                        saved_label.set_max_width_chars(48)
-                        source_box.append(saved_label)
-                    for detail in setup_recipe_summary(self.store.root, source_job):
-                        setup_label = label(detail, 'muted', True)
-                        setup_label.set_max_width_chars(48)
-                        source_box.append(setup_label)
-                    if managed:
-                        goto = Gtk.Button(label='Show this helper')
-                        goto.connect('clicked', lambda _, j=source_job['id'], p=popover: self.reveal_helper(j, p))
-                        source_box.append(goto)
-                    else:
-                        saved = Gtk.Button(label='Open saved files')
-                        saved.connect('clicked', lambda _, j=source_job: Gio.AppInfo.launch_default_for_uri(Path(j['installer']).parent.as_uri(), None))
-                        source_box.append(saved)
-                popover.set_child(source_box)
-                details.set_popover(popover)
-                row.append(details)
-                self.library.append(row)
-                count += 1
-            self.library_heading.set_text('Installed plug-ins · %d' % count)
-            if not count:
-                self.library.append(label('No plug-ins for this selection yet.', 'muted'))
-            vendor_jobs = {v['job'] for v in setups}
-            self.setup_cards = {}
-            setup_count = 0
-            for vendor, group in sorted(setup_groups.items()):
-                for setup in group:
-                    card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-                    card.add_css_class('card')
-                    card.set_valign(Gtk.Align.FILL)
-                    job = job_by_id[setup['job']]
-                    shared_products = sorted(environment_names.get(job['env_id'], set()))
-                    if setup.get('has_ilok') and any(visible(v) for v in environment_vendors.get(job['env_id'], {vendor})):
-                        licensing = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-                        licensing.add_css_class('card')
-                        licensing.set_valign(Gtk.Align.FILL)
-                        licensing.append(label('iLok', 'card-title'))
-                        licensing.append(label('iLok License Manager', 'status'))
-                        ilok_running = [n for n in (setup.get('running') or []) if 'ilok' in n.lower()]
-                        ilok_actions = []
-                        ilok = Gtk.Button(label='Open iLok')
-                        if ilok_running:
-                            ilok.add_css_class('running')
-                            ilok.set_tooltip_text('Running — bring its window back')
-                            ilok.connect('clicked', lambda _, j=setup['job']: self.show_helper(j, ilok=True))
-                        elif 'iLok License Manager' in setup.get('managers', []):
-                            # Closing it checks every plug-in still waiting for
-                            # activation, so activating is one deliberate step.
-                            ilok.set_sensitive(not setup['busy'])
-                            ilok.set_tooltip_text('Activate your licences here; closing it publishes what they unlock')
-                            ilok.connect('clicked', lambda _, j=setup['job']: self.manager_action(j, 'iLok License Manager'))
-                        else:
-                            ilok.set_sensitive(not setup['busy'])
-                            ilok.connect('clicked', lambda _, j=setup['job']: self.open_ilok(j))
-                        ilok_actions.append(ilok)
-                        if setup['busy'] or setup.get('needs_attention') or setup.get('running'):
-                            # The licence manager shares this environment, so it
-                            # is part of what will not close. Offering the way
-                            # out only on the neighbouring card would be hiding
-                            # it from the person looking straight at the problem.
-                            force = Gtk.Button(label='Force close')
-                            force.set_tooltip_text('End the Windows programs still running in this environment')
-                            force.connect('clicked', lambda _, j=setup['job']: self.stop_helper(j, 'this environment'))
-                            ilok_actions.append(force)
-                        licensing.append(self.button_grid(ilok_actions))
-                        if shared_products:
-                            # These are the plug-ins installed here, not activations: whether
-                            # each is authorized is between the vendor and iLok, and never read.
-                            licensing.append(self.listing('%d plug-in' % len(shared_products)
-                                                          + ('' if len(shared_products) == 1 else 's')
-                                                          + ' installed here', shared_products))
-                        else:
-                            licensing.append(label('Shared licensing environment', 'muted'))
-                        if ilok_running:
-                            note = label('Running: ' + ', '.join(ilok_running), 'running-note')
-                            note.set_ellipsize(Pango.EllipsizeMode.END)
-                            note.set_tooltip_text('\n'.join(ilok_running))
-                            licensing.append(note)
-                        self.vendors.append(licensing)
-                        setup_count += 1
-                        # Vendor managers installed into the iLok environment get
-                        # their own cards, like any other vendor's helper. They
-                        # share the environment, not an identity with iLok.
-                        if 'UA Connect' in setup.get('managers', []) and visible('Universal Audio'):
-                            ua = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-                            ua.add_css_class('card')
-                            ua.set_valign(Gtk.Align.FILL)
-                            ua.append(label('Universal Audio', 'card-title'))
-                            ua.append(label('UA Connect', 'status'))
-                            ua_running = [n for n in (setup.get('running') or []) if 'ua connect' in n.lower()]
-                            open_ua = Gtk.Button(label='Open UA Connect')
-                            if ua_running:
-                                open_ua.add_css_class('running')
-                                open_ua.set_tooltip_text('Running — bring its window back')
-                                open_ua.connect('clicked', lambda _, j=setup['job']: self.show_helper(j))
-                            else:
-                                open_ua.set_sensitive(not setup['busy'])
-                                open_ua.set_tooltip_text('Install products; closing it publishes what it installed')
-                                open_ua.connect('clicked', lambda _, j=setup['job']: self.manager_action(j, 'UA Connect'))
-                            ua_buttons = [open_ua]
-                            if setup['busy'] or setup.get('needs_attention') or setup.get('running'):
-                                ua_force = Gtk.Button(label='Force close')
-                                ua_force.set_tooltip_text('End the Windows programs still running in the iLok environment')
-                                ua_force.connect('clicked', lambda _, j=setup['job']: self.stop_helper(j, 'the iLok environment'))
-                                ua_buttons.append(ua_force)
-                            ua.append(self.button_grid(ua_buttons))
-                            ua_products = sorted({name for maker, found in rows.items()
-                                                  if maker.casefold().startswith('universal audio')
-                                                  for name, _, plugin in found if plugin['env_id'] == job['env_id']})
-                            if ua_products:
-                                count_text = str(len(ua_products)) + (' plug-in' if len(ua_products) == 1 else ' plug-ins')
-                                ua.append(self.listing('Manages ' + count_text, ua_products))
-                            else:
-                                ua.append(label('No published plug-ins yet', 'muted'))
-                            ua.append(label('In the shared iLok environment', 'muted'))
-                            self.vendors.append(ua)
-                            setup_count += 1
-                    if setup.get('licensing_group') == 'ilok':
-                        # The iLok card above is this environment's card.
-                        continue
-                    if not visible(vendor):
-                        continue
-                    products = vendors.manager_products(setup['recipe'], [p for p in plugins if p['env_id'] == job['env_id']])
-                    title = {'klevgrand': 'Klevgrand Helper',
-                             'native-instruments-experiment': 'Native Access 2', 'pace-service-experiment': 'UA Connect', 'plugin-alliance-experiment': 'PA Installation Manager'}.get(setup['recipe'], setup['name'])
-                    # Whose plug-ins these are is what you scan a row of cards
-                    # for; which application installs them is the next question,
-                    # and it is answered right under the name and on the button.
-                    heading = label(vendor, 'card-title')
-                    heading.set_ellipsize(Pango.EllipsizeMode.END)
-                    heading.set_tooltip_text(vendor)
-                    card.append(heading)
-                    card.append(label(title, 'status'))
-                    live = setup.get('running') or []
-                    buttons = []
-                    open_label = 'Open PA Manager' if setup['recipe'] == 'plugin-alliance-experiment' else 'Open UA Connect' if setup['recipe'] == 'pace-service-experiment' else ('Open Helper' if setup['can_refresh'] else 'Open Native Access')
-                    controls = [(open_label, False)]
-                    if setup['can_refresh']:
-                        controls.append(('Refresh library', True))
-                    for index, (control, refresh) in enumerate(controls):
-                        button = Gtk.Button(label=control)
-                        if live and not index:
-                            # The application is alive; its window may just be
-                            # hidden. Greying this out would say "gone" about
-                            # something the manager can see is running, and
-                            # leave no way back into it.
-                            button.add_css_class('running')
-                            button.set_tooltip_text('Running — bring its window back')
-                            button.connect('clicked', lambda _, j=setup['job']: self.show_helper(j))
-                        else:
-                            button.set_sensitive(not setup['busy'])
-                            button.connect('clicked', lambda _, j=setup['job'], r=refresh: self.vendor_action(j, r))
-                        if not index:
-                            self.setup_cards[setup['job']] = button
-                        buttons.append(button)
-                    if setup['busy'] or setup.get('needs_attention'):
-                        # The only control here that stays usable while the card
-                        # is busy: it exists precisely for the case where the
-                        # application behind the window never exited.
-                        force = Gtk.Button(label='Force close')
-                        force.set_tooltip_text('End the Windows programs still running in this environment')
-                        force.connect('clicked', lambda _, j=setup['job'], n=title: self.stop_helper(j, n))
-                        buttons.append(force)
-                    if setup.get('helper_profile') == 'native-access':
-                        signin = Gtk.Button(label='Complete sign-in…')
-                        signin.connect('clicked', lambda _, j=setup['job']: self.native_access_sign_in(j))
-                        buttons.append(signin)
-                    saved = Gtk.Button(label='Installer files')
-                    saved.connect('clicked', lambda _, p=setup['installer']: Gio.AppInfo.launch_default_for_uri(Path(p).parent.as_uri(), None))
-                    buttons.append(saved)
-                    card.append(self.button_grid(buttons))
-                    if products:
-                        card.append(self.listing('Manages %d plug-in' % len(products)
-                                                 + ('' if len(products) == 1 else 's'), products))
-                    else:
-                        card.append(label('No published plug-ins yet', 'muted'))
-                    if live:
-                        note = label('Running: ' + ', '.join(live[:2])
-                                     + (', and others' if len(live) > 2 else ''), 'running-note')
-                        note.set_ellipsize(Pango.EllipsizeMode.END)
-                        note.set_tooltip_text('\n'.join(live))
-                        card.append(note)
-                    if setup['busy'] or setup.get('needs_attention') or (not setup['can_refresh'] and setup['recipe'] != 'pace-service-experiment'):
-                        # One line, with the whole of it on hover. Several of
-                        # these are standing caveats about an experimental
-                        # integration rather than news, and a paragraph of
-                        # small print set the height of every card in the row.
-                        message = label(setup['message'], 'status')
-                        message.set_ellipsize(Pango.EllipsizeMode.END)
-                        message.set_tooltip_text(setup['message'])
-                        card.append(message)
-                    self.vendors.append(card)
-                    setup_count += 1
-            for setup, directory in softube_setups:
-                if not visible('Softube'):
-                    continue
-                card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-                card.add_css_class('card')
-                card.append(label('Softube', 'card-title'))
-                card.append(label('Softube Central', 'status'))
-                card.append(label('Shares this Windows environment and PACE/iLok with other vendors.', 'status', True))
-                button = Gtk.Button(label='Open Softube Central')
-                button.connect('clicked', lambda _, d=directory: self.softube_action(d))
-                softube_buttons = [button]
-                if setup.get('busy') or setup.get('needs_attention') or setup.get('running'):
-                    # A product installer Central started can sit there with no
-                    # window. Without this the only way out was a terminal.
-                    softube_force = Gtk.Button(label='Force close')
-                    softube_force.set_tooltip_text('End Softube Central, its product installers and anything else running in the iLok environment')
-                    softube_force.connect('clicked', lambda _, j=setup['job']: self.stop_helper(j, 'the iLok environment'))
-                    softube_buttons.append(softube_force)
-                card.append(self.button_grid(softube_buttons))
-                softube_products = sorted({name for name, _, plugin in rows.get('Softube', [])
-                                           if plugin['env_id'] == directory.name})
-                if softube_products:
-                    card.append(self.listing('Manages %d plug-in(s)' % len(softube_products), softube_products))
-                else:
-                    card.append(label('Product installation is awaiting validation.', 'muted'))
-                if setup.get('busy') or setup.get('needs_attention'):
-                    card.append(label(setup['message'], 'status', True))
-                self.vendors.append(card)
-                setup_count += 1
-            # Installers without a recipe that left an app behind. Most name their
-            # app after themselves and get a card by themselves; the rest are
-            # offered here, where someone looking for their vendor's app looks.
-            helper_jobs = {s['job'] for s in setups}
-            for job in jobs:
-                if job['archived'] or job['status'] not in ('ready', 'needs_attention') or job['id'] in helper_jobs:
-                    continue
-                directory = self.store.root / 'environments' / job['env_id']
-                try:
-                    cfg = json.loads((directory / 'environment.json').read_text())
-                except (OSError, ValueError):
-                    continue
-                if cfg.get('recipe') != 'installer':
-                    continue
-                key = (job['env_id'], job['updated'])
-                if key not in self.helper_offers:
-                    self.helper_offers[key] = vendors.helper_candidates(directory)
-                candidates = self.helper_offers[key]
-                if not candidates:
-                    continue
-                made_by = sorted({vendor for vendor, found in rows.items()
-                                  for _, _, plugin in found if plugin['env_id'] == job['env_id']})
-                heading = ', '.join(made_by[:2]) if made_by else job['name']
-                if not visible(made_by[0] if made_by else heading):
-                    continue
-                card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-                card.add_css_class('card')
-                card.set_valign(Gtk.Align.FILL)
-                title = label(heading, 'card-title')
-                title.set_ellipsize(Pango.EllipsizeMode.END)
-                card.append(title)
-                card.append(label('No helper chosen', 'status'))
-                record = {'id': job['env_id'], 'path': str(directory), 'recipe': 'installer', 'plugins': [],
-                          'name': None, 'vendor': heading, 'jobs': [], 'dangling': False}
-                if len(candidates) == 1:
-                    only = candidates[0]
-                    use = Gtk.Button(label='Use ' + Path(only).stem)
-                    use.set_tooltip_text('C:\\' + only.replace('/', '\\'))
-                    use.connect('clicked', lambda _, e=job['env_id'], c=only: self.use_helper(e, c))
-                else:
-                    use = Gtk.Button(label='Choose helper…')
-                    use.connect('clicked', lambda _, r=record: self.adopt_helper(r))
-                card.append(self.button_grid([use]))
-                card.append(label('The installer left an app here. Use it to add or update products; '
-                                  'closing it refreshes the library.', 'muted', True))
-                self.vendors.append(card)
-                setup_count += 1
-            self.setup_heading.set_text('Vendor installation helpers · %d' % setup_count)
-            if not setup_count:
-                self.vendors.append(label('No manager or licensing application for this selection.', 'muted'))
             from . import environments as survey
             settled = bool(jobs)
             self.hero.set_visible(not settled)
@@ -2261,89 +1719,6 @@ class Manager(Gtk.Application):
                                          plugins=plugins, softube={d.name for _, d in softube_setups},
                                          known_modules=[p.get('module') for p in self.store.plugins()],
                                          dead_bundles=survey.dead_bundles(self.store))
-            self.clear(self.environments)
-            # Surveying reads a licensing record and a registry hive per
-            # environment. That is nothing once and a stutter every time the
-            # library changes, so it happens only while the section is open.
-            looking = self.tab == 'environments'
-            records = survey.survey(self.store) if looking else []
-            if records:
-                measured = sum(self.sizes.get(r['id'], 0) for r in records)
-                known = [r for r in records if r['id'] in self.sizes]
-                self.environments_heading.set_text(
-                    'Environments · %d%s' % (len(records),
-                                             '' if len(known) < len(records)
-                                             else ' · ' + survey.readable(measured)))
-            holding, spare = survey.partition(records)
-            groups = [('Active · plug-ins in your DAW, or recorded activations',
-                       survey.by_size(holding, self.sizes)),
-                      ('Nothing published from these', survey.by_size(spare, self.sizes))]
-            note = survey.identity_summary(records)
-            if note:
-                self.environments.append(label(note, 'muted', True))
-            for title, group in groups:
-                if not group:
-                    continue
-                # Two lists read with opposite intentions: one is checked, the
-                # other is emptied. Mixed together, the row you must not touch
-                # sits beside the row you came to delete.
-                bar = Gtk.Box(spacing=12)
-                bar.add_css_class('section-header')
-                bar.append(label('%s · %d' % (title, len(group)), 'status'))
-                self.environments.append(bar)
-                if group is groups[1][1]:
-                    # Not the same as knowing they are inactive. This library
-                    # knows what it published and what it was told to protect;
-                    # a vendor may count a machine it was never told about.
-                    self.environments.append(
-                        label('Nothing in your DAW comes from these. That is not proof they hold '
-                              'nothing — a vendor may still count one as a machine if its '
-                              'licensing was never recorded here.', 'status', True))
-                self.environment_rows(group)
-            if not records and looking:
-                self.environments.append(label('No environments yet.', 'muted'))
-            if looking:
-                # Two kinds of leftover that no view reached before, and so were
-                # found only by looking at the disk and wondering.
-                for nested in survey.nested_libraries(self.store):
-                    row = Gtk.Box(spacing=12)
-                    row.add_css_class('plugin-row')
-                    text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-                    text.set_hexpand(True)
-                    text.append(label('Separate library: ' + nested['name']))
-                    text.append(label('%d environment%s of its own, with its own database, '
-                                      'downloads and runtimes' % (nested['environments'],
-                                      '' if nested['environments'] == 1 else 's'), 'status'))
-                    row.append(text)
-                    remove = Gtk.Button(label='Delete…')
-                    remove.add_css_class('compact')
-                    remove.set_valign(Gtk.Align.CENTER)
-                    if nested.get('required_by'):
-                        text.append(label('Required by: ' + ', '.join(nested['required_by']), 'status', True))
-                        remove.set_sensitive(False)
-                        remove.set_tooltip_text('Other environments still depend on this library.')
-                    remove.connect('clicked', lambda _, n=nested: self.delete_nested(n))
-                    row.append(remove)
-                    self.environments.append(row)
-                spare = survey.unused_runtimes(self.store)
-                for name in spare:
-                    row = Gtk.Box(spacing=12)
-                    row.add_css_class('plugin-row')
-                    text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-                    text.set_hexpand(True)
-                    text.append(label('Unused runtime: ' + name))
-                    text.append(label('No environment refers to this. It is downloaded again '
-                                      'automatically if something needs it.', 'status'))
-                    row.append(text)
-                    reclaim = Gtk.Button(label='Reclaim')
-                    reclaim.add_css_class('compact')
-                    reclaim.set_valign(Gtk.Align.CENTER)
-                    reclaim.connect('clicked', lambda _, n=name: self.reclaim_runtime(n))
-                    row.append(reclaim)
-                    self.environments.append(row)
-            if self.reveal_list:
-                # After layout, so the header's position is the new one.
-                GLib.idle_add(self.scroll_to_library, priority=GLib.PRIORITY_LOW)
         except Exception as exc:
             self.last = None
             print('Refresh failed:', exc, file=sys.stderr)

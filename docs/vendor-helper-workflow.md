@@ -4,7 +4,7 @@ This page describes how Plugg works with a vendor's own manager application, the
 
 ## Helpers without a recipe
 
-Some installers are their vendor's manager and install themselves into the environment, Kilohearts Installer for one. When an installer Plugg has no recipe for leaves a program with the installer's own name, Plugg gives it a helper card straight away. Otherwise, **Use as helper…** in the Environments tab lists the programs the installer left and lets you pick one. From the command line, `plugg environment helpers <id>` lists them and `plugg environment use-helper <id> "Name" --program <path>` picks one. Environments made on the old plain Wine setup can't get a helper; install the product again first.
+Some installers are their vendor's manager and install themselves into the environment, Kilohearts Installer for one. When an installer Plugg has no recipe for leaves a program with the installer's own name, Plugg gives it a helper card straight away. Otherwise, the vendor's row offers the program it found, or **Use as helper…** in the row's settings (the cogwheel) lists the programs the installer left and lets you pick one. From the command line, `plugg environment helpers <id>` lists them and `plugg environment use-helper <id> "Name" --program <path>` picks one. Environments made on the old plain Wine setup can't get a helper; install the product again first.
 
 ## Controls
 

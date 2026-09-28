@@ -62,7 +62,7 @@ Libraries published under the old hashed scheme can be renamed. `plugg rename-bu
 
 A bundle links its bridge files into a release that the library owns, in `bridge-releases/<hash>` in the data directory. It never links into the build directory, so moving, renaming or rebuilding a checkout cannot break a published plug-in. Older bundles may still link into a checkout. `plugg relink-bundles` finds them, and `--apply` moves their links into the library. Each bundle keeps the build it had, and no path the DAW scans changes.
 
-If a host refuses a plug-in and shows you only a path, search for that file name in the Plug-ins tab. Each plug-in's details show what your DAW sees.
+If a host refuses a plug-in and shows you only a path, type that file name into the library's search. Clicking a plug-in in its vendor's row shows what your DAW sees.
 
 ## How environments are reused
 
