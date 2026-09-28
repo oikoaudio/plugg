@@ -91,8 +91,8 @@ VENDORS = {
                   "products, then close Helper. The tested setup includes graphics and window fixes. Other "
                   "Klevgrand products are not yet verified."),
     'Variety of Sound': ('tested',
-                         "FerricTDS mkIII has worked in Bitwig. epicVerb mkII, epicPLATE mkII and ThrillseekerXTC "
-                         "mkIII are recognised and added to your DAW but not yet played. Drop the Windows .vst3 "
+                         "FerricTDS mkIII, epicVerb mkII, epicPLATE mkII and ThrillseekerXTC mkIII work in Bitwig. "
+                         "Drop the Windows .vst3 "
                          "file directly; known versions get the Visual C++ components they need. Sibling VST2 "
                          ".dll files are not imported."),
     'Native Instruments': ('experimental',
