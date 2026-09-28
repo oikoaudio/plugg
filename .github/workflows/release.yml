@@ -23,6 +23,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      # The PowerShell forwarder is Go, cross-compiled for Windows. The action
+      # is pinned by commit (v6.5.0) and the toolchain by exact version.
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.1'
+          check-latest: false
+          cache: false
+
       - name: The tag matches the declared version
         run: |
           declared=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' plugg/__init__.py)
@@ -48,9 +56,26 @@ jobs:
           python3 scripts/build-python-package.py --output dist
           python3 scripts/test-python-package.py dist/plugg-*.whl
 
+      - name: PowerShell forwarder
+        run: python3 scripts/build-powershell-forwarder.py
+
+      # The .deb, .rpm and generic tarball hold exactly the wheel's package,
+      # the bridge archive and the forwarder built above (nfpm is pinned in
+      # the script). The container test installs each package with apt or
+      # dnf in clean Ubuntu 24.04, Debian 13, Fedora 42 and Fedora 44 and
+      # checks it as an ordinary user, so a package that does not install is
+      # never drafted.
+      - name: Distribution packages
+        run: |
+          python3 scripts/build-release-packages.py --output dist \
+            --wheel dist/plugg-*.whl --bridge dist/plugg-bridge-*.tar.gz --forwarder bundle/powershell-forwarder
+          python3 packaging/test-packages.py dist --output "$RUNNER_TEMP/package-test"
+
       - name: Checksums
         working-directory: dist
-        run: sha256sum plugg-*.whl plugg-bridge-*.tar.gz > SHA256SUMS
+        run: |
+          sha256sum plugg-*.whl plugg-bridge-*.tar.gz plugg_*_amd64.deb plugg-*.x86_64.rpm \
+            plugg-[0-9]*-x86_64.tar.gz > SHA256SUMS
 
       - name: Draft the release
         env:
@@ -58,4 +83,5 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Plugg ${GITHUB_REF_NAME#v}" \
             --notes "Built from $GITHUB_REF_NAME by the release workflow. Write the notes before publishing." \
-            dist/plugg-*.whl dist/plugg-bridge-*.tar.gz dist/SHA256SUMS
+            dist/plugg-*.whl dist/plugg-bridge-*.tar.gz dist/plugg_*_amd64.deb dist/plugg-*.x86_64.rpm \
+            dist/plugg-[0-9]*-x86_64.tar.gz dist/SHA256SUMS
