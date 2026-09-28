@@ -53,7 +53,7 @@ def head_file(path):
     return git('show', 'HEAD:' + path, capture_output=True).stdout
 
 
-def stage(package, staging):
+def stage(package, staging, as_committed=False):
     """Write what the container needs into `staging`; return the build's environment and a summary."""
     commit = git('rev-parse', 'HEAD', capture_output=True, text=True).stdout.strip()
     version = re.search(rb'^__version__ = "(.*)"$', head_file('plugg/__init__.py'), re.MULTILINE).group(1).decode()
@@ -71,7 +71,11 @@ def stage(package, staging):
     pkgbuild = head_file(f'packaging/aur/{package}/PKGBUILD').decode()
     summary = dict(package=package, commit=commit, version=version, image=IMAGE)
     environment = {}
-    if package == 'plugg':
+    if package == 'plugg' and as_committed:
+        # After a release: the PKGBUILD as committed, and makepkg downloads the
+        # tag archive from GitHub and checks it against the recorded hash.
+        summary['source'] = 'the committed PKGBUILD'
+    elif package == 'plugg':
         archive = build / f'plugg-{version}.tar.gz'
         git('archive', '--format=tar.gz', f'--prefix=plugg-{version}/', '-o', str(archive), 'HEAD')
         update_aur.check_archive(archive, version)
@@ -135,6 +139,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True,
                         help='New directory for logs, results and the built package, on disk rather than tmpfs')
     parser.add_argument('--package', choices=update_aur.PACKAGES, default='plugg')
+    parser.add_argument('--as-committed', action='store_true',
+                        help='build the release PKGBUILD unchanged, from the published tag archive')
     parser.add_argument('--archive-date', default=ARCHIVE_DATE,
                         help='Arch Linux Archive date, YYYY/MM/DD (default %(default)s)')
     parser.add_argument('--live', action='store_true', help="use the image's live mirrors instead of the archive")
@@ -150,7 +156,7 @@ def main():
         print('Note: the test uses HEAD; uncommitted changes are not in it.', file=sys.stderr)
     staging = output / 'input'
     staging.mkdir()
-    environment, summary = stage(args.package, staging)
+    environment, summary = stage(args.package, staging, args.as_committed)
     summary.update(passed=False, repositories='live' if args.live else 'https://archive.archlinux.org/repos/' + args.archive_date)
     container = Container(output, args.cpus, args.memory)
     try:
