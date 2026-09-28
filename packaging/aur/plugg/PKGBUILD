@@ -1,18 +1,17 @@
 # Maintainer: David Fredman <1152707+davfre@users.noreply.github.com>
 #
-# Builds the manager and the patched yabridge bridge from main and a pinned
-# yabridge commit. The Proton runtime is not packaged: the app downloads the
-# pinned UMU-Proton release on first use and checks its hash.
+# Builds the manager and the patched yabridge bridge from a tagged release and
+# a pinned yabridge commit. The Proton runtime is not packaged: the app
+# downloads the pinned UMU-Proton release on first use and checks its hash.
 #
-# packaging/aur/plugg/PKGBUILD builds a tagged release the same way; the two
-# share everything but the Plugg source (tests/test_aur_packaging.py checks).
-# .SRCINFO is generated with scripts/update-aur.py, never edited by hand.
-#
-# Local test build from a checkout:
-#   PLUGG_SOURCE="git+file://$(git rev-parse --show-toplevel)#branch=$(git branch --show-current)" makepkg -si
+# packaging/aur/plugg-git/PKGBUILD builds main the same way; the two share
+# everything but the Plugg source (tests/test_aur_packaging.py checks).
+# scripts/update-aur.py sets pkgver, pkgrel and the release archive's hash
+# after a release, and generates .SRCINFO. Until then the first checksum is
+# all zeros, which makepkg rejects.
 
-pkgname=plugg-git
-pkgver=0.1.0.dev0
+pkgname=plugg
+pkgver=0.1.0
 pkgrel=1
 pkgdesc='Managed Windows VST3 plug-ins for native Linux DAWs, on a pinned Proton runtime'
 arch=(x86_64)
@@ -20,8 +19,7 @@ url='https://github.com/oikoaudio/plugg'
 license=(GPL-3.0-or-later)
 depends=(python python-gobject gtk4 zstd libarchive libxcb dbus bubblewrap xdg-utils)
 makedepends=(git meson ninja wine go python-build python-installer python-setuptools python-wheel)
-provides=(plugg)
-conflicts=(plugg)
+conflicts=(plugg-git)
 # !strip and !debug: the bridge's and the forwarder's build.json record the
 # hashes of the binaries as built, and Plugg checks them; stripping or
 # splitting debug symbols would change them. !lto: the bridge is built with
@@ -30,25 +28,13 @@ conflicts=(plugg)
 # the Windows host (diagnostics/host-stack).
 options=(!lto !debug !strip)
 _yabridge=b580a9f7fc46509767ca156d4f92872552b9e571
-source=("plugg::${PLUGG_SOURCE:-git+$url.git#branch=main}"
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
         "yabridge::git+https://github.com/robbert-vdh/yabridge.git#commit=$_yabridge")
-sha256sums=('SKIP'
+sha256sums=('0000000000000000000000000000000000000000000000000000000000000000'
             'fa7e723cf380027c9c87133259dd08485446144a0d33fba8bd0cc565ea32099f')
 
-pkgver() {
-    cd plugg
-    # From the latest v<version> tag, as 0.1.0.r3.gabc1234; before the first
-    # tag, from the version plugg/__init__.py declares.
-    if git describe --long --tags --match 'v[0-9]*' >/dev/null 2>&1; then
-        git describe --long --tags --match 'v[0-9]*' | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
-    else
-        printf '%s.r%s.g%s' "$(sed -n 's/^__version__ = "\(.*\)"/\1/p' plugg/__init__.py)" \
-            "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-    fi
-}
-
 prepare() {
-    cd plugg
+    cd "$pkgname-$pkgver"
     rm -rf vendor/yabridge
     mkdir -p vendor
     git clone --quiet --no-checkout "$srcdir/yabridge" vendor/yabridge
@@ -56,7 +42,7 @@ prepare() {
 }
 
 build() {
-    cd plugg
+    cd "$pkgname-$pkgver"
     # A fresh configure every time: makepkg keeps $srcdir between runs, and the
     # bridge build refuses a directory configured with an earlier environment.
     rm -rf "$srcdir/bridge-build" "$srcdir/bridge"
@@ -67,12 +53,12 @@ build() {
 }
 
 check() {
-    cd plugg
+    cd "$pkgname-$pkgver"
     python -m unittest discover -s tests -q
 }
 
 package() {
-    cd plugg
+    cd "$pkgname-$pkgver"
     python -m installer --destdir="$pkgdir" "$srcdir"/dist/*.whl
     install -d "$pkgdir/usr/lib/plugg"
     cp -a "$srcdir/bridge" "$pkgdir/usr/lib/plugg/bridge"

@@ -1,0 +1,35 @@
+pkgbase = plugg
+	pkgdesc = Managed Windows VST3 plug-ins for native Linux DAWs, on a pinned Proton runtime
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/oikoaudio/plugg
+	arch = x86_64
+	license = GPL-3.0-or-later
+	makedepends = git
+	makedepends = meson
+	makedepends = ninja
+	makedepends = wine
+	makedepends = go
+	makedepends = python-build
+	makedepends = python-installer
+	makedepends = python-setuptools
+	makedepends = python-wheel
+	depends = python
+	depends = python-gobject
+	depends = gtk4
+	depends = zstd
+	depends = libarchive
+	depends = libxcb
+	depends = dbus
+	depends = bubblewrap
+	depends = xdg-utils
+	conflicts = plugg-git
+	options = !lto
+	options = !debug
+	options = !strip
+	source = plugg-0.1.0.tar.gz::https://github.com/oikoaudio/plugg/archive/refs/tags/v0.1.0.tar.gz
+	source = yabridge::git+https://github.com/robbert-vdh/yabridge.git#commit=b580a9f7fc46509767ca156d4f92872552b9e571
+	sha256sums = 0000000000000000000000000000000000000000000000000000000000000000
+	sha256sums = fa7e723cf380027c9c87133259dd08485446144a0d33fba8bd0cc565ea32099f
+
+pkgname = plugg
