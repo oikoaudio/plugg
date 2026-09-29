@@ -64,7 +64,7 @@ Then start Plugg from your applications menu, or run `plugg gui`.
 
 Update the AUR package first (`scripts/update-aur.py`, see [packaging](packaging.md)), so the Arch line is true when the README says it.
 
-At v0.1.0 the AUR package was not pushed yet, so the README lists the .deb and .rpm and keeps the Arch build-from-source commands. Once `yay -S plugg` works, replace those commands with the Arch line above.
+At v0.1.0 AUR registration was closed, so the AUR package was not pushed. The README lists the Arch package from the release instead, next to the .deb and .rpm. Once `yay -S plugg` works, add the AUR line above and keep the release package as the second choice.
 
 ## Keeping your working environments out of it
 
