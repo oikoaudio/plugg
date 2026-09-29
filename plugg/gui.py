@@ -130,7 +130,10 @@ class Manager(Gtk.Application):
         choose.set_valign(Gtk.Align.CENTER)
         choose.connect("clicked", self.choose)
         drop.append(choose)
-        target = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
+        # Dolphin on Wayland offers a plain drag as MOVE, and a COPY-only
+        # target turned it down without a word. Plugg copies the file in
+        # either way, and Dolphin keeps its own after a MOVE drop.
+        target = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
         target.connect("drop", self.drop)
         drop.add_controller(target)
         content.append(drop)
