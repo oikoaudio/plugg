@@ -78,7 +78,7 @@ A filesystem-backed transport for audio data can cause avoidable I/O stalls.
 
 ## 8. Discovery, authorization and validation boundaries
 
-Scan the installed VST3 roots, not the whole prefix. Klevgrand Helper keeps extracted plug-ins in its download cache. Publish each installed module once, keep its class identity, and compare hashes before treating it as unchanged. Ignore VST2 and AAX when only VST3 is supported. Helper's format setting controls what it installs. Publication filtering does not uninstall other formats.
+Scan the installed VST3 roots, not the whole prefix. Klevgrand Helper keeps extracted plug-ins in its download cache. Publish each installed module once, keep its class identity, and compare hashes before treating it as unchanged. Ignore AAX, and VST2 and CLAP unless the library publishes them. Helper's format setting controls what it installs. Publication filtering does not uninstall other formats.
 
 Importing a standalone Klevgrand licence file (`.kledi`) failed with "Invalid license file", even with a freshly downloaded copy. Neither file corruption nor an activation-count limit was established as the cause. Authorizing through Klevgrand Helper works. Investigate vendor authorization separately from graphics and loading, and keep the account state intact while you do.
 

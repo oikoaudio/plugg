@@ -1,5 +1,6 @@
 [
   "0001-managed-runtime.patch",
   "0002-detach-editor-before-wrapper.patch",
-  "0003-require-managed-runtime.patch"
+  "0003-require-managed-runtime.patch",
+  "0005-clap-construct-instance-in-place.patch"
 ]

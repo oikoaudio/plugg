@@ -23,16 +23,21 @@ build_dir="${PLUGG_BUILD_DIR:-build}"
 mkdir -p "$build_dir"
 build_dir="$(readlink -f "$build_dir")"
 if [ ! -f "$build_dir/build.ninja" ]; then
-    meson setup "$build_dir" vendor/yabridge --cross-file vendor/yabridge/cross-wine.conf --buildtype=release -Dclap=false -Dbitbridge=false
+    meson setup "$build_dir" vendor/yabridge --cross-file vendor/yabridge/cross-wine.conf --buildtype=release -Dclap=true -Dbitbridge=false
 fi
+# A build directory set up before VST2 and CLAP were bridged has CLAP off;
+# the Wine host has to be rebuilt with it on to host CLAP plug-ins.
+meson configure "$build_dir" -Dclap=true -Dbitbridge=false
 if grep -q -- '-march=' "$build_dir/compile_commands.json"; then
     echo "The build directory $build_dir was configured with -march flags; remove it and build again." >&2
     exit 1
 fi
-ninja -C "$build_dir" -j "${PLUGG_BUILD_JOBS:-4}" libyabridge-vst3.so libyabridge-chainloader-vst3.so yabridge-host
+formats="libyabridge-vst3.so libyabridge-chainloader-vst3.so libyabridge-vst2.so libyabridge-chainloader-vst2.so libyabridge-clap.so libyabridge-chainloader-clap.so"
+ninja -C "$build_dir" -j "${PLUGG_BUILD_JOBS:-4}" $formats yabridge-host
 mkdir -p "$output"
-cp "$build_dir/libyabridge-vst3.so" "$build_dir/libyabridge-chainloader-vst3.so" "$build_dir/yabridge-host.exe" "$build_dir/yabridge-host.exe.so" "$output/"
-c++ -std=c++20 -O2 -DRELEASE=1 -Ivendor/yabridge/subprojects/vst3 native/scan.cpp \
+for file in $formats yabridge-host.exe yabridge-host.exe.so; do cp "$build_dir/$file" "$output/"; done
+c++ -std=c++20 -O2 -DRELEASE=1 -Ivendor/yabridge/subprojects/vst3 -Ivendor/yabridge/src/include \
+    -Ivendor/yabridge/subprojects/clap/include native/scan.cpp native/scan_formats.cpp \
     -Wl,--start-group "$build_dir/src/common/vst3/libpluginterfaces_native.a" \
     "$build_dir/src/common/vst3/libsdk_native.a" "$build_dir/src/common/vst3/libbase_native.a" \
     -Wl,--end-group -ldl -lpthread -o "$output/plugg-scan"

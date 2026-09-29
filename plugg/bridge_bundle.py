@@ -9,6 +9,10 @@ import tempfile
 
 ARTIFACTS = ('libyabridge-vst3.so', 'libyabridge-chainloader-vst3.so',
              'yabridge-host.exe', 'yabridge-host.exe.so', 'plugg-scan', 'COPYING.yabridge')
+#: What a build that also bridges VST2 and CLAP adds. Builds from before
+#: then have none of these and still work for VST3.
+FORMAT_ARTIFACTS = ('libyabridge-vst2.so', 'libyabridge-chainloader-vst2.so',
+                    'libyabridge-clap.so', 'libyabridge-chainloader-clap.so')
 
 
 def inspect(directory, expected_manifest=None):
@@ -24,9 +28,9 @@ def inspect(directory, expected_manifest=None):
             raise ValueError('build manifest changed since this library was created')
         manifest = json.loads(raw)
         files = manifest.get('files') if isinstance(manifest, dict) else None
-        if not isinstance(files, dict) or set(files) != set(ARTIFACTS):
-            raise ValueError('build manifest must list the six bridge artifacts')
-        for name in ARTIFACTS:
+        if not isinstance(files, dict) or set(files) not in (set(ARTIFACTS), set(ARTIFACTS + FORMAT_ARTIFACTS)):
+            raise ValueError('build manifest must list the bridge artifacts')
+        for name in files:
             expected = files[name]
             if not isinstance(expected, str) or not re.fullmatch('[0-9a-f]{64}', expected):
                 raise ValueError('invalid artifact hash: ' + name)
@@ -66,6 +70,10 @@ def reject_host_target_flags(manifest):
 #: scanner. The release is named after these, and nothing else in it.
 RELEASE_FILES = ('libyabridge-vst3.so', 'libyabridge-chainloader-vst3.so',
                  'yabridge-host.exe', 'yabridge-host.exe.so', 'plugg-scan')
+#: The VST2 and CLAP files, part of a release when its build has them. They
+#: are named after the VST3 ones, so a VST3-only build keeps the release name
+#: it always had.
+OPTIONAL_RELEASE_FILES = FORMAT_ARTIFACTS
 #: Carried along for provenance and licence notice, not part of the identity.
 RELEASE_NOTES = ('build.json', 'COPYING.yabridge')
 
@@ -79,6 +87,14 @@ def release_name(directory):
         path = directory / name
         if path.is_symlink() or not path.is_file():
             raise ValueError('missing or linked bridge file: ' + name)
+        lines.append(name + ' ' + digest(path))
+    optional = [name for name in OPTIONAL_RELEASE_FILES if (directory / name).exists()]
+    if optional and len(optional) != len(OPTIONAL_RELEASE_FILES):
+        raise ValueError('incomplete VST2 and CLAP bridge files')
+    for name in optional:
+        path = directory / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('linked bridge file: ' + name)
         lines.append(name + ' ' + digest(path))
     return hashlib.sha256('\n'.join(lines).encode()).hexdigest()[:16], dict(x.split(' ') for x in lines)
 
@@ -105,7 +121,7 @@ def install_release(source, releases):
         releases.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix='.release-', dir=releases))
         try:
-            for item in RELEASE_FILES + RELEASE_NOTES:
+            for item in RELEASE_FILES + OPTIONAL_RELEASE_FILES + RELEASE_NOTES:
                 if (source / item).is_file():
                     shutil.copy2(source / item, staging / item)
             os.chmod(staging, 0o755)

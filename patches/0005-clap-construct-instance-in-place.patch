@@ -1,0 +1,16 @@
+diff --git a/src/wine-host/bridges/clap.cpp b/src/wine-host/bridges/clap.cpp
+index f988ddca..68388d6a 100644
+--- a/src/wine-host/bridges/clap.cpp
++++ b/src/wine-host/bridges/clap.cpp
+@@ -1055,8 +1055,9 @@ void ClapBridge::register_plugin_instance(
+     // This instance ID has already been generated because the host proxy has to
+     // be created before the plugin instance
+     const size_t instance_id = host_proxy->owner_instance_id();
+-    object_instances_.emplace(
+-        instance_id, ClapPluginInstance(plugin, std::move(host_proxy)));
++    // Constructed in place: an instance cannot be moved once its editor
++    // detaches itself on destruction (Plugg patch 0002).
++    object_instances_.try_emplace(instance_id, plugin, std::move(host_proxy));
+ 
+     // Every plugin instance gets its own audio thread along with sockets for
+     // host->plugin control messages and plugin->host callbacks

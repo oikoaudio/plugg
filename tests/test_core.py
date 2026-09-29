@@ -414,7 +414,7 @@ class ManagerInstallerTests(unittest.TestCase):
     def test_a_non_zero_exit_that_installed_plug_ins_is_not_a_failure(self):
         import inspect
         source = inspect.getsource(core._work)
-        self.assertIn('if rc != 0 and not discover(prefix):', source)
+        self.assertIn('if rc != 0 and not discover(prefix, kinds):', source)
 
     def test_check_again_also_gives_the_helper_its_card(self):
         import inspect

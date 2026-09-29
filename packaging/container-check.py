@@ -17,8 +17,9 @@ assert 'site-packages' in Path(core.__file__).parts
 catalogue = json.loads(subprocess.check_output(
     [sys.executable, '-I', '-m', 'plugg', 'recipe', 'check'], text=True))
 assert catalogue
-ctypes.CDLL(str(args.bridge / 'libyabridge-vst3.so'))
-ctypes.CDLL(str(args.bridge / 'libyabridge-chainloader-vst3.so'))
+for fmt in ('vst3', 'vst2', 'clap'):
+    ctypes.CDLL(str(args.bridge / ('libyabridge-' + fmt + '.so')))
+    ctypes.CDLL(str(args.bridge / ('libyabridge-chainloader-' + fmt + '.so')))
 scanner = subprocess.run([str(args.bridge / 'plugg-scan')], capture_output=True)
 assert scanner.returncode == 64, scanner.stderr.decode(errors='replace')
 

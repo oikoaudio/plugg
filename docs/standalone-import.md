@@ -1,4 +1,6 @@
-# Standalone Windows VST3 import
+# Standalone Windows plug-in import
+
+Drop a `.vst3` file or bundle, a VST2 `.dll` or a CLAP `.clap` onto the app. VST2 and CLAP files are qualified from their export tables before anything is copied, and are published in their own format; see [plug-in formats](plugin-formats.md#dropping-a-plug-in-file). The rest of this page describes VST3 imports.
 
 Drop a `.vst3` file or bundle onto the app. The file chooser also accepts VST3 files, but bundles need drag-and-drop. The CLI `install` command accepts the same inputs. Plugg copies the plug-in into managed storage, prepares a private Proton prefix, probes its VST3 classes and publishes it to the normal DAW folder. You do not need an EXE installer.
 

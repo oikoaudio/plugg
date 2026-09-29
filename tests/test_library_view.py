@@ -143,3 +143,19 @@ class UnpublishedTests(unittest.TestCase):
     def test_published_or_retired_modules_are_not_counted_again(self):
         found = view.unpublished([record(id='e', path=str(self.env))], [str(self.published)])
         self.assertNotIn('Softube', found['e'])
+
+    def test_vst2_and_clap_wait_only_when_the_library_publishes_them(self):
+        from test_formats import pe_exporting
+        vst2 = self.env / 'prefix/drive_c/Program Files/VSTPlugins'
+        vst2.mkdir(parents=True)
+        (vst2 / 'soothe64.dll').write_bytes(pe_exporting(['VSTPluginMain']))
+        (vst2 / 'helper.dll').write_bytes(pe_exporting(['DllMain']))
+        clap = self.env / 'prefix/drive_c/Program Files/Common Files/CLAP'
+        clap.mkdir(parents=True)
+        (clap / 'soothe.clap').write_bytes(pe_exporting(['clap_entry']))
+        only_vst3 = view.unpublished([record(id='e', path=str(self.env))], [str(self.published)])
+        self.assertNotIn('soothe64 (VST2)', only_vst3['e'][view.UNIDENTIFIED])
+        found = view.unpublished([record(id='e', path=str(self.env))], [str(self.published)], ('vst3', 'vst2', 'clap'))
+        self.assertIn('soothe64 (VST2)', found['e'][view.UNIDENTIFIED])
+        self.assertIn('soothe (CLAP)', found['e'][view.UNIDENTIFIED])
+        self.assertNotIn('helper (VST2)', found['e'][view.UNIDENTIFIED])

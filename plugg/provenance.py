@@ -2,11 +2,13 @@
 import json
 from pathlib import Path
 
+from .formats import FORMATS
+
 
 def installation_source(plugin, jobs, setups):
     """Resolve current management separately from exact file provenance."""
     candidates = [job for job in jobs if job['env_id'] == plugin['env_id']]
-    exact = [job for job in candidates if job['kind'] == 'vst3' and job['hash'] == plugin['hash']]
+    exact = [job for job in candidates if job['kind'] in FORMATS and job['hash'] == plugin['hash']]
     if len(exact) == 1:
         return 'Installed from: ' + Path(exact[0]['installer']).name, exact[0]
     by_id = {job['id']: job for job in candidates}
@@ -27,8 +29,8 @@ def installation_source(plugin, jobs, setups):
             helper = {'klevgrand': 'Klevgrand Helper',
                       'native-instruments-experiment': 'Native Access'}.get(setup['recipe'], setup['name'])
             return 'Managed by: ' + helper, by_id[setup['job']]
-    exact = [job for job in candidates if job['kind'] == 'vst3' and job['hash'] == plugin['hash']]
-    installers = [job for job in candidates if job['kind'] != 'vst3']
+    exact = [job for job in candidates if job['kind'] in FORMATS and job['hash'] == plugin['hash']]
+    installers = [job for job in candidates if job['kind'] not in FORMATS]
     matches = exact or (installers if len(installers) == 1 else [])
     if matches:
         job = matches[0]
@@ -40,7 +42,7 @@ def installation_source(plugin, jobs, setups):
 
 def import_recipe_summary(root, job):
     """Show recorded import intent only for its matching input, never live recipes."""
-    if job.get('kind') != 'vst3':
+    if job.get('kind') not in FORMATS:
         return []
     path = Path(root) / 'jobs' / job['id'] / 'recipe-lock.json'
     try:
@@ -64,7 +66,7 @@ def import_recipe_summary(root, job):
 
 
 def setup_recipe_summary(root, job):
-    if job.get('kind') == 'vst3':
+    if job.get('kind') in FORMATS:
         return import_recipe_summary(root, job)
     path = Path(root) / 'jobs' / job['id'] / 'helper-recipe.json'
     try:
@@ -85,7 +87,7 @@ def setup_recipe_summary(root, job):
 
 def installation_progress(root, job):
     """Describe the last saved stage, without treating it as live process state."""
-    filename = 'import-state.json' if job.get('kind') == 'vst3' else 'helper-setup.json'
+    filename = 'import-state.json' if job.get('kind') in FORMATS else 'helper-setup.json'
     path = Path(root) / 'jobs' / job['id'] / filename
     stages = {
         'preparing-runtime': 'Preparing Windows support',

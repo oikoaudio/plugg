@@ -42,6 +42,8 @@ python3 -m unittest discover -s tests -v
 python3 scripts/test-integration.py
 ```
 
+`scripts/test-formats.py` checks VST2 and CLAP: it installs the test gain in all three formats in a new library and plays audio through each published plug-in. See [plug-in formats](plugin-formats.md#testing).
+
 After you rebuild the bridge, published plug-ins keep loading the build they were published against. The library owns a copy of each build, and moving a working plug-in to different code is a decision rather than a repair. `plugg doctor` reports how many are on an older build, and you move them explicitly:
 
 ```sh
