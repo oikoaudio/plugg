@@ -109,16 +109,19 @@ class VendorTests(unittest.TestCase):
         with patch('plugg.core.probe') as probe:
             result=vendors.refresh_library(self.store,self.job)
             probe.assert_not_called()
-        self.assertEqual(result,{'added':0,'unchanged':1,'removed':[],'failures':[],'waiting':[]})
+        self.assertEqual(result,{'added':0,'unchanged':1,'updated':[],'removed':[],'failures':[],'waiting':[]})
         self.assertEqual(self.store.plugins(),before)
 
-    def test_changed_installed_module_is_not_republished(self):
+    def test_a_vendor_app_update_is_reported_as_updated_not_republished(self):
+        # The DAW's adapter links to the module file, so it already loads the
+        # update; Plugg reports it and leaves the publication as it is.
         path=self.installed();item=vendors.installed(self.prefix)[0]
         core.publish(self.store,item,self.job,self.metadata)
         before=self.store.plugins()
         with path.open('ab') as f:f.write(b'changed version')
         result=vendors.refresh_library(self.store,self.job)
-        self.assertEqual(len(result['failures']),1)
+        self.assertEqual(result['updated'],[item['name']])
+        self.assertEqual(result['failures'],[])
         self.assertEqual(self.store.plugins(),before)
 
     def test_new_product_is_checked_and_published(self):

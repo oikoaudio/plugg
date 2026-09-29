@@ -435,6 +435,9 @@ def refresh_library(store, job_id, *, probe_only=None):
         existing[module.resolve()] = plugin
     added = 0
     unchanged = 0
+    # Updated by the vendor's own app. The DAW's adapter links to the module
+    # file, so it already loads the new version; Plugg does not re-check it yet.
+    updated = []
     failures = []
     waiting = []
     for item in items:
@@ -443,7 +446,7 @@ def refresh_library(store, job_id, *, probe_only=None):
             if previous['hash'] == item['hash']:
                 unchanged += 1
             else:
-                failures.append(item['name'] + ': installed version changed; managed updates are not supported yet.')
+                updated.append(item['name'])
             continue
         if probe_only is not None and str(item['path']) not in probe_only:
             waiting.append(item['name'])
@@ -459,7 +462,8 @@ def refresh_library(store, job_id, *, probe_only=None):
         except (core.HostError, OSError, ValueError) as exc:
             failures.append(item['name'] + ': ' + str(exc))
     removed = retire_uninstalled(store, job_id)
-    result = {'added': added, 'unchanged': unchanged, 'removed': removed, 'failures': failures, 'waiting': waiting}
+    result = {'added': added, 'unchanged': unchanged, 'updated': updated, 'removed': removed, 'failures': failures,
+              'waiting': waiting}
     core.atomic_json(store.root / 'jobs' / job_id / 'vendor-scan-result.json', result)
     return result
 
@@ -532,6 +536,8 @@ def finish_installation(store, job_id, *, busy=None, before_scan=None, after_sca
         if after_scan:
             after_scan()
     message = f"{result['added']} added to your DAW · {result['unchanged']} already there."
+    if result.get('updated'):
+        message += f" {len(result['updated'])} updated by the vendor's app; your DAW loads the new version."
     if result['removed']:
         message += f" {len(result['removed'])} removed."
     unchecked = len(result['failures']) + len(result['waiting'])

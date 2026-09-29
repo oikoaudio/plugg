@@ -50,7 +50,7 @@ Wine and yabridge patches don't block this, because they aren't per recipe. Ever
 
 ### 5. Guarded updates and rollback
 
-Today a plug-in update means reinstalling, and a runtime change means a new environment. Update handling has to know what a change would affect, refuse it when licences are at stake, and roll back cleanly. The licensing recovery points are the first piece. The rest is not built.
+Updating plug-ins through the vendor's own app works today: the adapter in your DAW links to the plug-in file, so it loads the new version, and Plugg reports what was updated. Plugg doesn't yet load an updated plug-in to check that it still works. It also has no guarded path for the other kinds of change: reinstalling from an installer, or moving an environment to a new runtime, which today means a new environment. That path has to know what a change would affect, refuse it when licences are at stake, and roll back cleanly. The licensing recovery points are the first piece.
 
 ### 6. Storage accounting and shared runtimes
 
