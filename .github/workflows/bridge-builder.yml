@@ -1,0 +1,29 @@
+name: Bridge builder image
+
+# The release bridge is built in packaging/bridge/Dockerfile's image. Building
+# that image means installing a toolchain from a dated Ubuntu snapshot, which
+# can take a long time, so it is built once here, whenever the Dockerfile
+# changes, and pushed to ghcr.io tagged with the Dockerfile's hash. Releases
+# pull it (scripts/build-release-bridge.py) and never wait on the mirrors.
+on:
+  push:
+    branches: [main]
+    paths: ['packaging/bridge/Dockerfile']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Build and publish the builder image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to ghcr.io
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      # Pushes only when no image exists for this Dockerfile: a tag is never overwritten.
+      - name: Build and publish
+        run: python3 scripts/build-release-bridge.py --publish-image

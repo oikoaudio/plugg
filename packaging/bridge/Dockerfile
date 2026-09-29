@@ -13,6 +13,9 @@
 # snapshot's HTTPS needs before anything else can come from it.
 FROM ubuntu@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02
 
+# Links the published image to the repository, so it shares its visibility.
+LABEL org.opencontainers.image.source=https://github.com/oikoaudio/plugg
+
 ARG WINE_VERSION=10.0.0.0~jammy-1
 # WineHQ's archive signing key, checked by fingerprint before it is trusted.
 ARG WINEHQ_FINGERPRINT=D43F640145369C51D786DDEA76F1A20FF987672F

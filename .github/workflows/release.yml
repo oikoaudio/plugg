@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   release:
@@ -38,6 +39,9 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match plugg/__init__.py ($declared)"; exit 1; }
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
             echo "Tag $GITHUB_REF_NAME is not on main"; exit 1; }
+
+      - name: Log in to ghcr.io, for the bridge builder image
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Unit tests and recipe catalogue
         run: python3 scripts/check-contribution.py

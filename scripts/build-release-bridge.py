@@ -30,6 +30,9 @@ import tarfile
 REPO = Path(__file__).resolve().parents[1]
 CONTEXT = REPO / 'packaging/bridge'
 LABEL = 'plugg.build=release-bridge'
+#: The builder image, published by .github/workflows/bridge-builder.yml and
+#: tagged with the Dockerfile's hash, so one Dockerfile names one image.
+PUBLISHED = 'ghcr.io/oikoaudio/plugg-bridge-builder'
 
 # Inside the container: unpack the checkout, build, gather every licence the
 # binaries carry, report the newest glibc symbol they need, and send the
@@ -63,7 +66,7 @@ This directory is Plugg's build of yabridge's VST3 bridge, the Windows plug-in h
 - yabridge is GPL-3.0-or-later (`COPYING.yabridge`). The source is https://github.com/robbert-vdh/yabridge at the revision in `build.json`, plus the patches in `patches/` of https://github.com/oikoaudio/plugg at tag `v{version}`, listed with their hashes in `build.json`.
 - `plugg-scan` is part of Plugg, GPL-3.0-or-later, built from `native/scan.cpp` in the same Plugg tag.
 - Both link parts of the VST3 SDK, used under its GPLv3 option, and yabridge links asio, bitsery, function2, tomlplusplus and ghc::filesystem. Each project's licence is in `licenses/<project>/`, and the revisions are in `build.json`.
-- `scripts/build-release-bridge.py` in the Plugg tag rebuilds this in the same pinned container (`packaging/bridge/Dockerfile`).
+- `scripts/build-release-bridge.py` in the Plugg tag rebuilds this in the same pinned container (`packaging/bridge/Dockerfile`). This build ran in `{image}`.
 '''
 
 
@@ -83,7 +86,7 @@ def tracked_files():
     return buffer.getvalue()
 
 
-def pack(built, version, output, epoch):
+def pack(built, version, output, epoch, image):
     """A reproducible .tar.gz of the bridge directory, named for the version."""
     top = 'plugg-bridge-' + version + '-x86_64'
     source = tarfile.open(fileobj=io.BytesIO(built))
@@ -93,7 +96,7 @@ def pack(built, version, output, epoch):
         if not member.name.startswith('out/') or '..' in Path(member.name).parts:
             raise SystemExit('Unexpected path from the build: ' + member.name)
         files[member.name[len('out/'):]] = (source.extractfile(member).read(), member.mode & 0o777)
-    files['NOTICE.md'] = (NOTICE.format(version=version).encode(), 0o644)
+    files['NOTICE.md'] = (NOTICE.format(version=version, image=image).encode(), 0o644)
     target = output / (top + '.tar.gz')
     raw = io.BytesIO()
     with tarfile.open(fileobj=raw, mode='w', format=tarfile.PAX_FORMAT) as archive:
@@ -114,20 +117,58 @@ def pack(built, version, output, epoch):
     return target, checksum
 
 
+def published_digest(tag):
+    """The registry digest of a pulled image, or None when it is not published."""
+    pulled = subprocess.run(['docker', 'pull', '--quiet', tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if pulled.returncode != 0:
+        return None
+    digests = json.loads(subprocess.check_output(['docker', 'image', 'inspect', tag, '--format', '{{json .RepoDigests}}']))
+    return next((d for d in digests if d.startswith(PUBLISHED + '@')), None)
+
+
+def builder_image(tag, local):
+    """The published image for this Dockerfile, pulled by digest; or one built here."""
+    if not local and (digest := published_digest(tag)):
+        print('Builder image', digest, file=sys.stderr)
+        return digest
+    print('Builder image not published for this Dockerfile; building it here (slow).', file=sys.stderr)
+    local_tag = 'plugg-bridge-builder:' + tag.rsplit(':', 1)[1]
+    # The full build log goes to stderr, so a failed package download says why.
+    run('docker', 'build', '--progress=plain', '--tag', local_tag, CONTEXT, stdout=sys.stderr)
+    return local_tag
+
+
+def publish_image(tag):
+    """Build the builder image and push it, unless this Dockerfile's image is already published."""
+    if digest := published_digest(tag):
+        print('Already published:', digest)
+        return 0
+    run('docker', 'build', '--progress=plain', '--tag', tag, CONTEXT, stdout=sys.stderr)
+    run('docker', 'push', '--quiet', tag, stdout=sys.stderr)
+    print('Published:', published_digest(tag))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--output', type=Path, required=True, help='Directory for the archive and its checksum')
+    parser.add_argument('--output', type=Path, help='Directory for the archive and its checksum')
     parser.add_argument('--pin', metavar='URL', help='Release download URL the archive will be published under')
+    parser.add_argument('--publish-image', action='store_true',
+                        help='only build the builder image and push it to ' + PUBLISHED + ', unless it is there')
+    parser.add_argument('--local-image', action='store_true', help='build the builder image here instead of pulling it')
     args = parser.parse_args()
+    tag = PUBLISHED + ':dockerfile-' + hashlib.sha256((CONTEXT / 'Dockerfile').read_bytes()).hexdigest()[:16]
+    if args.publish_image:
+        return publish_image(tag)
+    if args.output is None:
+        parser.error('--output is required')
     version = re.search(r'^__version__ = "(.+)"', (REPO / 'plugg/__init__.py').read_text(), re.M).group(1)
     epoch = int(subprocess.check_output(['git', '-C', str(REPO), 'log', '-1', '--format=%ct']).strip())
-    image = 'plugg-bridge-builder:' + hashlib.sha256((CONTEXT / 'Dockerfile').read_bytes()).hexdigest()[:12]
-    # The full build log goes to stderr, so a failed package download says why.
-    run('docker', 'build', '--progress=plain', '--tag', image, CONTEXT, stdout=sys.stderr)
+    image = builder_image(tag, args.local_image)
     built = run('docker', 'run', '--rm', '--interactive', '--label', LABEL, image, 'sh', '-c', BUILD,
                 input=tracked_files(), stdout=subprocess.PIPE).stdout
     args.output.mkdir(parents=True, exist_ok=True)
-    target, checksum = pack(built, version, args.output, epoch)
+    target, checksum = pack(built, version, args.output, epoch, image)
     if args.pin:
         pinned = REPO / 'plugg/recipes/bridge-release.json'
         pinned.write_text(json.dumps({'version': version, 'url': args.pin.rstrip('/') + '/' + target.name,
