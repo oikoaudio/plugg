@@ -281,6 +281,22 @@ class DiscoveryTests(unittest.TestCase):
             ('vst2', 'Program Files/VSTPlugins/Gain.dll')])
 
 
+    def test_finding_nothing_names_no_format(self):
+        store = core.Store(self.prefix.parent / 'library', self.prefix.parent / 'published')
+        empty = self.prefix.parent / 'empty'
+        (empty / 'drive_c').mkdir(parents=True)
+        with patch.object(store, 'prefix', return_value=empty):
+            self.assertEqual(core.nothing_found(store, 'job'), 'No plug-ins found yet. Finish installing or '
+                                                                'activating the products, then check again.')
+
+    def test_plug_ins_in_a_format_left_off_are_pointed_out(self):
+        store = core.Store(self.prefix.parent / 'library', self.prefix.parent / 'published')
+        (self.drive / 'Program Files/Common Files/VST3/Gain.vst3').unlink()
+        with patch.object(store, 'prefix', return_value=self.prefix):
+            message = core.nothing_found(store, 'job')
+        self.assertIn('Only VST2 and CLAP plug-ins were found', message)
+        self.assertIn('Turn them on under Settings', message)
+
 class BridgeReleaseTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()

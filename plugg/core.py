@@ -752,21 +752,18 @@ def adopt_installed_helper(store, job):
 
     Some installers are their vendor's manager: Kilohearts Installer installs
     itself into the environment and is how products are added or updated
-    later. When a program there carries the installer's own name, it is that
-    app. Anything less certain is left for the person to choose.
+    later, and Plugin Alliance's installer adds its Installation Manager.
+    Only a program vendors.installer_apps() is certain of is adopted; the
+    others are returned for the person to choose from.
     """
     from . import vendors
-    base = re.sub(r"\s*[\[(].*$", "", job["name"]).strip().casefold()
-    if not base:
-        return None
     try:
-        directory = store.root / "environments" / job["env_id"]
-        matches = [c for c in vendors.helper_candidates(directory) if Path(c).stem.casefold() == base]
-        if len(matches) != 1:
-            return None
-        return vendors.adopt_helper(store, job["env_id"], matches[0], Path(matches[0]).stem)
+        certain, candidates = vendors.installer_apps(store, job)
+        if not certain:
+            return None, candidates
+        return vendors.adopt_helper(store, job["env_id"], certain[0], Path(certain[0]).stem), candidates
     except (HostError, OSError, ValueError):
-        return None
+        return None, []
 
 
 def runtime_label(session):
@@ -1311,14 +1308,54 @@ def scan_and_publish(store: Store, job_id):
             raise
         except (HostError, ValueError) as exc:
             failures.append(item["name"] + ": " + str(exc))
-    atomic_json(store.root / "jobs" / job_id / "scan-result.json", {"published": count, "failures": failures})
+    result = {"published": count, "failures": failures}
+    atomic_json(store.root / "jobs" / job_id / "scan-result.json", result)
     if failures:
         store.update(job_id, "needs_attention", f"{count} plug-in modules published; {len(failures)} need attention. " + failures[0])
     elif not count:
-        store.update(job_id, "needs_attention", "No " + " or ".join(formats.LABELS[x] for x in formats.enabled(store.root))
-                     + " plug-ins found yet. Finish product installation or activation, then check again.")
+        store.update(job_id, "needs_attention", nothing_found(store, job_id))
     else:
         store.update(job_id, "ready", f"{count} plug-in modules published. Open Bitwig to discover them.")
+    return result
+
+
+def nothing_found(store: Store, job_id):
+    """Why a scan published nothing, in words that say what to do next."""
+    from . import formats
+    enabled = formats.enabled(store.root)
+    others = [kind for kind in formats.FORMATS if kind not in enabled]
+    found = {item["format"] for item in discover(store.prefix(job_id), others)} if others else set()
+    if found:
+        names = formats.spoken([formats.LABELS[kind] for kind in formats.FORMATS if kind in found])
+        return ("Only " + names + " plug-ins were found, and this library does not publish " + names
+                + ". Turn " + ("it" if len(found) == 1 else "them") + " on under Settings, then check again.")
+    return "No plug-ins found yet. Finish installing or activating the products, then check again."
+
+
+def finish_scan(store: Store, job):
+    """Publish what the installer left, and give its vendor app a helper card.
+
+    An installer that is only its vendor's manager (Plugin Alliance's
+    Installation Manager) installs no plug-ins itself. Finding none is then
+    the expected result, and the next step is to open that app.
+    """
+    scan = scan_and_publish(store, job["id"])
+    helper, candidates = adopt_installed_helper(store, job)
+    if scan["published"] or scan["failures"]:
+        return
+    if helper:
+        helper_installed(store, job["id"], helper["helper"]["name"])
+    elif candidates:
+        # Not sure which program is the vendor's app, so the person says.
+        atomic_json(store.root / "jobs" / job["id"] / "scan-result.json", {**scan, "apps": candidates})
+        store.update(job["id"], "needs_attention", "The installer added a program but no plug-ins. Choose "
+                     "which program is the vendor's app, then open it to install products.")
+
+
+def helper_installed(store: Store, job_id, name):
+    """Say an installation is done when all it installed is its vendor's app."""
+    store.update(job_id, "ready", name + " is installed. Open it from the library to install products; "
+                 "closing it checks for new plug-ins.")
 
 
 def work(store: Store, job_id, rescan=False):
@@ -1389,8 +1426,7 @@ def _work(store: Store, job_id, rescan=False):
             check = lambda: store.cancelled(job_id)
             check()
             if rescan:
-                scan_and_publish(store, job_id)
-                adopt_installed_helper(store, job)
+                finish_scan(store, job)
                 return
             verify_installer(job)
             # Unknown installers get the same environment as everything else:
@@ -1446,8 +1482,7 @@ def _work(store: Store, job_id, rescan=False):
                 if signature and stable >= 2:
                     break
                 time.sleep(1)
-            scan_and_publish(store, job_id)
-            adopt_installed_helper(store, job)
+            finish_scan(store, job)
         except Cancelled as exc:
             store.update(job_id, "cancelled", str(exc))
             if wine and wine.exists() and not any(p["env_id"] == job_id for p in store.plugins()):

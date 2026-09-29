@@ -771,6 +771,15 @@ HELPER_ROOTS = ('Program Files', 'Program Files (x86)', 'ProgramData')
 #: File names that are never the vendor's manager.
 NOT_HELPERS = ('unins', 'uninstall', 'crashpad', 'vcredist', 'vc_redist', 'setup-helper',
                'squirrel', 'elevate', 'dotnet', 'installerservice', 'update.exe')
+#: Folders where Windows installers keep a copy of themselves for repair and
+#: removal. Melodyne's setup leaves one under InstallShield, named exactly like
+#: the installer, and it opened the setup again instead of any app.
+NOT_HELPER_FOLDERS = ('installshield installation information', 'package cache')
+#: Words a vendor's manager app uses for itself and a product's own
+#: standalone app does not: Melodyne.exe matches its installer's name, but it
+#: is the product, not the way to install products.
+MANAGER_WORDS = frozenset(('installer', 'installation', 'manager', 'helper', 'central', 'access', 'connect',
+                           'hub', 'portal', 'center', 'centre', 'downloader', 'assistant'))
 
 
 def helper_candidates(directory, limit=40):
@@ -789,7 +798,8 @@ def helper_candidates(directory, limit=40):
         for path in sorted(base.rglob('*.exe')):
             relative = path.relative_to(drive)
             parts = [part.lower() for part in relative.parts]
-            if len(parts) > 5 or 'common files' in parts or parts[1:2] in (['internet explorer'], ['windows media player'],
+            if len(parts) > 5 or 'common files' in parts or NOT_HELPER_FOLDERS[0] in parts \
+                    or NOT_HELPER_FOLDERS[1] in parts or parts[1:2] in (['internet explorer'], ['windows media player'],
                                                                               ['windows nt'], ['microsoft'], ['powershell']):
                 continue
             if path.is_symlink() or not path.resolve().is_relative_to(drive):
@@ -800,6 +810,94 @@ def helper_candidates(directory, limit=40):
             if len(found) >= limit:
                 return found
     return found
+
+
+def program_key(name):
+    """A program's name without its version, tags or punctuation.
+
+    The installer's file name is rarely the app's: PA-InstallationManager-v1.4.0
+    installs PA-InstallationManager.exe, and Kilohearts Installer [BC_token]
+    installs Kilohearts Installer.exe.
+    """
+    name = re.sub(r'\s*[\[(].*$', '', name or '')
+    name = re.sub(r'[\s._-]*v?\d+(?:[._]\d+)+\w*$', '', name, flags=re.IGNORECASE)
+    return re.sub(r'[\W_]+', '', name).casefold()
+
+
+def _words(text):
+    """Words in a name, splitting InstallationManager as well as Installation Manager."""
+    return {w.casefold() for w in re.findall(r'[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+', text or '')}
+
+
+def uninstall_entries(directory):
+    """What installers registered under Windows' Uninstall key, as dictionaries of its values."""
+    from . import licensing
+    registry = Path(directory) / 'prefix' / 'system.reg'
+    if not registry.is_file() or registry.stat().st_size > licensing.MAX_REGISTRY_BYTES:
+        return []
+    entries, current = [], None
+    wanted = {'displayname', 'displayicon', 'installlocation', 'installsource'}
+    with registry.open('r', encoding='utf-8', errors='replace') as stream:
+        for line in stream:
+            if line.startswith('['):
+                section = line[1:line.find(']')].replace('\\\\', '\\').casefold()
+                current = {} if '\\currentversion\\uninstall\\' in section else None
+                if current is not None:
+                    entries.append(current)
+                continue
+            match = licensing.VALUE.match(line.rstrip('\n')) if current is not None else None
+            if match and licensing._unescape(match.group(1)).casefold() in wanted:
+                current[licensing._unescape(match.group(1)).casefold()] = licensing._normalize(match.group(2))
+    return entries
+
+
+def _drive_path(value):
+    """C:\\Program Files\\X\\ as program files/x, for comparing with a candidate; None elsewhere."""
+    value = (value or '').strip().strip('"').split(',')[0].replace('\\', '/').casefold()
+    return value[3:].rstrip('/') if value.startswith('c:/') else None
+
+
+def installer_apps(store, job):
+    """The vendor app an installer left behind, if that is certain, and every program it could be.
+
+    Returns (certain, candidates). certain holds the one program Plugg may
+    adopt without asking; it is empty when nothing, or more than one thing,
+    qualifies. A program qualifies when it is the installer itself, copied
+    into the environment (Kilohearts and XLN do this), or when it calls itself
+    a manager and its name agrees with the installer's: the installer's file
+    name or product name, or the entry the installer registered for removal.
+    """
+    from . import pe_version
+    directory = store.root / 'environments' / job['env_id']
+    candidates = helper_candidates(directory)
+    if not candidates:
+        return [], []
+    drive = directory / 'prefix' / 'drive_c'
+    installer = Path(job.get('installer') or '')
+    wanted = {program_key(installer.stem), program_key(job['name'])}
+    with contextlib.suppress(Exception):
+        wanted.add(program_key(pe_version.version_info(installer).get('ProductName')))
+    payload = 'z:' + str(store.root / 'jobs' / job['id']).replace('/', '\\').casefold()
+    registered = [entry for entry in uninstall_entries(directory)
+                  if (entry.get('installsource') or '').casefold().startswith(payload)]
+    wanted |= {program_key(entry.get('displayname')) for entry in registered}
+    wanted.discard('')
+    certain = []
+    for candidate in candidates:
+        path = drive / candidate
+        try:
+            if installer.is_file() and path.stat().st_size == installer.stat().st_size \
+                    and core.digest(path) == job['hash']:
+                certain.append(candidate)
+                continue
+            info = pe_version.version_info(path)
+        except Exception:
+            info = {}
+        names = [Path(candidate).stem, info.get('ProductName'), info.get('FileDescription')]
+        if any(program_key(n) in wanted for n in names if n) \
+                and MANAGER_WORDS & set().union(*(_words(n) for n in names if n)):
+            certain.append(candidate)
+    return (certain if len(certain) == 1 else []), candidates
 
 
 def adopt_helper(store, env_id, executable, name):
@@ -839,4 +937,11 @@ def adopt_helper(store, env_id, executable, name):
                     'helper_launcher': str(launcher), 'helper_job': owner['id'], 'helper_owns_runtime': True,
                     'helper_chosen_by_user': True})
         core.atomic_json(config_path, cfg)
+    try:
+        scan = json.loads((store.root / 'jobs' / owner['id'] / 'scan-result.json').read_text())
+    except (OSError, ValueError):
+        scan = {}
+    if owner['status'] == 'needs_attention' and scan.get('apps') and not scan.get('published') \
+            and not scan.get('failures'):
+        core.helper_installed(store, owner['id'], name)
     return {'environment': env_id, 'helper': spec, 'job': owner['id']}

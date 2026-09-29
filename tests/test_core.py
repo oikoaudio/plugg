@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import struct
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -390,7 +391,7 @@ class InstalledHelperTests(unittest.TestCase):
 
     def test_the_installers_own_app_becomes_the_helper(self):
         from plugg import vendors
-        result = core.adopt_installed_helper(self.store, self.store.job('env'))
+        result, _ = core.adopt_installed_helper(self.store, self.store.job('env'))
         self.assertEqual(result['helper']['executable'], 'ProgramData/Kilohearts/Kilohearts Installer.exe')
         cfg = json.loads((self.env / 'environment.json').read_text())
         self.assertEqual(cfg['recipe'], 'managed-helper')
@@ -398,10 +399,86 @@ class InstalledHelperTests(unittest.TestCase):
         self.assertTrue((self.env / 'launch-helper').is_file())
         self.assertEqual([card['name'] for card in vendors.cards(self.store)], ['Kilohearts Installer'])
 
+    def test_the_installers_version_does_not_hide_its_app(self):
+        from plugg import vendors
+        self.assertEqual(vendors.program_key('PA-InstallationManager-v1.4.0'), 'painstallationmanager')
+        self.assertEqual(vendors.program_key('Melodyne.5.4.2.006'), 'melodyne')
+        self.assertEqual(vendors.program_key('Kilohearts Installer [BC_token]'), 'kiloheartsinstaller')
+        self.assertEqual(vendors.program_key('Kontakt 7'), 'kontakt7')
+
+    def install(self, relative, job_name):
+        drive = self.env / 'prefix' / 'drive_c'
+        shutil.rmtree(drive / 'ProgramData/Kilohearts')
+        program = drive / relative
+        program.parent.mkdir(parents=True, exist_ok=True)
+        program.write_bytes(b'MZ')
+        with self.store.db() as db:
+            db.execute("UPDATE jobs SET name=? WHERE id='env'", (job_name,))
+
+    def plugin_alliance(self):
+        self.install('Program Files/Plugin Alliance/Installation Manager/PA-InstallationManager.exe',
+                     'PA-InstallationManager-v1.4.0')
+
+    def nothing(self, store, job_id):
+        store.update(job_id, 'needs_attention', 'No plug-ins found yet.')
+        result = {'published': 0, 'failures': []}
+        core.atomic_json(store.root / 'jobs' / job_id / 'scan-result.json', result)
+        return result
+
+    def test_a_versioned_installer_name_still_finds_its_app(self):
+        self.plugin_alliance()
+        result, _ = core.adopt_installed_helper(self.store, self.store.job('env'))
+        self.assertEqual(result['helper']['executable'],
+                         'Program Files/Plugin Alliance/Installation Manager/PA-InstallationManager.exe')
+
+    def test_the_uninstall_entry_names_the_app_when_the_file_name_does_not(self):
+        from plugg import vendors
+        self.install('Program Files/Plugin Alliance/Installation Manager/PA-InstallationManager.exe', 'setup')
+        payload = 'Z:\\\\' + str(self.store.root / 'jobs' / 'env' / 'payload').lstrip('/').replace('/', '\\\\')
+        (self.env / 'prefix' / 'system.reg').write_text(
+            'WINE REGISTRY Version 2\n\n'
+            '[Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\{1234}] 1\n'
+            '"DisplayName"="PA InstallationManager"\n"InstallSource"="' + payload + '\\\\"\n')
+        certain, _ = vendors.installer_apps(self.store, self.store.job('env'))
+        self.assertEqual(certain, ['Program Files/Plugin Alliance/Installation Manager/PA-InstallationManager.exe'])
+
+    def test_a_products_own_app_is_not_taken_for_its_manager(self):
+        from plugg import vendors
+        self.install('Program Files/Celemony/Melodyne 5/Melodyne.exe', 'Melodyne.5.4.2.006')
+        certain, candidates = vendors.installer_apps(self.store, self.store.job('env'))
+        self.assertEqual((certain, candidates), ([], ['Program Files/Celemony/Melodyne 5/Melodyne.exe']))
+
+    def test_an_installers_repair_copy_is_not_a_helper(self):
+        from plugg import vendors
+        cached = self.env / 'prefix/drive_c/Program Files (x86)/InstallShield Installation Information/{16DF}/Setup.exe'
+        cached.parent.mkdir(parents=True)
+        cached.write_bytes(b'MZ')
+        self.assertNotIn('Setup.exe', ' '.join(vendors.helper_candidates(self.env)))
+
+    def test_an_installer_that_only_installs_its_manager_says_to_open_it(self):
+        self.plugin_alliance()
+        with patch.object(core, 'scan_and_publish', side_effect=self.nothing):
+            core.finish_scan(self.store, self.store.job('env'))
+        job = self.store.job('env')
+        self.assertEqual(job['status'], 'ready')
+        self.assertIn('PA-InstallationManager is installed. Open it', job['message'])
+
+    def test_when_unsure_the_person_chooses_and_the_installation_is_then_done(self):
+        from plugg import vendors
+        self.install('Program Files/Celemony/Melodyne 5/Melodyne.exe', 'Melodyne.5.4.2.006')
+        with patch.object(core, 'scan_and_publish', side_effect=self.nothing):
+            core.finish_scan(self.store, self.store.job('env'))
+        job = self.store.job('env')
+        self.assertEqual(job['status'], 'needs_attention')
+        self.assertIn('Choose which program', job['message'])
+        self.assertEqual(json.loads((self.env / 'environment.json').read_text())['recipe'], 'installer')
+        vendors.adopt_helper(self.store, 'env', 'Program Files/Celemony/Melodyne 5/Melodyne.exe', 'Melodyne')
+        self.assertEqual(self.store.job('env')['status'], 'ready')
+
     def test_an_old_wine_environment_is_not_given_a_helper(self):
         from plugg import vendors
         (self.env / 'launch-full-proton').unlink()
-        self.assertIsNone(core.adopt_installed_helper(self.store, self.store.job('env')))
+        self.assertIsNone(core.adopt_installed_helper(self.store, self.store.job('env'))[0])
         with self.assertRaisesRegex(core.HostError, 'Install the product again'):
             vendors.adopt_helper(self.store, 'env', 'ProgramData/Kilohearts/Kilohearts Installer.exe', 'Kilohearts')
 
@@ -419,5 +496,6 @@ class ManagerInstallerTests(unittest.TestCase):
     def test_check_again_also_gives_the_helper_its_card(self):
         import inspect
         source = inspect.getsource(core._work)
-        rescan = source[source.index('if rescan:\n                scan_and_publish'):]
-        self.assertLess(rescan.index('adopt_installed_helper'), rescan.index('return'))
+        rescan = source[source.index('if rescan:\n                finish_scan'):]
+        self.assertLess(rescan.index('finish_scan'), rescan.index('return'))
+        self.assertIn('adopt_installed_helper', inspect.getsource(core.finish_scan))
