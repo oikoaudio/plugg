@@ -2,6 +2,10 @@
 
 **Windows audio plug-ins in your Linux DAW.**
 
+[![Latest release](https://img.shields.io/github/v/release/oikoaudio/plugg?label=release)](https://github.com/oikoaudio/plugg/releases/latest)
+[![Checks on main](https://github.com/oikoaudio/plugg/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/oikoaudio/plugg/actions/workflows/checks.yml)
+[![Licence: GPL-3.0-or-later](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/library-dark.png">
   <img src="docs/images/library-light.png" width="720" alt="Plugg's library: one row per vendor (iLok, Kilohearts, Klevgrand, Native Instruments, Plugin Alliance, Universal Audio), each with a status dot, its size and a button that opens the vendor's app.">

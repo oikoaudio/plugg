@@ -38,6 +38,7 @@ Then check what would be shared, not only what changed:
 - Allow GitHub Actions. The workflow needs no secrets and only `contents: read`.
 - Protect `main` and require the `Tests`, `Recipe review` and `Guardrail audit` checks. Without this, the recipe capability ceiling is only advisory.
 - Enable "Require review from Code Owners". `CODEOWNERS` has no effect without it, and it is what gates `recipes/reviewed/` and `plugg/`. To route review to a team, name `@<organisation>/<team>` and give the team write access.
+- Upload `docs/images/social-preview.png` under Settings → General → Social preview. GitHub shows it when someone shares a link to the repository, and it has no API for it. `scripts/make-social-preview.py` draws the image from the library screenshot in oikoaudio.com's style. Run it again when the screenshot or the tagline changes, then upload the new file.
 
 ## When you make it public
 
