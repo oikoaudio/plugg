@@ -1481,6 +1481,21 @@ class Manager(Gtk.Application):
         self.last = None
         self.refresh()
 
+    def installer_left_apps(self, job):
+        """Whether a scan found only programs, none certainly the vendor's app, and none chosen yet."""
+        try:
+            scan = json.loads((self.store.root / 'jobs' / job['id'] / 'scan-result.json').read_text())
+            config = json.loads((self.store.root / 'environments' / job['env_id'] / 'environment.json').read_text())
+        except (OSError, ValueError):
+            return False
+        return bool(scan.get('apps')) and config.get('recipe') == 'installer'
+
+    def choose_installer_app(self, job):
+        from . import environments as survey
+        record = survey.describe(self.store, self.store.root / 'environments' / job['env_id'],
+                                 self.store.jobs(), self.store.plugins())
+        self.adopt_helper(record)
+
     def adopt_helper(self, record):
         from . import environments as survey
         candidates = vendors.helper_candidates(record['path'])
@@ -2046,6 +2061,10 @@ class Manager(Gtk.Application):
                     text.append(label(line, 'status', True))
                 row.append(text)
                 controls = []
+                if self.installer_left_apps(job):
+                    controls.append(('Choose app…', 'The installer added programs but no plug-ins. Choose the '
+                                     'one you install products with, and it gets a place in the library.',
+                                     lambda _, j=job: self.choose_installer_app(j)))
                 if self.store.prefix(job['id']).is_dir():
                     controls.append(('Check again', 'Look at the environment again, in case the '
                                      'installation finished after all',
