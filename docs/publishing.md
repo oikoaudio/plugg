@@ -64,6 +64,8 @@ Then start Plugg from your applications menu, or run `plugg gui`.
 
 Update the AUR package first (`scripts/update-aur.py`, see [packaging](packaging.md)), so the Arch line is true when the README says it.
 
+At v0.1.0 the AUR package was not pushed yet, so the README lists the .deb and .rpm and keeps the Arch build-from-source commands. Once `yay -S plugg` works, replace those commands with the Arch line above.
+
 ## Keeping your working environments out of it
 
 `.gitignore` already excludes `.test-*/`, `.scratch/`, downloaded runtimes, prefixes, installers, licensing records and recovery points. Live environments belong in the library (`~/.local/share/plugg`), not in the checkout. Published plug-ins and vendor launchers do not depend on where the checkout is, so you can move it or clone it again.

@@ -17,18 +17,22 @@ Install a plug-in with the vendor's own Windows installer, and it shows up in yo
 
 ## Install
 
-There is no packaged release yet. The first one, v0.1.0, will have packages for Ubuntu and Debian (.deb), Fedora (.rpm) and Arch (AUR). [Watch the releases](https://github.com/oikoaudio/plugg/releases) to hear when it's out.
+Download the package for your distribution from [the latest release](https://github.com/oikoaudio/plugg/releases/latest) and install it:
 
-Until then, on Arch and Arch-based systems (CachyOS, EndeavourOS and others), build the package from source:
+- Ubuntu 24.04 or newer, Debian 13 or newer: `sudo apt install ./plugg_0.1.0_amd64.deb`
+- Fedora 42 or newer: `sudo dnf install ./plugg-0.1.0-1.x86_64.rpm`
+
+Then start Plugg from your applications menu, or run `plugg gui`. Plugg downloads its Proton runtime the first time it needs it and checks it by hash.
+
+On Arch and Arch-based systems (CachyOS, EndeavourOS and others), build the package from source until the AUR package is up:
 
 ```sh
 git clone https://github.com/oikoaudio/plugg.git
 cd plugg/packaging/aur/plugg-git
 makepkg -si
-plugg gui
 ```
 
-The build takes a few minutes, because it compiles the plug-in bridge from pinned sources. On other distributions, [build from a checkout](docs/building.md#build-from-a-checkout). Plugg downloads its Proton runtime the first time it needs it and checks it by hash.
+The build takes a few minutes, because it compiles the plug-in bridge from pinned sources. On other distributions, [build from a checkout](docs/building.md#build-from-a-checkout).
 
 Drop in an EXE, MSI or Windows VST3. Leave any BIN files next to an EXE, and Plugg copies them too. Then point your DAW at `~/.vst3/plugg`, where each plug-in appears as a bundle named after itself.
 
