@@ -73,6 +73,17 @@ A machine-bound licence such as iLok survives a change only if you deactivate fi
 
 Environments are not security sandboxes, and they are not disposable. Never run generic cleanup such as `git clean -fdx` in a checkout you've used, because ignored directories hold live vendor installations and authorisation data.
 
+## Your licences stay on your computer
+
+Licences live where the vendor's own app puts them, inside that vendor's Windows environment under `~/.local/share/plugg/environments/`. iLok licences are managed by iLok License Manager in the shared iLok environment. Plugg itself keeps no serial numbers, licence files, passwords or account details. For a protected environment it records the product names and hashed identity values, nothing more ([licensing safety](docs/licensing-safety.md)).
+
+Plugg goes online only to download its own parts: Proton, its Wine modules, the plug-in bridge and Microsoft components. It fetches them from a fixed list of sites and checks each one by hash. It sends nothing about you or your plug-ins anywhere. The vendor's app signs in and activates on its own, as it would on Windows. A bug report opens GitHub's form in your browser, filled with a summary you can read and edit first, and nothing leaves your computer unless you submit it.
+
+To keep your licences safe:
+
+- Back up `~/.local/share/plugg` along with the rest of your home folder.
+- Don't post environment folders, licensing recovery points (`licensing-backups`) or vendor app logs online. They can contain your machine's identifiers or account details.
+
 ## Known issues
 
 - On Wayland, some installers show a large black window on top of the install dialog.

@@ -52,7 +52,7 @@ FAQ = (
          "plug-in that failed rather than waiting forever. Try Troubleshoot…; if nothing there helps, "
          "report it."),
         ("How do I report a problem?",
-         "Choose Report a problem… below. Plugg prepares a summary of your setup, without licences, serials "
+         "Choose Report a bug in Plugg… below. Plugg prepares a summary of your setup, without licences, serials "
          "or account details, which you can read and edit. It then opens the issue form on GitHub for you "
          "to paste it into. Nothing is sent from the app. Check Recipes & fixes first: someone may already "
          "have solved it."),
@@ -66,6 +66,19 @@ FAQ = (
          "it and cannot be undone, so Plugg asks you to type a phrase first. For licensed products, "
          "deactivate them in the vendor's app or iLok before you delete: the phrase is how you confirm "
          "you did."),
+        ("Where are my licences, and what goes online?",
+         "Your licences stay where the vendor's own app puts them, inside that vendor's environment in "
+         "~/.local/share/plugg/environments. iLok licences are managed by iLok License Manager in the iLok "
+         "environment. Plugg itself keeps no serial numbers, licence files, passwords or account details. "
+         "For a protected environment it records only the product names. Plugg goes online only to "
+         "download its own parts (Proton, the plug-in bridge, Microsoft components), each checked by hash, "
+         "and sends nothing about you or your plug-ins. The vendor's app signs in and activates on its "
+         "own, as on Windows."),
+        ("How do I keep my licences safe?",
+         "Back up ~/.local/share/plugg with the rest of your home folder. Don't post environment folders, "
+         "licensing recovery points or vendor app logs online: they can contain your machine's identifiers "
+         "or account details. A bug report from Help leaves them out, and shows you everything before "
+         "you send it."),
         ("Will Plugg use up my licence activations?",
          "Every environment on this computer presents the same machine identity, so vendors see one "
          "computer, not one per environment. An environment holding activations refuses anything that "
