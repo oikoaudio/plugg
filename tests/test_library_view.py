@@ -5,6 +5,7 @@ and space in the library folder that nothing explains is flagged too. These
 check the rules that decide which is which, without a display.
 """
 import unittest
+from pathlib import Path
 
 try:
     import gi  # noqa: F401  the module builds GTK widgets, so it imports GTK
@@ -159,3 +160,25 @@ class UnpublishedTests(unittest.TestCase):
         self.assertIn('soothe64 (VST2)', found['e'][view.UNIDENTIFIED])
         self.assertIn('soothe (CLAP)', found['e'][view.UNIDENTIFIED])
         self.assertNotIn('helper (VST2)', found['e'][view.UNIDENTIFIED])
+
+
+class ChangeAppTests(unittest.TestCase):
+    """Melodyne's setup left its repair copy attached as the vendor app, and
+    the menu offered no way to choose another."""
+
+    def environment(self, config):
+        import json
+        import tempfile
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        (Path(temporary.name) / 'environment.json').write_text(json.dumps(config))
+        return {'path': temporary.name}
+
+    def test_an_app_picked_from_an_installer_can_be_changed(self):
+        self.assertTrue(view.chosen_from_installer(self.environment(
+            {'recipe': 'managed-helper', 'helper_chosen_by_user': True})))
+
+    def test_a_recipes_helper_is_left_alone(self):
+        self.assertFalse(view.chosen_from_installer(self.environment({'recipe': 'managed-helper'})))
+        self.assertFalse(view.chosen_from_installer(self.environment({'recipe': 'klevgrand'})))
+        self.assertFalse(view.chosen_from_installer({'path': '/nonexistent'}))

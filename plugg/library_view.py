@@ -131,6 +131,16 @@ def plugins_by_vendor(plugins, spelled=None):
     return found
 
 
+def chosen_from_installer(record):
+    """Whether this environment's app was picked from what an installer left, not set up by a recipe."""
+    import json
+    try:
+        config = json.loads((Path(record['path']) / 'environment.json').read_text())
+    except (OSError, ValueError):
+        return False
+    return config.get('recipe') == 'managed-helper' and bool(config.get('helper_chosen_by_user'))
+
+
 def is_setup_program(record, setup):
     """Whether a vendor app is a setup program kept for reinstalling, not a manager.
 
@@ -983,6 +993,11 @@ class LibraryView:
                 and (Path(record['path']) / 'launch-full-proton').is_file():
             item('Use as helper…', lambda: self.host.adopt_helper(record),
                  tooltip='Choose the vendor app the installer left here, so it gets a button like other vendors')
+        elif helpers and chosen_from_installer(record):
+            # A wrong guess must not become permanent: Melodyne's setup once
+            # left its repair copy attached here, with no way to swap it.
+            item('Change app…', lambda: self.host.adopt_helper(record),
+                 tooltip='Choose another program the installer left here as this vendor\'s app')
         item('Plug-ins in your DAW…', lambda: self.host.choose_published(record),
              tooltip='Take one plug-in, or one format of it, out of your DAW, or put it back')
         live = [s for s in helpers if s.get('running') or s.get('busy') or s.get('needs_attention')]
