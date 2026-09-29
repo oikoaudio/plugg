@@ -5,6 +5,7 @@ Plugg is a developer preview. It works on the maintainer's machine with the vend
 ## What works today
 
 - A managed Windows environment per vendor, all on one runtime (`plugg-1`: UMU-Proton 10.0-4 with Plugg's Wine fixes) and a patched yabridge build, independent of the system's Wine and yabridge.
+- Packages for Ubuntu, Debian and Fedora in each release, built and install-tested by the release workflow.
 - Windows VST3 discovery and publication as native Linux VST3 bundles, with the original class identities.
 - Drag-and-drop installer intake, background installation and cancellation. Plugg rescans automatically when a vendor helper closes.
 - Direct import of exact Windows VST3 files and bundles, with the pinned Microsoft runtime each one needs.
@@ -20,9 +21,9 @@ Vendor-specific evidence is in [the compatibility notes](docs/compatibility/). A
 
 The items are listed roughly by how much each would help people use Plugg.
 
-### 1. The first release
+### 1. The AUR package
 
-The release workflow builds a .deb for Ubuntu and Debian, an .rpm for Fedora and a generic tarball, and tests each one by installing it in a clean container. The AUR package builds from the tagged source. What remains is publishing v0.1.0 and the AUR package. Until then, Arch-based systems build the package from a checkout, and other distributions build from source. Plugg does not plan a Flatpak. [Cabinet](https://github.com/Mark12870/cabinet) serves people who want one, and [the Flatpak decision](docs/decisions/0003-flatpak.md) explains how the two projects fit together.
+v0.1.0 is out, with a .deb for Ubuntu and Debian and an .rpm for Fedora. The release workflow builds and tests both on every release by installing them in clean containers. The AUR package `plugg` is ready and pinned to the v0.1.0 source, and it still has to be pushed to the AUR. Until then, Arch-based systems build the package from a checkout. Plugg does not plan a Flatpak. [Cabinet](https://github.com/Mark12870/cabinet) serves people who want one, and [the Flatpak decision](docs/decisions/0003-flatpak.md) explains how the two projects fit together.
 
 ### 2. DAW regression
 
