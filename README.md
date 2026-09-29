@@ -2,6 +2,11 @@
 
 **Windows audio plug-ins in your Linux DAW.**
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/library-dark.png">
+  <img src="docs/images/library-light.png" width="720" alt="Plugg's library: one row per vendor (iLok, Kilohearts, Klevgrand, Native Instruments, Plugin Alliance, Universal Audio), each with a status dot, its size and a button that opens the vendor's app.">
+</picture>
+
 Install a plug-in with the vendor's own Windows installer, and it shows up in your DAW as a native VST3. Each vendor gets its own Windows environment, so one vendor's setup can't break another's. Plug-ins keep their vendor's licensing, iLok included.
 
 > **Developer preview.** It works on the maintainer's machine (CachyOS, Hyprland, Bitwig) with a small set of tested vendors. Plugg is not affiliated with Valve, Bitwig or any plug-in vendor.
