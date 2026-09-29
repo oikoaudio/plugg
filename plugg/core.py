@@ -286,6 +286,7 @@ class Store:
                   message TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL,
                   cancel INTEGER NOT NULL DEFAULT 0, pid INTEGER, env_id TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS archived_jobs (job_id TEXT PRIMARY KEY);
+                CREATE TABLE IF NOT EXISTS kept_out (id TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS plugins (
                   id TEXT PRIMARY KEY, env_id TEXT NOT NULL, name TEXT NOT NULL,
                   module TEXT NOT NULL, hash TEXT NOT NULL, status TEXT NOT NULL,
@@ -431,7 +432,8 @@ class Store:
         return {'job': job_id, 'environment': job['env_id']}
 
     def ingest(self, source: Path, replace=False):
-        if source.suffix.lower() == ".vst3":
+        from . import formats
+        if source.suffix.lower() in formats.IMPORT_SUFFIXES:
             from .standalone import ingest
             return ingest(self, source)
         source = source.expanduser().resolve()
@@ -583,6 +585,48 @@ def forget_plugin(store, identity):
     return {"id": identity, "name": row["name"], "environment": row["env_id"], "unpublished": bool(published)}
 
 
+def plugin_identity(job_id, path):
+    """The id a publication of one module from one job gets, so it can be looked up before loading."""
+    return hashlib.sha256((job_id + "\0" + str(path)).encode()).hexdigest()[:20]
+
+
+def kept_out(store):
+    """Plug-ins the person took out of their DAW, which checking again must not bring back."""
+    with store.db() as db:
+        return {row["id"] for row in db.execute("SELECT id FROM kept_out")}
+
+
+def keep_out(store, identity):
+    """Take one publication, one plug-in in one format, out of the DAW and keep it out.
+
+    Unlike forget, which retires a plug-in the vendor uninstalled, this is a
+    choice: Check again and Refresh library skip it without loading it, until
+    put_back undoes it. The bundle stays, so putting it back is quick.
+    """
+    result = forget_plugin(store, identity)
+    with store.db() as db:
+        db.execute("INSERT OR IGNORE INTO kept_out VALUES(?)", (identity,))
+        db.execute("UPDATE plugins SET message=? WHERE id=?",
+                   ("You took this out of your DAW. Put it back to use it again.", identity))
+    return result
+
+
+def put_back(store, identity):
+    """Publish a plug-in kept out of the DAW again, from what the library recorded for it."""
+    row = next((p for p in store.plugins() if p["id"] == identity), None)
+    if row is None:
+        raise HostError("No such plug-in in this library: " + identity)
+    module = Path(row["module"])
+    if not module.is_file() or digest(module) != row["hash"]:
+        raise HostError(row["name"] + " has changed or is gone since it was published. "
+                        "Use Check again on its vendor to add what is installed now.")
+    with store.db() as db:
+        db.execute("DELETE FROM kept_out WHERE id=?", (identity,))
+    publish(store, {"path": module, "name": row["name"], "hash": row["hash"]}, row["env_id"],
+            json.loads(row["metadata"]), environment=row["env_id"], identity=identity)
+    return {"id": identity, "name": row["name"]}
+
+
 def forget_environment(store, env_id):
     """Retire every plug-in published from one environment."""
     found = [p for p in store.plugins() if p["env_id"] == env_id and p["status"] != "removed"]
@@ -595,7 +639,8 @@ def reconcile_journalled_jobs(store, journal_name, message, *, kind=None):
     """Mark interrupted operations using their lock, without replay or cleanup."""
     changed = 0
     for job in store.jobs():
-        if (kind is not None and job['kind'] != kind) or job['status'] in TERMINAL:
+        kinds = (kind,) if isinstance(kind, str) else kind
+        if (kinds is not None and job['kind'] not in kinds) or job['status'] in TERMINAL:
             continue
         directory = store.root / 'jobs' / job['id']
         if not (directory / journal_name).is_file():
@@ -774,15 +819,24 @@ def run_process(args, env, log: Path, check=lambda: None, timeout=3600, cwd=None
                     proc.wait()
 
 
-def discover(prefix: Path):
-    """Bound discovery to the managed drive; do not follow directory symlinks."""
+def discover(prefix: Path, kinds=("vst3",)):
+    """Bound discovery to the managed drive; do not follow directory symlinks.
+
+    kinds are the plug-in formats to look for. A VST2 plug-in is any DLL that
+    exports a VST2 entry point, wherever the vendor put it. 32-bit VST2 and
+    CLAP files are left out rather than reported: installers commonly add
+    them beside the 64-bit ones, and the bridge hosts 64-bit plug-ins only.
+    """
+    from . import formats
+    suffixes = {".vst3": "vst3", ".dll": "vst2", ".clap": "clap"}
+    wanted = {suffix for suffix, kind in suffixes.items() if kind in kinds}
     drive = (prefix / "drive_c").resolve()
     result = []
     seen = set()
     for parent, dirs, files in os.walk(drive, followlinks=False):
         dirs[:] = [x for x in dirs if x.lower() not in {"windows", "$recycle.bin"} and not (Path(parent) / x).is_symlink()]
         for name in files:
-            if not name.lower().endswith(".vst3"):
+            if Path(name).suffix.lower() not in wanted:
                 continue
             path = Path(parent) / name
             if path.is_symlink() or not path.resolve().is_relative_to(drive):
@@ -790,50 +844,59 @@ def discover(prefix: Path):
             if path in seen:
                 continue
             seen.add(path)
+            kind = formats.module_format(path)
+            if kind not in kinds:
+                continue
             try:
                 arch = pe_machine(path)
             except HostError:
                 continue
-            result.append({"path": path, "name": path.stem, "machine": arch, "hash": digest(path)})
+            if kind != "vst3" and arch != 0x8664:
+                continue
+            result.append({"path": path, "name": path.stem, "machine": arch, "hash": digest(path), "format": kind})
     return result
 
 
-def make_bundle(store: Store, module: Path, dest: Path):
+def make_bundle(store: Store, module: Path, dest: Path, kind="vst3"):
+    from . import formats
     bridge = store.bridge()
-    native = dest / "Contents/x86_64-linux"
-    windows = dest / "Contents/x86_64-win"
-    native.mkdir(parents=True)
-    windows.mkdir()
-    # The DLL and Linux proxy need corresponding basenames.
-    shutil.copy2(bridge / "libyabridge-chainloader-vst3.so", native / (dest.stem + ".so"))
-    (native / ".plugg-managed").write_text("1\n")
-    for name in ("libyabridge-vst3.so", "yabridge-host.exe", "yabridge-host.exe.so"):
-        (native / name).symlink_to(bridge / name)
-    (windows / dest.name).symlink_to(module)
-    if module.parent.name == "x86_64-win" and module.parent.parent.name == "Contents":
-        resources = module.parent.parent / "Resources"
-        if resources.is_dir():
-            (dest / "Contents/Resources").symlink_to(resources)
-    # Do not copy moduleinfo.json: Windows and Linux class-ID byte order differs.
-    return native / (dest.stem + ".so")
+    if kind not in formats.supported_by(bridge):
+        raise HostError("This bridge build cannot publish " + formats.LABELS[kind] + " plug-ins. "
+                        "Update Plugg, or rebuild the bridge with scripts/build-bridge.sh.")
+    return formats.make_bundle(bridge, module, dest, kind)
 
 
-def probe(store: Store, module: Path, job_id: str):
+#: plugg-scan exit codes that say more than "it did not load".
+SCAN_REFUSALS = {
+    16: "This is a VST2 shell, several plug-ins inside one file. The bridge publishes one plug-in per file, "
+        "so shells are not supported.",
+    17: "This VST2 plug-in has no unique ID, so a DAW could not find it again in a saved project.",
+}
+
+
+def probe(store: Store, module: Path, job_id: str, kind="vst3"):
     scanroot = store.root / "scans"
     scanroot.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(dir=scanroot) as tmp:
-        native = make_bundle(store, module, Path(tmp) / "ph-scan.vst3")
+        native = make_bundle(store, module, Path(tmp) / ("ph-scan.vst3" if kind == "vst3" else "ph-scan"), kind)
         output = Path(tmp) / "result.json"
         log = store.root / "jobs" / job_id / "scan.log"
         # Metadata is loaded in a disposable native process and a Wine host.
         env = os.environ.copy()
         env.pop("WINEPREFIX", None)
-        rc = run_process([store.bridge() / "plugg-scan", native, output], env, log, lambda: store.cancelled(job_id), timeout=45)
+        flag = [] if kind == "vst3" else ["--" + kind]
+        rc = run_process([store.bridge() / "plugg-scan", *flag, native, output], env, log, lambda: store.cancelled(job_id), timeout=45)
+        if rc in SCAN_REFUSALS:
+            raise HostError(SCAN_REFUSALS[rc])
         if rc != 0 or not output.exists():
             raise HostError("The plug-in did not pass its discovery check. It may need activation; see scan details.")
         data = json.loads(output.read_text())
         if not data.get("classes"):
             raise HostError("No audio plug-in classes were found in this module.")
+        if data.get("format", kind) != kind:
+            raise HostError("The scanner reported a different plug-in format than was asked for.")
+        if kind != "vst3":
+            data["format"] = kind
         return data
 
 
@@ -923,25 +986,40 @@ def readable_name(name, identity, taken=(), budget=None, vendor=None):
     return fallback
 
 
+def taken_names(store: Store, kind, identity=None):
+    """The readable names already published in one format's folder."""
+    from . import formats
+    return {formats.readable(row["publication"], kind) for row in store.plugins()
+            if row["status"] != "removed" and row["id"] != identity and row["publication"]
+            and formats.of(row["metadata"]) == kind}
+
+
 def publish(store: Store, item, job_id, metadata, environment=None, identity=None):
+    from . import formats
     environment = environment or job_id
-    identity = identity or hashlib.sha256((job_id + "\0" + str(item["path"])).encode()).hexdigest()[:20]
+    identity = identity or plugin_identity(job_id, item["path"])
+    if identity in kept_out(store):
+        # Taken out of the DAW on purpose; only put_back brings it back.
+        return None
+    kind = formats.of(metadata)
     with lock(store.root / "publication.lock"):
         # Under the lock: two publications must not pick the same name.
-        taken = {Path(row["publication"]).stem for row in store.plugins()
-                 if row["status"] != "removed" and row["id"] != identity}
+        taken = taken_names(store, kind, identity)
         maker = next((x.get("vendor") for x in metadata["classes"] if x.get("vendor")), None)
-        target = store.publication / (readable_name(item["name"], identity, taken, vendor=maker) + ".vst3")
+        folder = formats.folder(store, kind)
+        target = folder / formats.publication_name(kind, readable_name(item["name"], identity, taken, vendor=maker))
         # Prevent ambiguous duplicate original IDs within this managed library.
+        # Each format has its own identities: a VST2 unique ID and a VST3 class
+        # ID are different things, and the same plug-in has both.
         newids = {x["id"] for x in metadata["classes"]}
         for existing in store.plugins():
-            if existing["id"] != identity and existing["status"] == "ready":
+            if existing["id"] != identity and existing["status"] == "ready" and formats.of(existing["metadata"]) == kind:
                 oldids = {x["id"] for x in json.loads(existing["metadata"])["classes"]}
                 if oldids & newids:
                     raise HostError(f"{existing['name']} is already in your managed library. Updates are not yet supported by this prototype.")
-        store.publication.mkdir(parents=True, exist_ok=True)
-        bundles = store.root / "bundles"
-        bundles.mkdir(exist_ok=True)
+        folder.mkdir(parents=True, exist_ok=True)
+        bundles = formats.bundles(store, kind)
+        bundles.mkdir(parents=True, exist_ok=True)
         complete = bundles / target.name
         manifest = {"id": identity, "environment": environment, "module_sha256": item["hash"], "metadata": metadata}
         if complete.exists():
@@ -952,7 +1030,7 @@ def publish(store: Store, item, job_id, metadata, environment=None, identity=Non
             # covers the ones that do — so it steps aside under its own id
             # rather than making the reinstalled plug-in wear a suffix.
             if previous.get("id") and previous["id"] != identity:
-                retired = bundles / ("ph-" + previous["id"] + ".vst3")
+                retired = bundles / formats.publication_name(kind, "ph-" + previous["id"])
                 if retired.exists():
                     shutil.rmtree(retired)
                 os.rename(complete, retired)
@@ -970,7 +1048,7 @@ def publish(store: Store, item, job_id, metadata, environment=None, identity=Non
             # Nothing incomplete is ever placed in a directory scanned by the DAW.
             with tempfile.TemporaryDirectory(prefix=".publish-", dir=bundles) as tmp:
                 staged = Path(tmp) / target.name
-                make_bundle(store, item["path"], staged)
+                make_bundle(store, item["path"], staged, kind)
                 atomic_json(staged / "plugg.json", manifest)
                 os.rename(staged, complete)
         if target.is_symlink() or target.exists():
@@ -985,7 +1063,7 @@ def publish(store: Store, item, job_id, metadata, environment=None, identity=Non
             if row["id"] != identity or row["publication"] == str(target):
                 continue
             stale = Path(row["publication"])
-            if stale.is_symlink() and stale.parent == store.publication:
+            if stale.is_symlink() and stale.parent == folder:
                 stale.unlink()
         # If we were interrupted after the rename, retrying repairs the DB record.
         with store.db() as db:
@@ -1006,31 +1084,32 @@ def rename_publications(store: Store, apply=False):
     the link back. The plug-in's class identities do not change, which is what
     a project uses to find it again; the path does, so expect a rescan.
     """
+    from . import formats
     planned = []
     with lock(store.root / "publication.lock"):
         live = [row for row in store.plugins() if row["status"] != "removed"]
-        taken = {Path(row["publication"]).stem for row in live}
+        taken = {kind: taken_names(store, kind) for kind in formats.FORMATS}
         budget = name_budget()
         # A name that fits is claimed before any shortened one is considered,
         # so a plug-in never loses its own name to something else's truncation.
         order = sorted(live, key=lambda item: (len(item["name"]) > budget, item["name"].casefold()))
         for row in order:
+            kind = formats.of(row["metadata"])
             current = Path(row["publication"])
-            taken.discard(current.stem)
+            taken[kind].discard(formats.readable(current, kind))
             classes = json.loads(row["metadata"]).get("classes", [])
             maker = next((x.get("vendor") for x in classes if x.get("vendor")), None)
-            wanted = readable_name(row["name"], row["id"], taken, vendor=maker)
-            taken.add(wanted)
-            if wanted == current.stem:
+            wanted = readable_name(row["name"], row["id"], taken[kind], vendor=maker)
+            taken[kind].add(wanted)
+            if wanted == formats.readable(current, kind):
                 continue
-            planned.append({"id": row["id"], "name": row["name"],
-                            "from": str(current), "to": str(store.publication / (wanted + ".vst3"))})
+            planned.append({"id": row["id"], "name": row["name"], "format": kind, "from": str(current),
+                            "to": str(formats.folder(store, kind) / formats.publication_name(kind, wanted))})
         if not apply:
             return planned
         record = store.root / "migration-backups" / "publication-names.json"
         record.parent.mkdir(parents=True, exist_ok=True)
         atomic_json(record, {"schema": 1, "renames": planned})
-        bundles = store.root / "bundles"
         done = []
         for item in planned:
             row = next(x for x in store.plugins() if x["id"] == item["id"])
@@ -1039,18 +1118,19 @@ def rename_publications(store: Store, apply=False):
                 raise HostError("Cannot rename " + row["name"] + ": its module is missing. "
                                 "Nothing has been changed for it.")
             target = Path(item["to"])
+            bundles = formats.bundles(store, item["format"])
             complete = bundles / target.name
             if not complete.exists():
                 with tempfile.TemporaryDirectory(prefix=".publish-", dir=bundles) as tmp:
                     staged = Path(tmp) / target.name
-                    make_bundle(store, module, staged)
+                    make_bundle(store, module, staged, item["format"])
                     previous = Path(item["from"]).resolve() / "plugg.json"
                     shutil.copy2(previous, staged / "plugg.json")
                     os.rename(staged, complete)
             if not (target.is_symlink() or target.exists()):
                 target.symlink_to(complete, target_is_directory=True)
             old = Path(item["from"])
-            if old.is_symlink() and old.parent == store.publication:
+            if old.is_symlink() and old.parent == target.parent:
                 old.unlink()
             with store.db() as db:
                 db.execute("UPDATE plugins SET publication=? WHERE id=?", (str(target), item["id"]))
@@ -1059,6 +1139,7 @@ def rename_publications(store: Store, apply=False):
     return done
 
 
+#: The bridge files a VST3 bundle links to; formats.bridge_links() has every format's.
 BRIDGE_LINKS = ("libyabridge-vst3.so", "yabridge-host.exe", "yabridge-host.exe.so")
 
 
@@ -1086,7 +1167,7 @@ def relink_publications(store: Store, apply=False):
     time and nothing is deleted, and what each link pointed to before is
     recorded under migration-backups so the change can be undone.
     """
-    from . import bridge_bundle
+    from . import bridge_bundle, formats
     releases = store.root / "bridge-releases"
     planned, problems = [], []
     # Looking takes no lock, so doctor can report while a publish is running.
@@ -1094,8 +1175,9 @@ def relink_publications(store: Store, apply=False):
         for row in store.plugins():
             if row["status"] == "removed":
                 continue
+            kind = formats.of(row["metadata"])
             publication = Path(row["publication"])
-            bundle = store.root / "bundles" / publication.name
+            bundle = formats.bundles(store, kind) / publication.name
             if not publication.is_symlink() or not bundle.is_dir() or publication.resolve() != bundle.resolve():
                 problems.append({"id": row["id"], "name": row["name"],
                                  "problem": "The published link does not lead to its bundle in the library."})
@@ -1103,8 +1185,9 @@ def relink_publications(store: Store, apply=False):
             changes = []
             if os.readlink(publication) != str(bundle):
                 changes.append({"link": str(publication), "from": os.readlink(publication), "to": str(bundle)})
-            native = bundle / "Contents/x86_64-linux"
-            current = {name: native / name for name in BRIDGE_LINKS}
+            native = formats.native_directory(bundle, kind)
+            links = formats.bridge_links(kind)
+            current = {name: native / name for name in links}
             if not all(x.is_symlink() for x in current.values()):
                 problems.append({"id": row["id"], "name": row["name"],
                                  "problem": "Its bridge files are not links; it was not made by this library."})
@@ -1115,10 +1198,10 @@ def relink_publications(store: Store, apply=False):
                     planned.append({"id": row["id"], "name": row["name"], "release": None, "links": changes})
                 continue
             sources = {t.resolve().parent for t in targets.values()}
-            if len(sources) != 1 or not all((native / name).exists() for name in BRIDGE_LINKS):
+            if len(sources) != 1 or not all((native / name).exists() for name in links):
                 problems.append({"id": row["id"], "name": row["name"],
                                  "problem": "Its bridge build is missing, so there is nothing to keep it on. "
-                                            "Its links point to " + str(targets["libyabridge-vst3.so"].parent) + "."})
+                                            "Its links point to " + str(targets[links[0]].parent) + "."})
                 continue
             source = sources.pop()
             try:
@@ -1163,28 +1246,34 @@ def adopt_current_bridge(store: Store, apply=False):
     saved project still finds its plug-ins. What every link pointed at before
     is recorded under migration-backups.
     """
-    from . import bridge_bundle
-    releases = store.root / "bridge-releases"
+    from . import formats
     with lock(store.root / "publication.lock") if apply else contextlib.nullcontext():
         release = store.bridge()
+        supported = formats.supported_by(release)
         planned, problems = [], []
         for row in store.plugins():
             if row["status"] == "removed":
                 continue
-            bundle = store.root / "bundles" / Path(row["publication"]).name
-            native = bundle / "Contents/x86_64-linux"
-            loader = native / (bundle.stem + ".so")
-            links = {name: native / name for name in BRIDGE_LINKS}
+            kind = formats.of(row["metadata"])
+            bundle = formats.bundles(store, kind) / Path(row["publication"]).name
+            native = formats.native_directory(bundle, kind)
+            loader = formats.loader(bundle, kind)
+            links = {name: native / name for name in formats.bridge_links(kind)}
             if not native.is_dir() or not loader.is_file() or not all(x.is_symlink() for x in links.values()):
                 problems.append({"id": row["id"], "name": row["name"],
                                  "problem": "Its bridge files are not what this library publishes."})
                 continue
-            if all(Path(os.readlink(link)).parent == release for link in links.values()) \
-                    and digest(loader) == digest(release / "libyabridge-chainloader-vst3.so"):
+            if kind not in supported:
+                problems.append({"id": row["id"], "name": row["name"],
+                                 "problem": "The current bridge build has no " + formats.LABELS[kind] + " support."})
                 continue
-            changes = [{"link": str(links[name]), "from": os.readlink(links[name]),
-                        "to": str(release / name)} for name in BRIDGE_LINKS]
-            planned.append({"id": row["id"], "name": row["name"], "loader": str(loader), "links": changes})
+            if all(Path(os.readlink(link)).parent == release for link in links.values()) \
+                    and digest(loader) == digest(release / formats.CHAINLOADER[kind]):
+                continue
+            changes = [{"link": str(link), "from": os.readlink(link),
+                        "to": str(release / name)} for name, link in links.items()]
+            planned.append({"id": row["id"], "name": row["name"], "format": kind, "loader": str(loader),
+                            "links": changes})
         if not apply:
             return {"release": release.name, "planned": planned, "problems": problems}
         record = store.root / "migration-backups" / ("bridge-adoption-%d.json" % time.time_ns())
@@ -1193,7 +1282,7 @@ def adopt_current_bridge(store: Store, apply=False):
         for item in planned:
             loader = Path(item["loader"])
             temporary = loader.with_name(".adopt-" + uuid.uuid4().hex)
-            shutil.copy2(release / "libyabridge-chainloader-vst3.so", temporary)
+            shutil.copy2(release / formats.CHAINLOADER[item.get("format", "vst3")], temporary)
             os.replace(temporary, loader)
             for change in item["links"]:
                 _repoint(Path(change["link"]), Path(change["to"]))
@@ -1203,7 +1292,10 @@ def adopt_current_bridge(store: Store, apply=False):
 
 
 def scan_and_publish(store: Store, job_id):
-    items = discover(store.prefix(job_id))
+    from . import formats
+    skipped = kept_out(store)
+    items = [item for item in discover(store.prefix(job_id), formats.enabled(store.root))
+             if plugin_identity(job_id, item["path"]) not in skipped]
     failures = []
     count = 0
     for item in items:
@@ -1212,7 +1304,7 @@ def scan_and_publish(store: Store, job_id):
         try:
             if item["machine"] != 0x8664:
                 raise HostError("32-bit plug-ins are outside this prototype's support.")
-            metadata = probe(store, item["path"], job_id)
+            metadata = probe(store, item["path"], job_id, item["format"])
             publish(store, item, job_id, metadata)
             count += 1
         except Cancelled:
@@ -1223,7 +1315,8 @@ def scan_and_publish(store: Store, job_id):
     if failures:
         store.update(job_id, "needs_attention", f"{count} plug-in modules published; {len(failures)} need attention. " + failures[0])
     elif not count:
-        store.update(job_id, "needs_attention", "No VST3 plug-ins found yet. Finish product installation or activation, then check again.")
+        store.update(job_id, "needs_attention", "No " + " or ".join(formats.LABELS[x] for x in formats.enabled(store.root))
+                     + " plug-ins found yet. Finish product installation or activation, then check again.")
     else:
         store.update(job_id, "ready", f"{count} plug-in modules published. Open Bitwig to discover them.")
 
@@ -1260,7 +1353,8 @@ def work(store: Store, job_id, rescan=False):
 
 def _work(store: Store, job_id, rescan=False):
     job = store.job(job_id)
-    if job["kind"] == "vst3":
+    from . import formats
+    if formats.is_import(job):
         from .standalone import work as import_work
         return import_work(store, job_id, rescan)
     if not rescan:
@@ -1334,17 +1428,19 @@ def _work(store: Store, job_id, rescan=False):
             # install products. Closing that window is how you finish, and the
             # app may report a non-zero exit for it (Kilohearts Installer exits
             # with 2). What decides success is what it installed.
-            if rc != 0 and not discover(prefix):
-                raise HostError(f"The vendor installer exited with code {rc} and installed no VST3 plug-ins. "
+            from . import formats
+            kinds = formats.enabled(store.root)
+            if rc != 0 and not discover(prefix, kinds):
+                raise HostError(f"The vendor installer exited with code {rc} and installed no plug-ins. "
                                 "See installation details.")
             # Detached launchers/helpers may still be installing. A short quiet
             # period is a heuristic, not a claim that every vendor has finished.
-            store.update(job_id, "scanning", "Looking for installed VST3 plug-ins")
+            store.update(job_id, "scanning", "Looking for installed plug-ins")
             last = None
             stable = 0
             for _ in range(15):
                 check()
-                signature = [(str(x["path"]), x["hash"]) for x in discover(prefix)]
+                signature = [(str(x["path"]), x["hash"]) for x in discover(prefix, kinds)]
                 stable = stable + 1 if signature == last else 0
                 last = signature
                 if signature and stable >= 2:
@@ -1371,9 +1467,13 @@ def doctor(store: Store):
         store.bridge_source()
     except (HostError, OSError) as exc:
         bridge_error = str(exc)
+    from . import formats
     for name in ("libyabridge-vst3.so", "libyabridge-chainloader-vst3.so", "yabridge-host.exe.so", "plugg-scan"):
         path = store.bridge_directory() / name
         bridge[name] = {"present": path.is_file(), "sha256": digest(path) if path.is_file() else None}
+    published = {"enabled": list(formats.enabled(store.root)),
+                 "folders": {kind: str(formats.folder(store, kind)) for kind in formats.enabled(store.root)},
+                 "bridge_supports": list(formats.supported_by(store.bridge_directory()))}
     try:
         relink = relink_publications(store)
         outside = {"relink": len(relink["planned"]), "problems": relink["problems"]}
@@ -1390,6 +1490,8 @@ def doctor(store: Store):
     from . import __version__
     return {"version": __version__, "data": str(store.root), "publication": str(store.publication), "bridge": bridge,
             "bridge_directory": str(store.bridge_directory()), "bridge_error": bridge_error,
+            # Which plug-in formats this library publishes, and where.
+            "formats": published,
             # Published bundles that depend on something outside the library;
             # `relink-bundles` moves them.
             "publications_outside_library": outside,

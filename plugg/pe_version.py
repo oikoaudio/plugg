@@ -58,24 +58,20 @@ def _unpack(fmt, data, offset):
     return struct.unpack_from(fmt, data, offset)
 
 
-def _read(data):
+def _layout(data):
+    """(data directory table, directory count, rva -> file offset), or None for a non-PE file."""
     if data[:2] != b'MZ':
-        return {}
+        return None
     pe = _unpack('<I', data, 60)[0]
     if bytes(data[pe:pe + 4]) != b'PE\0\0':
-        return {}
+        return None
     sections, optional_size = _unpack('<H', data, pe + 6)[0], _unpack('<H', data, pe + 20)[0]
     optional = pe + 24
     magic = _unpack('<H', data, optional)[0]
     directories = optional + {0x10b: 96, 0x20b: 112}.get(magic, -1)
     if directories < optional:
-        return {}
+        return None
     count = _unpack('<I', data, directories - 4)[0]
-    if count <= 2:
-        return {}
-    resource_rva, resource_size = _unpack('<II', data, directories + 2 * 8)
-    if not resource_rva or not resource_size:
-        return {}
     table = optional + optional_size
     spans = []
     for index in range(min(sections, 96)):
@@ -89,6 +85,19 @@ def _read(data):
                 return raw + rva - start
         raise Malformed('address outside every section')
 
+    return directories, count, offset
+
+
+def _read(data):
+    layout = _layout(data)
+    if layout is None:
+        return {}
+    directories, count, offset = layout
+    if count <= 2:
+        return {}
+    resource_rva, resource_size = _unpack('<II', data, directories + 2 * 8)
+    if not resource_rva or not resource_size:
+        return {}
     root = offset(resource_rva)
     block = _find_version(data, root)
     if block is None:
@@ -98,6 +107,48 @@ def _read(data):
     if length > 1024 * 1024 or start + length > len(data):
         return {}
     return _strings(bytes(data[start:start + length]))
+
+
+def exports(path):
+    """The names a DLL exports; an empty set when it exports none or is not a PE file.
+
+    A VST2 plug-in is a plain DLL, told apart from every other DLL only by
+    exporting VSTPluginMain (or, from the oldest SDKs, main). Reading the
+    export table answers that without loading anything.
+    """
+    try:
+        size = Path(path).stat().st_size
+        if not 64 <= size <= LIMIT:
+            return set()
+        with Path(path).open('rb') as handle, mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            return _exports(data)
+    except (OSError, ValueError, Malformed, struct.error, UnicodeDecodeError):
+        return set()
+
+
+def _exports(data):
+    layout = _layout(data)
+    if layout is None:
+        return set()
+    directories, count, offset = layout
+    if count < 1:
+        return set()
+    rva, size = _unpack('<II', data, directories)
+    if not rva or not size:
+        return set()
+    table = offset(rva)
+    names, pointers = _unpack('<I', data, table + 24)[0], _unpack('<I', data, table + 32)[0]
+    if not pointers:
+        return set()
+    start = offset(pointers)
+    found = set()
+    for index in range(min(names, 65536)):
+        name = offset(_unpack('<I', data, start + index * 4)[0])
+        end = data.find(b'\0', name, name + 512)
+        if end < 0:
+            raise Malformed('export name without an end')
+        found.add(bytes(data[name:end]).decode('ascii'))
+    return found
 
 
 def _entries(data, directory):

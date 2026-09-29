@@ -163,16 +163,53 @@ UNIDENTIFIED = 'Not identified yet'
 _versions = {}
 
 
-def installed_modules(environment):
-    """[(module path, bundle-or-file path)] for every VST3 installed in an environment.
+_formats_seen = {}
 
-    Walks only the standard VST3 folder, follows no symlink, and does not
-    descend into bundles. Cheap enough to run whenever the library changes.
+
+def _module_format(path):
+    """formats.module_format, cached until the file changes: it reads the export table."""
+    from . import core, formats
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+    key = (str(path), stat.st_size, stat.st_mtime_ns)
+    if key not in _formats_seen:
+        kind = formats.module_format(path)
+        try:
+            if kind and core.pe_machine(Path(path)) != 0x8664:
+                kind = None
+        except core.HostError:
+            kind = None
+        _formats_seen[key] = kind
+    return _formats_seen[key]
+
+
+def installed_modules(environment, kinds=('vst3',)):
+    """[(module path, bundle-or-file path, format)] for every plug-in installed in an environment.
+
+    Walks only the standard folders of the given formats, follows no symlink,
+    and does not descend into bundles. Cheap enough to run whenever the
+    library changes. VST2 and CLAP files count only when they are 64-bit
+    plug-ins by their own headers, as discovery has it.
     """
     import os
-    from . import pe_version
-    root = Path(environment).joinpath(*VST3_FOLDER)
+    from . import pe_version, vendors
     found = []
+    for kind in kinds:
+        if kind == 'vst3':
+            continue
+        for relative in vendors.FORMAT_ROOTS[kind]:
+            root = Path(environment, 'prefix', 'drive_c', relative)
+            for parent, dirs, files in os.walk(root, followlinks=False):
+                dirs[:] = [d for d in dirs if not (Path(parent) / d).is_symlink()]
+                for name in files:
+                    path = Path(parent) / name
+                    if not path.is_symlink() and _module_format(path) == kind:
+                        found.append((path, path, kind))
+    if 'vst3' not in kinds:
+        return found
+    root = Path(environment).joinpath(*VST3_FOLDER)
     for parent, dirs, files in os.walk(root, followlinks=False):
         here = Path(parent)
         for name in list(dirs):
@@ -180,11 +217,11 @@ def installed_modules(environment):
                 dirs.remove(name)
                 module = pe_version.module_of(here / name)
                 if module is not None and not module.is_symlink():
-                    found.append((module, here / name))
+                    found.append((module, here / name, 'vst3'))
         for name in files:
             path = here / name
             if name.lower().endswith('.vst3') and not path.is_symlink():
-                found.append((path, path))
+                found.append((path, path, 'vst3'))
     return found
 
 
@@ -201,24 +238,29 @@ def module_version(path):
     return _versions[key]
 
 
-def unpublished(records, known_modules):
+def unpublished(records, known_modules, kinds=('vst3',)):
     """{environment id: {vendor: [names]}} for plug-ins installed but never published.
 
     The vendor comes from each file's version resource. A plug-in that was
     published once and then retired is not "not published yet", so every
-    module the library has a record of is left out.
+    module the library has a record of is left out. Only the formats the
+    library publishes count, and a VST2 or CLAP waits under its format's
+    name, so it is not mistaken for the VST3 of the same product.
     """
+    from . import formats
     known = {str(Path(m)) for m in known_modules if m}
     found = {}
     for record in records:
         if record.get('dangling'):
             continue
-        for module, shown in installed_modules(record['path']):
+        for module, shown, kind in installed_modules(record['path'], kinds):
             if str(module) in known:
                 continue
             info = module_version(module)
             vendor = vendor_name(info['CompanyName']) if info.get('CompanyName') else UNIDENTIFIED
             name = info.get('ProductName') or shown.stem
+            if kind != 'vst3':
+                name += ' (' + formats.LABELS[kind] + ')'
             names = found.setdefault(record['id'], {}).setdefault(vendor, [])
             if name not in names:
                 names.append(name)
@@ -447,7 +489,7 @@ class LibraryView:
     # ------------------------------------------------------------ the model
 
     def update(self, records, setups, jobs, sizes, breakdown, spare_runtimes, nested, plugins=(), softube=(),
-               known_modules=None, dead_bundles=()):
+               known_modules=None, dead_bundles=(), kinds=('vst3',)):
         self.dead_bundles = list(dead_bundles)
         spelled = {}
         self.vendor_plugins = plugins_by_vendor(plugins, spelled)
@@ -465,7 +507,7 @@ class LibraryView:
                     self.plugin_index.setdefault((plugin['env_id'], key), plugin)
         known = known_modules if known_modules is not None else [p.get('module') for p in plugins]
         self.waiting = {}
-        for env_id, groups in unpublished(records, known).items():
+        for env_id, groups in unpublished(records, known, kinds).items():
             for vendor, names in groups.items():
                 vendor = spelled.setdefault(vendor.casefold(), vendor)
                 self.waiting.setdefault(env_id, {}).setdefault(vendor, []).extend(names)
@@ -941,6 +983,8 @@ class LibraryView:
                 and (Path(record['path']) / 'launch-full-proton').is_file():
             item('Use as helper…', lambda: self.host.adopt_helper(record),
                  tooltip='Choose the vendor app the installer left here, so it gets a button like other vendors')
+        item('Plug-ins in your DAW…', lambda: self.host.choose_published(record),
+             tooltip='Take one plug-in, or one format of it, out of your DAW, or put it back')
         live = [s for s in helpers if s.get('running') or s.get('busy') or s.get('needs_attention')]
         if live:
             item('Force close its apps', lambda j=live[0]['job']: self.host.stop_helper(j, 'this environment'),

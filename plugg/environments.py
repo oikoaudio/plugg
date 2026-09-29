@@ -190,7 +190,8 @@ def worthless(store, job_id):
         return False
     if any(p['env_id'] == job['env_id'] for p in store.plugins()):
         return False
-    name = 'import-state.json' if job.get('kind') == 'vst3' else 'helper-setup.json'
+    from . import formats
+    name = 'import-state.json' if formats.is_import(job) else 'helper-setup.json'
     try:
         stage = json.loads((store.root / 'jobs' / job_id / name).read_text()).get('stage')
     except (OSError, ValueError, AttributeError):
@@ -364,6 +365,26 @@ def _bundles_dir(store):
     return Path(store.root) / 'bundles'
 
 
+def _all_bundles(store):
+    """[(bundle, format)] for every bundle directory the library holds, VST3 first."""
+    from . import formats
+    found = []
+    for kind in formats.FORMATS:
+        directory = formats.bundles(store, kind)
+        try:
+            entries = sorted(directory.glob('*.vst3') if kind == 'vst3' else directory.iterdir())
+        except OSError:
+            continue
+        found.extend((entry, kind) for entry in entries
+                     if not entry.name.startswith('.') and entry.is_dir() and not entry.is_symlink())
+    return found
+
+
+def _bundle_name(store, bundle):
+    """How a bundle is named to the person and to remove_dead_bundle: relative to bundles/."""
+    return str(Path(bundle).relative_to(_bundles_dir(store)))
+
+
 def _manifest(bundle):
     try:
         return json.loads((bundle / 'plugg.json').read_text())
@@ -371,35 +392,35 @@ def _manifest(bundle):
         return {}
 
 
-def _managed(bundle):
+def _managed(bundle, kind='vst3'):
     """A bundle this library built: its Linux side carries the marker make_bundle writes."""
-    return (bundle / 'Contents' / 'x86_64-linux' / '.plugg-managed').is_file() and not bundle.is_symlink()
+    from . import formats
+    return (formats.native_directory(bundle, kind) / '.plugg-managed').is_file() and not bundle.is_symlink()
 
 
 def _published(store):
-    """The bundles a DAW can see right now: the targets of the links in the publication folder."""
+    """The bundles a DAW can see right now: the targets of the links in the publication folders."""
+    from . import formats
     seen = set()
-    try:
-        entries = list(Path(store.publication).iterdir())
-    except (OSError, AttributeError, TypeError):
-        return seen
-    for entry in entries:
-        if entry.is_symlink():
-            seen.add(os.path.realpath(entry))
+    for kind in formats.FORMATS:
+        try:
+            entries = list(Path(formats.folder(store, kind)).iterdir())
+        except (OSError, AttributeError, TypeError, ValueError):
+            continue
+        for entry in entries:
+            if entry.is_symlink():
+                seen.add(os.path.realpath(entry))
     return seen
 
 
 def environment_bundles(store, env_id):
     """The bundles built for one environment, by what their own manifest says."""
-    try:
-        candidates = sorted(_bundles_dir(store).glob('*.vst3'))
-    except OSError:
-        return []
-    return [b for b in candidates if _managed(b) and _manifest(b).get('environment') == env_id]
+    return [b for b, kind in _all_bundles(store) if _managed(b, kind) and _manifest(b).get('environment') == env_id]
 
 
-def _windows_module_gone(bundle):
-    link = bundle / 'Contents' / 'x86_64-win' / bundle.name
+def _windows_module_gone(bundle, kind='vst3'):
+    from . import formats
+    link = formats.windows_link(bundle, kind)
     return link.is_symlink() and not link.exists()
 
 
@@ -413,13 +434,9 @@ def dead_bundles(store):
     """
     published = _published(store)
     found = []
-    try:
-        candidates = sorted(_bundles_dir(store).glob('*.vst3'))
-    except OSError:
-        return found
-    for bundle in candidates:
-        if _managed(bundle) and _windows_module_gone(bundle) and os.path.realpath(bundle) not in published:
-            found.append({'name': bundle.name, 'path': str(bundle),
+    for bundle, kind in _all_bundles(store):
+        if _managed(bundle, kind) and _windows_module_gone(bundle, kind) and os.path.realpath(bundle) not in published:
+            found.append({'name': _bundle_name(store, bundle), 'path': str(bundle), 'format': kind,
                           'environment': _manifest(bundle).get('environment')})
     return found
 
@@ -427,8 +444,10 @@ def dead_bundles(store):
 def _remove_bundle(store, bundle):
     """Delete one bundle if it is ours and no DAW-visible link still leads to it."""
     import shutil
+    from . import formats
     bundle = Path(bundle)
-    if bundle.parent != _bundles_dir(store) or not _managed(bundle):
+    kind = next((k for k in formats.FORMATS if bundle.parent == formats.bundles(store, k)), None)
+    if kind is None or not _managed(bundle, kind):
         return False
     if os.path.realpath(bundle) in _published(store):
         return False
@@ -438,7 +457,10 @@ def _remove_bundle(store, bundle):
 
 def remove_dead_bundle(store, name):
     """Delete a bundle dead_bundles() lists. Checked again here, under the publication lock."""
-    if not name or '/' in name or name in ('.', '..'):
+    # VST2 and CLAP bundles are named with their folder, as in "clap/Name".
+    parts = str(name or '').split('/')
+    if (not name or len(parts) > 2 or any(part in ('', '.', '..') for part in parts)
+            or (len(parts) == 2 and parts[0] not in ('vst2', 'clap'))):
         raise core.HostError('Not a bundle of this library: ' + str(name))
     with core.lock(Path(store.root) / 'publication.lock'):
         bundle = _bundles_dir(store) / name

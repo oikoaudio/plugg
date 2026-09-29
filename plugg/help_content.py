@@ -14,8 +14,19 @@ FAQ = (
          "VST3 file. Plugg installs it into a private Windows environment for that vendor, and puts a "
          "small adapter for each plug-in in ~/.vst3/plugg. Your DAW loads the adapter as an ordinary "
          "VST3, and the adapter starts the Windows plug-in and passes its audio and editor back and forth."),
+        ("Can I have VST2 or CLAP too?",
+         "Yes. Press Settings and tick VST2 or CLAP. VST2 is for projects that saved their plug-ins as VST2, "
+         "such as projects made on Windows. The choice applies to plug-ins Plugg adds from then on; for ones "
+         "you already have, use Check again or Refresh library on their vendor. Unticking a format stops new "
+         "ones and never removes what is already in your DAW. VST2 plug-ins go to ~/.vst/plugg and CLAP "
+         "plug-ins to ~/.clap/plugg; add those folders to your DAW's plug-in paths if it does not scan them."),
+        ("How do I take one plug-in, or one format of it, out of my DAW?",
+         "Open the vendor's settings (the cogwheel) and choose Plug-ins in your DAW…. Untick the plug-in, "
+         "or just its VST2 or CLAP, and it leaves your DAW. It stays out when Plugg checks that vendor again, "
+         "until you tick it. Nothing is deleted."),
         ("How do I add a plug-in?",
-         "Drop the .exe, .msi or .vst3 file on the window, or press Choose file… (Ctrl+O). Keep any .bin "
+         "Drop the .exe or .msi installer on the window, or a plug-in file: .vst3, a VST2 .dll or .clap. "
+         "Or press Choose file… (Ctrl+O). Keep any .bin "
          "files beside the .exe. If the vendor's own app opens, install your products there and close it: "
          "Plugg then checks for new plug-ins. Point your DAW at ~/.vst3/plugg and rescan."),
         ("What do the coloured dots mean?",
@@ -60,7 +71,8 @@ FAQ = (
     ("Your files and licences", (
         ("Where are my files?",
          "Everything Plugg keeps is in ~/.local/share/plugg; the bottom of the library adds it up. Your DAW "
-         "scans ~/.vst3/plugg, which holds only links to the adapters."),
+         "scans ~/.vst3/plugg, and ~/.vst/plugg and ~/.clap/plugg if you switched on VST2 or CLAP. They hold "
+         "only links to the adapters."),
         ("Is it safe to delete something?",
          "Cleanup lists what nothing uses. Deleting a vendor's environment removes the Windows software in "
          "it and cannot be undone, so Plugg asks you to type a phrase first. For licensed products, "

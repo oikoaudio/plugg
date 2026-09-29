@@ -18,7 +18,7 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gtk, Gdk, Gio, GLib, Pango
 
 from .core import TERMINAL, doctor
-from . import vendors, standalone
+from . import formats, vendors, standalone
 
 
 from . import theme
@@ -77,6 +77,10 @@ class Manager(Gtk.Application):
         provider.load_from_data(theme.css(self.theme_mode))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         header = Gtk.HeaderBar()
+        settings = Gtk.Button(label="Settings")
+        settings.set_tooltip_text("Choose which plug-in formats Plugg publishes")
+        settings.connect("clicked", self.settings)
+        header.pack_end(settings)
         details = Gtk.Button(label="Details")
         details.connect("clicked", self.details)
         header.pack_end(details)
@@ -98,7 +102,7 @@ class Manager(Gtk.Application):
         # the drop area shrinks to one line and the library gets the room.
         self.hero = label("Windows audio plug-ins in your Linux DAW", "hero", True)
         content.append(self.hero)
-        self.subtitle = label("Add a Windows installer or VST3 plug-in. Plugg handles setup and makes your plug-ins available in your DAW.", "subtitle", True)
+        self.subtitle = label("Add a Windows installer or plug-in. Plugg handles setup and makes your plug-ins available in your DAW.", "subtitle", True)
         content.append(self.subtitle)
         drop = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         self.drop_area = drop
@@ -113,10 +117,15 @@ class Manager(Gtk.Application):
         text.set_valign(Gtk.Align.CENTER)
         self.drop_title = label("Add your Windows plug-ins", "section-title", True)
         text.append(self.drop_title)
-        self.drop_line = label("Drop an installer or VST3 here, or choose a file to get started.", "muted", True)
+        self.drop_line = label("Drop an installer or plug-in here, or choose a file to get started.", "muted", True)
         text.append(self.drop_line)
         self.drop_hint = label("Keep any installer .bin files beside the .exe.", "status", True)
         text.append(self.drop_hint)
+        # What a new plug-in will be published as, where plug-ins are added:
+        # the choice lives under Settings, and is easy to forget there.
+        self.drop_formats = label('', 'status', True)
+        text.append(self.drop_formats)
+        self.show_formats()
         # Adding a second, different installer while the first runs is fine and
         # useful. Dropping the SAME one again because nothing acknowledged it
         # is not, and that is what happened -- so the drop area says what is
@@ -320,6 +329,79 @@ class Manager(Gtk.Application):
         scroll.set_child(view)
         dialog.set_child(scroll)
         dialog.present()
+
+    def show_formats(self):
+        chosen = [formats.LABELS[x] for x in formats.enabled(self.store.root)]
+        self.drop_formats.set_text('Publishes ' + formats.spoken(chosen) + '. Change this under Settings.')
+
+    def settings(self, *_):
+        """Which plug-in formats to publish. VST3 is always on; VST2 and CLAP are the person's choice."""
+        from . import core
+        dialog = Gtk.Window(title="Settings · Plugg", transient_for=self.window, modal=True)
+        dialog.set_default_size(620, -1)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for edge in ('top', 'bottom', 'start', 'end'):
+            getattr(content, 'set_margin_' + edge)(20)
+        content.append(label('Plug-in formats', 'section-title'))
+        content.append(label('Plugg publishes each Windows plug-in in the formats you choose here, in a folder per '
+                             'format. Turn on VST2 to reopen projects that saved their plug-ins as VST2, such as '
+                             'projects made on Windows. Turn on CLAP if your DAW prefers it.', 'muted', True))
+        status = label(formats.summary(self.store), 'status', True)
+        enabled = set(formats.enabled(self.store.root))
+        checks = {}
+        descriptions = {
+            'vst3': 'Always published. Every DAW Plugg is tested with loads VST3.',
+            'vst2': 'For older projects. Add the folder below to your DAW\'s VST2 plug-in paths.',
+            'clap': 'Add the folder below to your DAW\'s CLAP plug-in paths, if it does not look there already.',
+        }
+
+        def changed(*_):
+            chosen = {name for name, check in checks.items() if check.get_active()}
+            try:
+                formats.apply(self.store, chosen)
+            except (formats.FormatError, core.HostError, OSError) as exc:
+                status.set_text(str(exc))
+                for name, check in checks.items():
+                    with check.handler_block(handlers[name]):
+                        check.set_active(name in formats.enabled(self.store.root))
+                return
+            # Said from the whole choice, not the last click: ticking VST2 and
+            # then CLAP must mention both.
+            status.set_text(formats.summary(self.store))
+            self.show_formats()
+
+        handlers = {}
+        for name in formats.FORMATS:
+            check = Gtk.CheckButton(label='_' + formats.LABELS[name], use_underline=True)
+            check.set_active(name in enabled)
+            check.set_sensitive(name != 'vst3')
+            checks[name] = check
+            content.append(check)
+            about = label(descriptions[name], 'muted', True)
+            about.set_margin_start(28)
+            content.append(about)
+            where = label(str(formats.folder(self.store, name)), 'status', True)
+            where.set_selectable(True)
+            where.set_margin_start(28)
+            content.append(where)
+            check.update_property([Gtk.AccessibleProperty.DESCRIPTION],
+                                  [descriptions[name] + ' Folder: ' + str(formats.folder(self.store, name))])
+        for name, check in checks.items():
+            handlers[name] = check.connect('toggled', changed)
+        content.append(status)
+        close = Gtk.Button(label='Close')
+        close.set_halign(Gtk.Align.END)
+        close.connect('clicked', lambda *_: dialog.close())
+        content.append(close)
+        escape = Gtk.ShortcutController(scope=Gtk.ShortcutScope.LOCAL)
+        escape.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string('Escape'),
+                                         action=Gtk.CallbackAction.new(lambda *_: dialog.close() or True)))
+        dialog.add_controller(escape)
+        dialog.set_child(content)
+        # VST3 cannot be changed, so start on the first choice that can.
+        dialog.set_focus(checks['vst2'])
+        dialog.present()
+        return dialog
 
     def show_recipe_problem(self, *_):
         if not self.recipe_problem:
@@ -967,10 +1049,10 @@ class Manager(Gtk.Application):
         return dialog
 
     def choose(self, *_):
-        chooser = Gtk.FileDialog(title="Choose a Windows installer or VST3")
+        chooser = Gtk.FileDialog(title="Choose a Windows installer or plug-in")
         filters = Gio.ListStore.new(Gtk.FileFilter)
-        item = Gtk.FileFilter(name="Windows installers and VST3 plug-ins")
-        for pattern in ("*.exe", "*.EXE", "*.msi", "*.MSI", "*.vst3", "*.VST3"):
+        item = Gtk.FileFilter(name="Windows installers and VST3, VST2 and CLAP plug-ins")
+        for pattern in ("*.exe", "*.EXE", "*.msi", "*.MSI", "*.vst3", "*.VST3", "*.dll", "*.DLL", "*.clap", "*.CLAP"):
             item.add_pattern(pattern)
         filters.append(item)
         chooser.set_filters(filters)
@@ -1522,8 +1604,23 @@ class Manager(Gtk.Application):
                                        else '') if x)
         if maker:
             lines.append(maker)
-        if plugin.get('publication'):
-            lines.append('Your DAW sees: ' + Path(plugin['publication']).name)
+        # The chip stands for the plug-in in every format it was published in.
+        names = {c.get('name') for c in classes if c.get('name')} or {plugin.get('name')}
+        same = [plugin] if plugin.get('publication') else []
+        for other in self.store.plugins():
+            if (other.get('id') == plugin.get('id') or other.get('env_id') != plugin.get('env_id')
+                    or other.get('status') != 'ready' or not other.get('publication')):
+                continue
+            try:
+                theirs = {c.get('name') for c in json.loads(other.get('metadata') or '{}').get('classes') or []}
+            except ValueError:
+                theirs = set()
+            if names & (theirs or {other['name']}):
+                same.append(other)
+        for other in sorted(same, key=lambda p: formats.FORMATS.index(formats.of(p['metadata']))):
+            label_ = formats.LABELS[formats.of(other['metadata'])]
+            lines.append('Your DAW sees: ' + Path(other['publication']).name
+                         + ('' if len(same) == 1 and label_ == 'VST3' else ' (' + label_ + ')'))
         source, job = installation_source(plugin, jobs, setups)
         if source:
             lines.append(source)
@@ -1536,6 +1633,83 @@ class Manager(Gtk.Application):
             lines.extend(setup_recipe_summary(self.store.root, job))
         problem = None if plugin.get('status') == 'ready' else (plugin.get('message') or 'This plug-in needs attention.')
         return {'lines': lines, 'actions': actions, 'problem': problem}
+
+    def choose_published(self, record):
+        """Which of an environment's plug-ins, in which format, your DAW sees.
+
+        One row per plug-in and a box per format it was published in. Unticking
+        takes that one out and keeps it out when the vendor is checked again;
+        ticking puts it back. Nothing is deleted either way.
+        """
+        from . import core
+        from .core import HostError
+        dialog = Gtk.Window(title="In your DAW · Plugg", transient_for=self.window, modal=True)
+        dialog.set_default_size(560, -1)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for edge in ('top', 'bottom', 'start', 'end'):
+            getattr(content, 'set_margin_' + edge)(20)
+        content.append(label('In your DAW', 'section-title'))
+        content.append(label('Untick a plug-in or one of its formats to take it out of your DAW. It stays out when '
+                             'Plugg checks this vendor again, until you tick it. Nothing is deleted.', 'muted', True))
+        status = label('', 'status', True)
+        away = core.kept_out(self.store)
+        rows = {}
+        for plugin in self.store.plugins():
+            if plugin['env_id'] != record['id'] or (plugin['status'] != 'ready' and plugin['id'] not in away):
+                continue
+            try:
+                classes = json.loads(plugin.get('metadata') or '{}').get('classes') or []
+            except ValueError:
+                classes = []
+            name = (classes[0].get('name') if classes else None) or plugin['name']
+            rows.setdefault(name, []).append(plugin)
+        if not rows:
+            content.append(label('Nothing from here is in your DAW.', 'muted', True))
+
+        def toggled(check, plugin):
+            try:
+                if check.get_active():
+                    core.put_back(self.store, plugin['id'])
+                else:
+                    core.keep_out(self.store, plugin['id'])
+                status.set_text('')
+            except (HostError, OSError, ValueError) as exc:
+                status.set_text(str(exc))
+                with check.handler_block(check.plugg_handler):
+                    check.set_active(not check.get_active())
+            self.refresh()
+
+        first = None
+        for name in sorted(rows, key=str.casefold):
+            line = Gtk.Box(spacing=12)
+            title = label(name, None)
+            title.set_hexpand(True)
+            line.append(title)
+            for plugin in sorted(rows[name], key=lambda p: formats.FORMATS.index(formats.of(p['metadata']))):
+                kind = formats.of(plugin['metadata'])
+                check = Gtk.CheckButton(label=formats.LABELS[kind])
+                check.set_active(plugin['status'] == 'ready' and plugin['id'] not in away)
+                check.update_property([Gtk.AccessibleProperty.LABEL], [name + ', ' + formats.LABELS[kind]])
+                check.plugg_handler = check.connect('toggled', toggled, plugin)
+                line.append(check)
+                first = first or check
+            content.append(line)
+        content.append(status)
+        close = Gtk.Button(label='Close')
+        close.set_halign(Gtk.Align.END)
+        close.connect('clicked', lambda *_: dialog.close())
+        content.append(close)
+        escape = Gtk.ShortcutController(scope=Gtk.ShortcutScope.LOCAL)
+        escape.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string('Escape'),
+                                         action=Gtk.CallbackAction.new(lambda *_: dialog.close() or True)))
+        dialog.add_controller(escape)
+        scroll = Gtk.ScrolledWindow(propagate_natural_height=True, max_content_height=640)
+        scroll.set_child(content)
+        dialog.set_child(scroll)
+        if first:
+            dialog.set_focus(first)
+        dialog.present()
+        return dialog
 
     def remove_dead_bundle(self, name):
         """Remove an adapter whose plug-in is gone. It holds nothing, so nothing needs typing first."""
@@ -1902,15 +2076,17 @@ class Manager(Gtk.Application):
             self.subtitle.set_visible(not settled)
             self.drop_title.set_visible(not settled)
             self.drop_hint.set_visible(not settled)
-            self.drop_line.set_text('Drop an installer or VST3 anywhere here to add it. Keep any .bin files beside the .exe.'
-                                    if settled else 'Drop an installer or VST3 here, or choose a file to get started.')
+            self.drop_line.set_text('Drop an installer or plug-in anywhere here to add it. Keep any .bin files beside the .exe.'
+                                    if settled else 'Drop an installer or plug-in here, or choose a file to get started.')
             (self.drop_area.add_css_class if settled else self.drop_area.remove_css_class)('drop-compact')
+            self.show_formats()
             if self.tab == 'library':
                 self.library_view.update(survey.survey(self.store), setups, jobs, self.sizes, self.breakdown,
                                          survey.unused_runtimes(self.store), survey.nested_libraries(self.store),
                                          plugins=plugins, softube={d.name for _, d in softube_setups},
                                          known_modules=[p.get('module') for p in self.store.plugins()],
-                                         dead_bundles=survey.dead_bundles(self.store))
+                                         dead_bundles=survey.dead_bundles(self.store),
+                                         kinds=formats.enabled(self.store.root))
         except Exception as exc:
             self.last = None
             print('Refresh failed:', exc, file=sys.stderr)

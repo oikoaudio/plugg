@@ -88,6 +88,10 @@ def main():
     forget.add_argument('--plugin', help='Managed plug-in id, as shown by list')
     forget.add_argument('--environment', dest='env_id',
                         help='Retire every plug-in published from this environment')
+    unpublish = commands.add_parser('unpublish', help='Take one plug-in in one format out of your DAW, and keep it out')
+    unpublish.add_argument('--plugin', required=True, help='Managed plug-in id, as shown by list')
+    republish = commands.add_parser('republish', help='Put back a plug-in you took out with unpublish')
+    republish.add_argument('--plugin', required=True, help='Managed plug-in id, as shown by list')
     environment_command = commands.add_parser('environment', help='Name an environment (its folder and ID stay the same)')
     environment_command.add_argument('action', choices=('rename', 'helpers', 'use-helper', 'update-launcher'))
     environment_command.add_argument('environment_id', nargs='?', default='',
@@ -107,6 +111,11 @@ def main():
                                 help='Move published plug-ins onto the bridge build this library has now')
     adopt.add_argument('--apply', action='store_true',
                        help='Do it. Without this, prints what would change and touches nothing.')
+    formats_command = commands.add_parser('formats', help='Choose which plug-in formats to publish: VST3, VST2, CLAP')
+    formats_command.add_argument('--enable', action='append', default=[], choices=('vst2', 'clap'),
+                                 help='Publish this format too (repeat for both)')
+    formats_command.add_argument('--disable', action='append', default=[], choices=('vst2', 'clap'),
+                                 help='Stop publishing this format for new plug-ins; published ones stay')
     vendor = commands.add_parser('vendor-worker')
     vendor.add_argument('job')
     vendor.add_argument('--refresh-only', action='store_true')
@@ -410,6 +419,14 @@ def main():
             result = (forget_plugin(store, args.plugin) if args.plugin
                       else forget_environment(store, args.env_id))
             print(json.dumps(result, indent=2))
+        elif args.command == 'unpublish':
+            from .core import keep_out
+            result = keep_out(store, args.plugin)
+            print('Took ' + result['name'] + ' out of your DAW. Check again will leave it out; '
+                  'plugg republish --plugin ' + args.plugin + ' puts it back.')
+        elif args.command == 'republish':
+            from .core import put_back
+            print('Put ' + put_back(store, args.plugin)['name'] + ' back in your DAW.')
         elif args.command == 'environment':
             from . import environments, vendors
             if args.action == 'update-launcher':
@@ -482,6 +499,13 @@ def main():
                 print('\nNothing has changed. Add --apply to do it. The paths your DAW scans stay the same, '
                       'so there is no rescan; a plug-in already loaded keeps running on the files it opened.')
             return 1 if result['problems'] else 0
+        elif args.command == 'formats':
+            from . import formats
+            if args.enable or args.disable:
+                formats.apply(store, (set(formats.enabled(store.root)) | set(args.enable)) - set(args.disable))
+            for name in formats.enabled(store.root):
+                print('%-5s published to %s' % (formats.LABELS[name], formats.folder(store, name)))
+            print('\n' + formats.summary(store))
         elif args.command == 'vendor-worker':
             from .vendors import work as vendor_work
             vendor_work(store, args.job, args.refresh_only)

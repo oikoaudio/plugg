@@ -16,6 +16,15 @@ from . import core
 from .proton_session import foreign_prefix_processes
 
 ROOTS = ('Program Files/Common Files/VST3',)
+#: Where vendors' own apps put each format. VST2 has no standard folder, so
+#: these are the ones installers and managers commonly default to.
+FORMAT_ROOTS = {
+    'vst3': ROOTS,
+    'clap': ('Program Files/Common Files/CLAP',),
+    'vst2': ('Program Files/Common Files/VST2', 'Program Files/Common Files/Steinberg/VST2',
+             'Program Files/VSTPlugins', 'Program Files/Steinberg/VSTPlugins',
+             'Program Files/Native Instruments/VSTPlugins 64 bit'),
+}
 # Wine's and Proton's own background programs. tabtip.exe (the on-screen
 # keyboard helper) and xalia.exe (Proton's accessibility helper) start on
 # their own and linger; treating them as open applications blocked every
@@ -390,28 +399,41 @@ def float_helper(prefix, handled):
         return 'Float the Helper window if its controls are stretched or unresponsive.'
 
 
-def installed(prefix):
-    """Only standard installed 64-bit VST3s, never the Helper download cache."""
+def installed(prefix, kinds=None):
+    """Plug-ins in the standard install folders, never the Helper download cache.
+
+    kinds limits the formats; by default every format is listed, which is what
+    a before-and-after snapshot wants. 32-bit VST2 and CLAP files are left out,
+    as discover() does.
+    """
+    from . import formats
+    kinds = formats.FORMATS if kinds is None else kinds
     drive = (prefix / 'drive_c').resolve()
     result = []
-    for relative in ROOTS:
-        root = drive / relative
-        if not root.exists():
-            continue
-        if root.is_symlink() or not root.resolve().is_relative_to(drive):
-            raise core.HostError('The installed VST3 directory is outside this environment.')
-        # discover expects a drive_c child; use its bounded walker directly here.
-        for parent, dirs, files in os.walk(root, followlinks=False):
-            dirs[:] = [d for d in dirs if not (Path(parent) / d).is_symlink()]
-            for name in files:
-                path = Path(parent) / name
-                if path.suffix.lower() != '.vst3' or path.is_symlink():
-                    continue
-                try:
-                    arch = core.pe_machine(path)
-                except core.HostError:
-                    continue
-                result.append({'path': path, 'name': path.stem, 'machine': arch, 'hash': core.digest(path)})
+    seen = set()
+    for kind in kinds:
+        for relative in FORMAT_ROOTS[kind]:
+            root = drive / relative
+            if not root.exists():
+                continue
+            if root.is_symlink() or not root.resolve().is_relative_to(drive):
+                raise core.HostError('The installed ' + formats.LABELS[kind] + ' directory is outside this environment.')
+            # discover expects a drive_c child; use its bounded walker directly here.
+            for parent, dirs, files in os.walk(root, followlinks=False):
+                dirs[:] = [d for d in dirs if not (Path(parent) / d).is_symlink()]
+                for name in files:
+                    path = Path(parent) / name
+                    if path.is_symlink() or path in seen or formats.module_format(path) != kind:
+                        continue
+                    try:
+                        arch = core.pe_machine(path)
+                    except core.HostError:
+                        continue
+                    if kind != 'vst3' and arch != 0x8664:
+                        continue
+                    seen.add(path)
+                    result.append({'path': path, 'name': path.stem, 'machine': arch, 'hash': core.digest(path),
+                                   'format': kind})
     return sorted(result, key=lambda x: str(x['path']))
 
 
@@ -424,15 +446,16 @@ def refresh_library(store, job_id, *, probe_only=None):
     licensed plug-in makes it ask for activation, so retrying every waiting
     plug-in after each install would stack one activation window per product.
     """
+    from . import formats
     configuration(store, job_id)
-    items = installed(store.prefix(job_id))
+    items = installed(store.prefix(job_id), formats.enabled(store.root))
     existing = {}
     for plugin in store.plugins():
         if plugin['status'] == 'removed' or not plugin['publication']:
             continue
-        bundle = Path(plugin['publication'])
-        module = bundle / 'Contents/x86_64-win' / bundle.name
-        existing[module.resolve()] = plugin
+        kind = formats.of(plugin['metadata'])
+        module = formats.windows_link(Path(plugin['publication']), kind)
+        existing[(module.resolve(), kind)] = plugin
     added = 0
     unchanged = 0
     # Updated by the vendor's own app. The DAW's adapter links to the module
@@ -440,8 +463,12 @@ def refresh_library(store, job_id, *, probe_only=None):
     updated = []
     failures = []
     waiting = []
+    skipped = core.kept_out(store)
     for item in items:
-        previous = existing.get(item['path'].resolve())
+        if core.plugin_identity(job_id, item['path']) in skipped:
+            # Taken out of the DAW on purpose: not loaded, not counted.
+            continue
+        previous = existing.get((item['path'].resolve(), item['format']))
         if previous:
             if previous['hash'] == item['hash']:
                 unchanged += 1
@@ -454,7 +481,7 @@ def refresh_library(store, job_id, *, probe_only=None):
         try:
             if item['machine'] != 0x8664:
                 raise core.HostError('Only 64-bit VST3 plug-ins are supported.')
-            metadata = core.probe(store, item['path'], job_id)
+            metadata = core.probe(store, item['path'], job_id, item['format'])
             if core.digest(item['path']) != item['hash']:
                 raise core.HostError('Installation is still changing. Close the Helper and refresh again.')
             core.publish(store, item, job_id, metadata)
@@ -504,6 +531,7 @@ def finish_installation(store, job_id, *, busy=None, before_scan=None, after_sca
     a runtime, installs dependencies, or replaces existing publications.
     The caller owns the environment's helper/job locks.
     """
+    from . import formats
     directory, _ = configuration(store, job_id)
     busy = busy or applications
     def report(status, message):
@@ -514,7 +542,7 @@ def finish_installation(store, job_id, *, busy=None, before_scan=None, after_sca
     quiet_since = None
     deadline = time.monotonic() + 600
     while time.monotonic() < deadline:
-        signature = [(str(x['path']), x['hash']) for x in installed(store.prefix(job_id))]
+        signature = [(str(x['path']), x['hash']) for x in installed(store.prefix(job_id), formats.enabled(store.root))]
         if busy(store.prefix(job_id)) or signature != last:
             quiet_since = time.monotonic()
         elif quiet_since is not None and time.monotonic() - quiet_since >= 5:
@@ -523,7 +551,7 @@ def finish_installation(store, job_id, *, busy=None, before_scan=None, after_sca
         time.sleep(1)
     else:
         raise core.HostError('Installation has not settled. Close installer windows, then refresh the library.')
-    report('scanning', 'Checking installed VST3 plug-ins…')
+    report('scanning', 'Checking installed plug-ins…')
     # probe() checks the job cancellation flag; old cancelled runs must not
     # prevent this explicitly requested vendor operation.
     with store.db() as db:
