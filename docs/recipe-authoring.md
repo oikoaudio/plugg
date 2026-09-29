@@ -90,7 +90,7 @@ The first implementation is complete when someone can add a second recipe using 
 
 A helper adapter calls `plugg.vendors.finish_installation(store, job_id, *, busy=None, before_scan=None, after_scan=None)` once its installer has finished and its environment is free for discovery. This is the current internal interface. The public TOML schema has no declarative helper-installer operation for it.
 
-The caller holds the environment's `helper.lock` and the owning job's `job.lock` until completion. The shared workflow waits for the VST3 content to stay unchanged for five seconds, for up to ten minutes. It then probes and publishes new modules, keeps unchanged publications, and records results in `vendor-scan-result.json` and `helper-state.json`. A failed probe does not stop the other modules from being considered. Plugg reports changed installed versions instead of silently updating them. It scans only installed VST3 locations. Installer caches, VST2 and AAX are never publication sources.
+The caller holds the environment's `helper.lock` and the owning job's `job.lock` until completion. The shared workflow waits for the VST3 content to stay unchanged for five seconds, for up to ten minutes. It then probes and publishes new modules, keeps unchanged publications, and records results in `vendor-scan-result.json` and `helper-state.json`. A failed probe does not stop the other modules from being considered. Plugg reports changed installed versions instead of silently updating them. It scans only installed plug-in locations: VST3, and VST2 and CLAP when the library publishes them. Installer caches and AAX are never publication sources.
 
 The optional hooks each do one narrow job:
 

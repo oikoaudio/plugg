@@ -11,15 +11,15 @@
   <img src="docs/images/library-light.png" width="720" alt="Plugg's library: one row per vendor (iLok, Kilohearts, Klevgrand, Native Instruments, Plugin Alliance, Universal Audio), each with a status dot, its size and a button that opens the vendor's app.">
 </picture>
 
-Install a plug-in with the vendor's own Windows installer, and it shows up in your DAW as a native VST3. Each vendor gets its own Windows environment, so one vendor's setup can't break another's. Plug-ins keep their vendor's licensing, iLok included.
+Install a plug-in with the vendor's own Windows installer, and it shows up in your DAW as a native VST3, and as VST2 or CLAP if you want those too. Each vendor gets its own Windows environment, so one vendor's setup can't break another's. Plug-ins keep their vendor's licensing, iLok included.
 
 > **Developer preview.** It works on the maintainer's machine (CachyOS, Hyprland, Bitwig) with a small set of tested vendors. Plugg is not affiliated with Valve, Bitwig or any plug-in vendor.
 
 ## What it does
 
-- **Takes an installer or a VST3.** Drop in an EXE, an MSI, or a Windows VST3 file or bundle. Plugg installs it in the background into a private Windows environment and keeps the installer next to it.
+- **Takes an installer or a plug-in file.** Drop in an EXE, an MSI, a Windows VST3 file or bundle, a VST2 DLL or a CLAP file. Plugg installs it in the background into a private Windows environment and keeps the installer next to it.
 - **Runs the vendor's own manager.** Plugg installs, opens and watches Native Access, UA Connect, Softube Central or a vendor's helper app, and refreshes the library when you close it.
-- **Publishes native VST3s.** Plugg publishes what it finds where your DAW looks, with the plug-ins' original class IDs, so saved projects find them again.
+- **Publishes native VST3s, and VST2 or CLAP if you choose.** Plugg publishes what it finds where your DAW looks, with the plug-ins' original IDs, so saved projects find them again. VST2 lets you reopen old Windows projects. See [plug-in formats](docs/plugin-formats.md).
 - **Uses recipes that are data, not scripts.** You can read what a shared recipe can do before you use it, and its location limits what it may declare.
 - **Protects what holds licences.** An environment with activations refuses operations that could cost you a seat, unless you acknowledge them explicitly.
 - **Shows the disk cost.** You see each environment's size and what takes the space. Deleting one needs a typed confirmation.
@@ -36,7 +36,7 @@ Then start Plugg from your applications menu, or run `plugg gui`. Plugg download
 
 Plugg will also be in the AUR once the AUR takes new accounts again. On other distributions, [build from a checkout](docs/building.md#build-from-a-checkout).
 
-Drop in an EXE, MSI or Windows VST3. Leave any BIN files next to an EXE, and Plugg copies them too. Then point your DAW at `~/.vst3/plugg`, where each plug-in appears as a bundle named after itself.
+Drop in an EXE, MSI, or a Windows VST3, VST2 DLL or CLAP file. Leave any BIN files next to an EXE, and Plugg copies them too. Then point your DAW at `~/.vst3/plugg`, where each plug-in appears as a bundle named after itself. If you switch on VST2 or CLAP under Settings, those go to `~/.vst/plugg` and `~/.clap/plugg`.
 
 [The compatibility notes](docs/compatibility/) say, vendor by vendor, what has been tested. For each plug-in they say whether the DAW only found it, or whether it was also played and reloaded.
 

@@ -69,6 +69,14 @@ A small curated set of good free Linux plug-ins with direct vendor downloads, in
 
 The download data is already in the native entries of the bundled recipe leads. Updates need deciding first. Some vendors keep fixed versioned links and others serve a rolling "latest". The options are to re-pin hashes with each Plugg release, or to accept a vendor's HTTPS download for rolling links. This is parked until the Windows side is finished. It would make a good self-contained first contribution.
 
+### 32-bit plug-ins
+
+Plugg bridges 64-bit plug-ins only. It skips 32-bit VST2 and CLAP files an installer leaves behind, and refuses a dropped 32-bit DLL. Many old Windows freebies that older projects use were never released as 64-bit, so this matters most for VST2.
+
+yabridge can host them through its bitbridge, a separate 32-bit Wine host that the bridge picks for a 32-bit DLL. The shipped UMU-Proton 10.0-4 still has a 32-bit `bin/wine` loader and 32-bit Unix libraries, `ntdll.so` and `winex11.so` among them. Two things are unknown: whether the 32-bit host builds without trouble (multilib GCC and 32-bit Wine and xcb libraries, locally, in the release container and for the AUR), and whether it runs under this Proton, with DXVK and the `plugg-1` overlay. Installers also often put a 32-bit and a 64-bit copy of one plug-in side by side, so Plugg would publish the 64-bit one and skip the other.
+
+The next step is a short test: build the bridge with `-Dbitbridge=true`, build a 32-bit copy of the VST2 gain fixture, and play audio through it in a throwaway library. If the build or the runtime fights back, this stays parked.
+
 ## Known hard problems
 
 **PACE and iLok.** `plugg ilok create` installs the unmodified PACE MSI on the `plugg-1` runtime, which carries source fixes for the two Wine gaps that stopped it. Activation works. Reboots, PACE updates and more vendors are still untested, and setup is command-line only. The app has no guided flow for it yet. Recipes can't provision PACE. See [iLok and PACE](docs/recipes/pace.md) and [the runtime](docs/runtime.md).

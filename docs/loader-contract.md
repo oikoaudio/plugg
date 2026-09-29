@@ -4,7 +4,7 @@ This page describes what happens between a DAW loading a published plug-in and t
 
 ## From a DAW to the Windows module
 
-1. A stable publication link points at a completed native VST3 bundle in the managed library. Its publication manifest records the module hash, environment, class identities and metadata. Publication checks for duplicate class identities and refuses unsupported in-place replacement.
+1. A stable publication link points at a completed native VST3 bundle, or a VST2 or CLAP folder, in the managed library ([plug-in formats](plugin-formats.md)). Its publication manifest records the module hash, environment, class identities and metadata. Publication checks for duplicate class identities and refuses unsupported in-place replacement.
 2. The native chainloader sees `.plugg-managed` and loads the bridge beside it. If that local library fails, it does not fall back to a system bridge.
 3. The bridge resolves the Windows module symlink and walks up its parent directories looking for `.plugg-runtime`. That marker names the absolute path of the launcher and overrides the DAW-wide Wine selection. Bridges built with patch 0003 also reject a managed publication with no marker, instead of falling back to system Wine.
 4. For a managed Proton environment, `launch-plugin` runs the environment's copy of the session manager with `session.json`. The launch checks the initialized prefix, the executable runtime entry points and the idle timeout. When a manager SHA-256 is recorded, it checks that too. Invalid configuration fails before Plugg creates an IPC endpoint or starts Wine.

@@ -18,7 +18,7 @@ Install products in Helper, then close it. The worker waits for the remaining Wi
 
 ## What is scanned and published
 
-Plugg scans only `drive_c/Program Files/Common Files/VST3`. It skips VST2, AAX and the copies in Helper's download cache. Discovery handles flat VST3 modules and modules inside VST3 bundles. It does not follow symlinked files or directories. It reports unsupported 32-bit modules.
+Plugg scans only `drive_c/Program Files/Common Files/VST3`, plus the standard VST2 and CLAP folders when the library publishes those formats (see [plug-in formats](plugin-formats.md)). It skips AAX and the copies in Helper's download cache. Discovery handles flat VST3 modules and modules inside VST3 bundles. It does not follow symlinked files or directories. It reports unsupported 32-bit modules.
 
 Plugg matches existing publications by their resolved Windows module path and hash. An existing publication keeps its class ID and is not duplicated. Plugg does not reload unchanged modules. A new module must pass discovery and a post-probe hash check before Plugg publishes it. Plugg reports a changed installed version for your attention instead of republishing it. That does not undo changes a vendor updater has already made. Managed update rollback does not exist yet. Plugg does not unpublish removed products automatically.
 
