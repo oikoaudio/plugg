@@ -12,13 +12,13 @@
 
 pkgname=plugg
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Managed Windows VST3 plug-ins for native Linux DAWs, on a pinned Proton runtime'
 arch=(x86_64)
 url='https://github.com/oikoaudio/plugg'
 license=(GPL-3.0-or-later)
 depends=(python python-gobject gtk4 zstd libarchive libxcb dbus bubblewrap xdg-utils)
-makedepends=(git meson ninja wine go python-build python-installer python-setuptools python-wheel)
+makedepends=(git meson ninja wine go python-build python-setuptools python-wheel)
 conflicts=(plugg-git)
 # !strip and !debug: the bridge's and the forwarder's build.json record the
 # hashes of the binaries as built, and Plugg checks them; stripping or
@@ -59,8 +59,15 @@ check() {
 
 package() {
     cd "$pkgname-$pkgver"
-    python -m installer --destdir="$pkgdir" "$srcdir"/dist/*.whl
-    install -d "$pkgdir/usr/lib/plugg"
+    # The layout of the .deb and .rpm: the wheel's plugg/ in /usr/lib/plugg/app,
+    # started by packaging/launcher.sh, rather than site-packages, which is
+    # named after one Python version and strands the app when Arch moves on.
+    rm -rf "$srcdir/wheel"
+    python -m zipfile -e "$srcdir"/dist/plugg-*.whl "$srcdir/wheel"
+    install -d "$pkgdir/usr/lib/plugg/app"
+    cp -a "$srcdir/wheel/plugg" "$pkgdir/usr/lib/plugg/app/plugg"
+    python -m compileall -q -d /usr/lib/plugg/app "$pkgdir/usr/lib/plugg/app"
+    install -Dm755 packaging/launcher.sh "$pkgdir/usr/bin/plugg"
     cp -a "$srcdir/bridge" "$pkgdir/usr/lib/plugg/bridge"
     cp -a bundle/powershell-forwarder "$pkgdir/usr/lib/plugg/powershell-forwarder"
     install -Dm644 packaging/arch/com.oikoaudio.Plugg.desktop \

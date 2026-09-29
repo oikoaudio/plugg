@@ -50,17 +50,6 @@ NFPM_SHA256 = '0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783'
 #: The files the forwarder build writes (scripts/build-powershell-forwarder.py).
 FORWARDER_FILES = ('powershell32.exe', 'powershell64.exe', 'LICENSE.forwarder', 'LICENSE.Go')
 
-# The launcher puts the app on the module path inside Python, not through
-# PYTHONPATH, so the path does not leak into Proton or vendor programs (the
-# same way plugg.core.plugg_command starts Plugg). -P keeps the current
-# directory off the path.
-LAUNCHER = '''#!/bin/sh
-# Plugg, as installed by the distribution package. The app is in
-# /usr/lib/plugg/app and runs on the system Python, with the distribution's
-# PyGObject and GTK 4.
-exec /usr/bin/python3 -P -c 'import runpy, sys; sys.path.insert(0, "/usr/lib/plugg/app"); runpy.run_module("plugg", run_name="__main__", alter_sys=True)' "$@"
-'''
-
 DEB_COPYRIGHT = '''Plugg {version}
 Source: https://github.com/oikoaudio/plugg (tag v{version})
 
@@ -212,7 +201,8 @@ def stage(root, wheel, bridge, forwarder, version, staging):
     stage_app(wheel, version, lib / 'app')
     stage_bridge(bridge, version, lib / 'bridge')
     stage_forwarder(forwarder, lib / 'powershell-forwarder')
-    write(tree / 'usr/bin/plugg', LAUNCHER.encode(), executable=True)
+    # The Arch package installs the same launcher (packaging/aur/*/PKGBUILD).
+    write(tree / 'usr/bin/plugg', (root / 'packaging/launcher.sh').read_bytes(), executable=True)
     write(tree / 'usr/share/applications/com.oikoaudio.Plugg.desktop',
           (root / 'packaging/arch/com.oikoaudio.Plugg.desktop').read_bytes())
     write(tree / 'usr/share/doc/plugg/README.md', (root / 'README.md').read_bytes())

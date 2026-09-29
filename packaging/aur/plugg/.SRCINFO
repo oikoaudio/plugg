@@ -1,7 +1,7 @@
 pkgbase = plugg
 	pkgdesc = Managed Windows VST3 plug-ins for native Linux DAWs, on a pinned Proton runtime
 	pkgver = 0.1.0
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/oikoaudio/plugg
 	arch = x86_64
 	license = GPL-3.0-or-later
@@ -11,7 +11,6 @@ pkgbase = plugg
 	makedepends = wine
 	makedepends = go
 	makedepends = python-build
-	makedepends = python-installer
 	makedepends = python-setuptools
 	makedepends = python-wheel
 	depends = python

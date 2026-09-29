@@ -60,9 +60,11 @@ class RewriteTest(unittest.TestCase):
         self.assertEqual(values(new, 'sha256sums'), [HASH, values(RELEASE, 'sha256sums')[1]])
 
     def test_only_pkgver_and_the_hash_change(self):
-        new = update_aur.rewrite(RELEASE, '0.2.0', HASH)
-        changed = [(a, b) for a, b in zip(RELEASE.splitlines(), new.splitlines()) if a != b]
-        self.assertEqual(len(RELEASE.splitlines()), len(new.splitlines()))
+        # From pkgrel=1, so the reset to 1 for a new version changes nothing.
+        old = update_aur.set_field(RELEASE, 'pkgrel', '1')
+        new = update_aur.rewrite(old, '0.2.0', HASH)
+        changed = [(a, b) for a, b in zip(old.splitlines(), new.splitlines()) if a != b]
+        self.assertEqual(len(old.splitlines()), len(new.splitlines()))
         self.assertEqual([b for _, b in changed], ['pkgver=0.2.0', f"sha256sums=('{HASH}'"])
 
     def test_the_same_version_keeps_its_pkgrel_unless_one_is_given(self):

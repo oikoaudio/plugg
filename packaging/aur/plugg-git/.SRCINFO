@@ -11,7 +11,6 @@ pkgbase = plugg-git
 	makedepends = wine
 	makedepends = go
 	makedepends = python-build
-	makedepends = python-installer
 	makedepends = python-setuptools
 	makedepends = python-wheel
 	depends = python

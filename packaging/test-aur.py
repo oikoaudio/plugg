@@ -14,10 +14,11 @@ In the container, as root: packages come from the Arch Linux Archive at a
 fixed date (or the live mirrors with --live). As the unprivileged user
 builder: the committed .SRCINFO files must equal makepkg --printsrcinfo, then
 makepkg -si builds, runs the unit suite in check() and installs. As a second
-ordinary user with an empty home: packaging/aur-check.py (plugg doctor, the
-bridge, the PowerShell forwarder) and packaging/container-check.py (native
-libraries, the scanner, a GTK window under Xvfb). namcap's findings are logged
-and do not fail the test.
+ordinary user with an empty home: packaging/package-check.py, the same checks
+the .deb and .rpm pass (plugg doctor, the bridge, the PowerShell forwarder,
+the app in /usr/lib/plugg/app, then the GTK window under Xvfb). Last, as
+root, pacman -R must leave nothing behind. namcap's findings are logged and
+do not fail the test.
 
 No host mounts. Only this invocation's container is removed. Existing
 containers, images, networks and volumes are never cleaned up or reconfigured.
@@ -42,7 +43,7 @@ LABEL_KEY, LABEL_VALUE = 'plugg.test', 'aur'
 # The Arch Linux Archive snapshot the container's packages come from. Moving
 # it moves the compiler, Wine, Python and GTK the package is tested with.
 ARCHIVE_DATE = '2026/09/27'
-TOOLS = 'base-devel git sudo namcap xorg-server-xvfb xorg-xauth'
+TOOLS = 'base-devel git sudo namcap xorg-server-xvfb xorg-xauth xorg-xwininfo desktop-file-utils'
 
 
 def git(*args, **kwargs):
@@ -62,10 +63,9 @@ def stage(package, staging, as_committed=False):
             target = staging / 'aur' / name / file
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(head_file(f'packaging/aur/{name}/{file}'))
-    for name in ('aur-check.py', 'container-check.py'):
-        target = staging / 'checks' / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(head_file('packaging/' + name))
+    target = staging / 'checks/package-check.py'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(head_file('packaging/package-check.py'))
     build = staging / 'pkg'
     build.mkdir()
     pkgbuild = head_file(f'packaging/aur/{package}/PKGBUILD').decode()
@@ -192,10 +192,16 @@ pacman -Qlq {args.package} | grep '^/usr/lib/plugg/'
 namcap ~/pkg/PKGBUILD ~/pkg/*.pkg.tar.zst || true
 ''', user='builder')
         summary['installed'] = installed.splitlines()[0]
-        container.step('05-aur-check', '/usr/bin/python -I /buildsrc/checks/aur-check.py', user='musician')
-        container.step('06-container-check', 'xvfb-run -a dbus-run-session -- /usr/bin/python -I '
-                       '/buildsrc/checks/container-check.py --bridge /usr/lib/plugg/bridge',
+        check = '/usr/bin/python3 -I /buildsrc/checks/package-check.py %s --version ' + summary['version']
+        container.step('05-check-cli', check % 'cli', user='musician')
+        container.step('06-check-gui', 'desktop-file-validate /usr/share/applications/com.oikoaudio.Plugg.desktop\n'
+                       'xvfb-run -a dbus-run-session -- ' + check % 'gui',
                        user='musician', env={'GSK_RENDERER': 'cairo'})
+        container.step('07-remove', f'''
+pacman -R --noconfirm {args.package}
+test ! -e /usr/lib/plugg && test ! -e /usr/bin/plugg && test ! -e /usr/share/applications/com.oikoaudio.Plugg.desktop
+echo 'removed cleanly'
+''')
         summary['passed'] = True
     finally:
         # Even on failure, keep the results and the package, and remove only our container.
@@ -203,8 +209,8 @@ namcap ~/pkg/PKGBUILD ~/pkg/*.pkg.tar.zst || true
                                   capture_output=True, text=True).stdout.split()
         for path in packages:
             container.copy_out(path, output / Path(path).name)
-        for source, target in [('/home/musician/aur-result.json', 'aur-result.json'),
-                               ('/home/musician/package-result.json', 'package-result.json')]:
+        for source, target in [('/home/musician/package-check-cli.json', 'package-check-cli.json'),
+                               ('/home/musician/package-check-gui.json', 'package-check-gui.json')]:
             container.copy_out(source, output / target)
         (output / 'result.json').write_text(json.dumps(summary, indent=2) + '\n')
         container.remove()
