@@ -33,7 +33,7 @@ Direct imports appear under Added files, next to installer jobs. A recognized im
 
 Plugg selects and imports one plug-in at a time. Active vendor applications prevent reuse. This check only happens at the start. It does not stop you from launching a DAW afterwards.
 
-Each import job keeps its own identity and saved payload. The publication records the environment the jobs actually share. A rescan probes only the selected import. Plugg stores accompanying documents in per-job directories, so one product's readme or licence never overwrites another's. Environments share runtime files, but not a writable Windows base layer. Keep a shared runtime while any environment uses it. There is no general runtime cleanup policy yet.
+Each import job keeps its own identity and saved payload. The publication records the environment the jobs share. A rescan probes only the selected import. Plugg stores accompanying documents in per-job directories, so one product's readme or licence never overwrites another's. Environments share runtime files, but not a writable Windows base layer. Keep a shared runtime while any environment uses it. There is no general runtime cleanup policy yet.
 
 Visual C++ runtime generations can coexist. One environment can hold both 2013 and 2022 and serve all four plug-ins above, so different requirements do not by themselves mean incompatibility. Combining existing environments this way is a manual job for now, and you should take a snapshot first. The automatic import policy only reuses environments whose dependencies are already met. It never installs an extra runtime into an existing environment. A managed dependency-update workflow is future work.
 

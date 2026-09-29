@@ -1,6 +1,6 @@
 # Design principles
 
-Plugg should be a small application that makes Windows plug-ins comfortable on Linux. Complexity goes where a real compatibility problem needs it and nowhere else. The user sees their plug-ins and the actions that matter. The code has clear ownership, explicit state and few moving parts.
+Plugg should be a small application that gets Windows plug-ins running in a Linux DAW with as little setup as possible. Add complexity only where a compatibility problem needs it. The user sees their plug-ins and the actions they use most. In the code, state is explicit and each part has one job.
 
 ## Engineering
 

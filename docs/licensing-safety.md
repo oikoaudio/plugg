@@ -76,7 +76,7 @@ The guard refuses an unknown operation name. It fails closed.
 
 `recipe apply` calls the guard before it takes any lock or writes any file, and records the outcome in `recipe-lock.json`. `recipe status` and the manager's installation details show the same result. They also warn when an environment no longer matches its record.
 
-## Acknowledging a change you actually want
+## Acknowledging a change you want
 
 ~~~sh
 plugg licensing status --environment <path>
@@ -91,7 +91,7 @@ plugg licensing acknowledge --environment <path> \
 
 The phrase depends on the strictest product in the environment. Run the command without `--confirm` to see the phrase it needs. An acknowledgement covers one named operation and expires after two hours. The guard uses it up the first time it accepts it, so it authorizes the attempt you thought about, not every repeat within the window. Nothing creates an acknowledgement on your behalf.
 
-For an environment with limited activations, the phrase is deliberately blunt, `I ACCEPT LOSING A LIMITED ACTIVATION`, because that is what will happen.
+For an environment with limited activations, the phrase is `I ACCEPT LOSING A LIMITED ACTIVATION`, because that is what will happen.
 
 ## Recovery points
 

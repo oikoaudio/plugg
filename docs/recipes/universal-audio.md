@@ -8,7 +8,7 @@ The findings behind this recipe are in [the UA compatibility notes](../compatibi
 
 | Component | What it does | Automation status |
 | --- | --- | --- |
-| PACE / iLok License Support | Shared services and License Manager for products deliberately grouped in one environment | Diagnostic setup only. Clean provisioning is still blocked. |
+| PACE / iLok License Support | Shared services and License Manager for the products that share one environment | Diagnostic setup only. Clean provisioning is still blocked. |
 | Windows archive tools | Extraction tools on the helper's Windows PATH | The shared component stages the pinned tools and notices, then the UA adapter copies missing files. |
 | UA Connect helper compatibility | Helper graphics arguments, consent to disable Electron's sandbox, window placement, process cleanup and library refresh | The setup adapter reuses the existing launcher after consent and prerequisite checks. |
 | OLE32 foreign-window guard | Fixes the LA-2A editor-close crash | Checks exact runtime and prefix files. Does not install the patch. |
@@ -69,7 +69,7 @@ It does not launch UA Connect, transfer activations or update installed plug-ins
 
 For a new helper configuration, `--allow-electron-no-sandbox` gives explicit permission for UA Connect's compatibility flags. They affect the helper only, and Wine does not act as a security boundary in their place. Plugg can reuse consent you gave before. Viewing or comparing the recipe never asks for consent.
 
-Do not rebuild a working iLok environment to test this. The next end-to-end check needs a deliberately prepared test environment, a login and a product installation. Keep track of any activation it uses.
+Do not rebuild a working iLok environment to test this. The next end-to-end check needs a test environment prepared for it, a login and a product installation. Keep track of any activation it uses.
 
 ## Updating UA Connect
 

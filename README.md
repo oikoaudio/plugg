@@ -2,7 +2,7 @@
 
 **Windows audio plug-ins in your Linux DAW.**
 
-Install a plug-in with the vendor's own Windows installer, and it shows up in your DAW as a native VST3. Each vendor gets its own Windows environment, so one vendor's setup can't break another's. Licensing works the way the vendor intended, iLok included.
+Install a plug-in with the vendor's own Windows installer, and it shows up in your DAW as a native VST3. Each vendor gets its own Windows environment, so one vendor's setup can't break another's. Plug-ins keep their vendor's licensing, iLok included.
 
 > **Developer preview.** It works on the maintainer's machine (CachyOS, Hyprland, Bitwig) with a small set of tested vendors. Plugg is not affiliated with Valve, Bitwig or any plug-in vendor.
 
@@ -32,7 +32,7 @@ The build takes a few minutes, because it compiles the plug-in bridge from pinne
 
 Drop in an EXE, MSI or Windows VST3. Leave any BIN files next to an EXE, and Plugg copies them too. Then point your DAW at `~/.vst3/plugg`, where each plug-in appears as a bundle named after itself.
 
-[The compatibility notes](docs/compatibility/) say, vendor by vendor, what has been tested. "The DAW found it" and "it actually worked" are different claims, and the notes say which one they make.
+[The compatibility notes](docs/compatibility/) say, vendor by vendor, what has been tested. For each plug-in they say whether the DAW only found it, or whether it was also played and reloaded.
 
 ## iLok plug-ins
 
@@ -71,7 +71,7 @@ plugg licensing protect --environment <path> \
 
 A machine-bound licence such as iLok survives a change only if you deactivate first. Some serial-limited activations can't be recovered at all. After you protect an environment, an identity-changing operation needs an explicit acknowledgement that expires, and Plugg can take a small recovery point first. Plugg records no serial numbers or credentials, and stores identity values only as hashes. See [licensing safety](docs/licensing-safety.md).
 
-Environments are not security sandboxes. They're not disposable either. Never run generic cleanup such as `git clean -fdx` in a checkout you've used, because ignored directories hold live vendor installations and authorisation data.
+Environments are not security sandboxes, and they are not disposable. Never run generic cleanup such as `git clean -fdx` in a checkout you've used, because ignored directories hold live vendor installations and authorisation data.
 
 ## Known issues
 
@@ -81,7 +81,7 @@ Environments are not security sandboxes. They're not disposable either. Never ru
 
 ## More
 
-- [Roadmap](ROADMAP.md): what works, what's next, what Plugg doesn't claim
+- [Roadmap](ROADMAP.md): what's done and what's planned
 - [Why a dedicated manager](docs/why.md), and how it differs from Bottles
 - [Disk space](docs/storage.md): how much, and where it goes
 - [Building](docs/building.md): build options, tests and what your DAW sees

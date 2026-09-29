@@ -44,7 +44,7 @@ The browser may ask permission to open the link in Native Access. If the automat
 
 On the maintainer's system, a fresh revision 2 setup installed Native Access and NTKDaemon. The normal helper action opened Native Access, which recognized the daemon. The browser handed the sign-in back to Native Access automatically. Closing the window triggered background cleanup and a library refresh, and left no processes in the prefix. Raum, installed through the fresh Native Access, worked in Bitwig.
 
-The setup copied or changed no existing NI activation or account state. Keep any environment you have signed in to until you clean it up deliberately, with licensing in mind. Never treat an activated environment as disposable.
+The setup copied or changed no existing NI activation or account state. Keep any environment you have signed in to until you choose to clean it up, with licensing in mind. Never treat an activated environment as disposable.
 
 If you test a second copy of a plug-in side by side, the published bundle's name must match the Linux binary inside it, for example `Raum.vst3` containing `Raum.so`. Bitwig did not scan a link renamed to `Raum-NI-Test.vst3`.
 

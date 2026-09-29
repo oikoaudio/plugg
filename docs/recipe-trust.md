@@ -1,8 +1,6 @@
 # Recipe trust
 
-A shared recipe is someone else's decisions running against your licensed Windows environments. That is a fair reason to be nervous. "We will review them carefully" is not an honest answer, because review does not scale and it would all fall on one maintainer.
-
-This project takes a different approach, in three parts:
+A shared recipe lets someone else's file decide what happens in your licensed Windows environments. Careful review alone can't make that safe, because review doesn't scale, and all of it would fall on one maintainer. Plugg relies on three things instead:
 
 1. **A recipe is data, so what it can do is computable.** Every recipe resolves to a fixed set of capabilities, derived from the file with no judgement involved. You can see them before you use it, and so can a machine.
 2. **Where a recipe lives decides what it may declare.** An unreviewed recipe cannot ask to run a vendor installer at all. The check fails before anyone reads the diff.
@@ -93,7 +91,7 @@ The same listing with `--json` is meant for tooling, and for an agent helping so
 On every pull request that touches `recipes/`, CI posts the report, refuses anything over its ceiling and runs the guardrail tests. That leaves three questions for a human:
 
 1. Does the evidence in the pull request match what the recipe claims to do? A factory scan is not a playback test.
-2. For a flagged `claim-installer`, is this installer really the vendor's, and are those arguments the vendor's documented silent-install switches?
+2. For a flagged `claim-installer`, is this installer the vendor's, and are those arguments the vendor's documented silent-install switches?
 3. For a tier promotion, has this person's earlier work held up?
 
 If a recipe's report is clean and its tier is `community`, reading the TOML adds nothing the machine has not already checked.
