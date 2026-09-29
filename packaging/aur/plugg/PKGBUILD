@@ -30,7 +30,7 @@ options=(!lto !debug !strip)
 _yabridge=b580a9f7fc46509767ca156d4f92872552b9e571
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
         "yabridge::git+https://github.com/robbert-vdh/yabridge.git#commit=$_yabridge")
-sha256sums=('0000000000000000000000000000000000000000000000000000000000000000'
+sha256sums=('cd15495fb9cf242144f11a2ae78283b8c06cd5f7f7bc16596b11e740ec3ffbde'
             'fa7e723cf380027c9c87133259dd08485446144a0d33fba8bd0cc565ea32099f')
 
 prepare() {
