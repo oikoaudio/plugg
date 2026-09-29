@@ -77,7 +77,7 @@ Environments are not security sandboxes. They're not disposable either. Never ru
 
 - On Wayland, some installers show a large black window on top of the install dialog.
 - Preparing UA Connect's archive tools fails with "Network is unreachable" when the MSYS2 redirector sends Plugg to a mirror it can't reach.
-- Plugg can't express winetricks, DLL overrides, registry tweaks or launch arguments in a recipe yet.
+- A recipe can choose the graphics backend and require Plugg's own pinned components, but can't yet set DLL overrides, registry values or launch arguments, or use winetricks verbs. [The plan](docs/decisions/0005-prefix-settings-in-recipes.md) adds them in typed form after v0.1.0.
 
 ## More
 
