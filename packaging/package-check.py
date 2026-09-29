@@ -73,8 +73,9 @@ def cli(version):
         check(core.digest(FORWARDER / name) == built['files'].get(name), 'forwarder file changed: ' + name)
     result['forwarder'] = {'directory': str(found), 'compiler': built['compiler']}
 
-    ctypes.CDLL(str(BRIDGE / 'libyabridge-vst3.so'))
-    ctypes.CDLL(str(BRIDGE / 'libyabridge-chainloader-vst3.so'))
+    for fmt in ('vst3', 'vst2', 'clap'):
+        ctypes.CDLL(str(BRIDGE / ('libyabridge-' + fmt + '.so')))
+        ctypes.CDLL(str(BRIDGE / ('libyabridge-chainloader-' + fmt + '.so')))
     scanner = run(BRIDGE / 'plugg-scan')
     check(scanner.returncode == 64, 'plugg-scan exited with %d: %s' % (scanner.returncode, scanner.stderr))
     result['bridge'] = {'inspected': True, 'libraries_load': True, 'scanner_starts': True}

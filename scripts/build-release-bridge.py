@@ -61,11 +61,11 @@ tar -c -C "$HOME" out
 
 NOTICE = '''# Plugg bridge {version}: licences and source
 
-This directory is Plugg's build of yabridge's VST3 bridge, the Windows plug-in host that runs under Wine, and Plugg's scanner.
+This directory is Plugg's build of yabridge's VST3, VST2 and CLAP bridges, the Windows plug-in host that runs under Wine, and Plugg's scanner.
 
 - yabridge is GPL-3.0-or-later (`COPYING.yabridge`). The source is https://github.com/robbert-vdh/yabridge at the revision in `build.json`, plus the patches in `patches/` of https://github.com/oikoaudio/plugg at tag `v{version}`, listed with their hashes in `build.json`.
-- `plugg-scan` is part of Plugg, GPL-3.0-or-later, built from `native/scan.cpp` in the same Plugg tag.
-- Both link parts of the VST3 SDK, used under its GPLv3 option, and yabridge links asio, bitsery, function2, tomlplusplus and ghc::filesystem. Each project's licence is in `licenses/<project>/`, and the revisions are in `build.json`.
+- `plugg-scan` is part of Plugg, GPL-3.0-or-later, built from `native/scan.cpp` and `native/scan_formats.cpp` in the same Plugg tag.
+- Both link parts of the VST3 SDK, used under its GPLv3 option, and use the CLAP headers (MIT) and yabridge's VeSTige VST2 header (GPL-2.0-or-later). yabridge also links asio, bitsery, function2, tomlplusplus and ghc::filesystem. Each project's licence is in `licenses/<project>/`, and the revisions are in `build.json`.
 - `scripts/build-release-bridge.py` in the Plugg tag rebuilds this in the same pinned container (`packaging/bridge/Dockerfile`). This build ran in `{image}`.
 '''
 

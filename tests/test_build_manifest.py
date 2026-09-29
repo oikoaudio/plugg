@@ -21,7 +21,7 @@ class BuildManifestTest(unittest.TestCase):
             for name in manifest.ARTIFACTS:
                 (output / name).write_bytes(name.encode())
             (output / 'unrelated-private-file').write_text('not an artifact')
-            for name in ('native/scan.cpp', 'scripts/build-bridge.sh', 'scripts/bridge-manifest.py', 'vendor/yabridge/cross-wine.conf', 'vendor/yabridge/subprojects/example.wrap', 'patches/0001.patch'):
+            for name in ('native/scan.cpp', 'native/scan_formats.cpp', 'scripts/build-bridge.sh', 'scripts/bridge-manifest.py', 'vendor/yabridge/cross-wine.conf', 'vendor/yabridge/subprojects/example.wrap', 'patches/0001.patch'):
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text('fixture')

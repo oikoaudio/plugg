@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Disposable VST3 factory probe; --audio additionally verifies the test effect.
+// --vst2 and --clap select the probes in scan_formats.cpp.
 #include <dlfcn.h>
 #include <fstream>
 #include <iomanip>
@@ -38,7 +39,7 @@ public:
     tresult PLUGIN_API createInstance(TUID, TUID, void** object) override { *object=nullptr; return kNoInterface; }
 };
 
-static std::string quoted(const char* text, size_t capacity) {
+std::string scan_quoted(const char* text, size_t capacity) {
     std::string out = "\"";
     const char* hex = "0123456789abcdef";
     for (size_t n=0; n<capacity && text[n]; ++n) {
@@ -50,6 +51,11 @@ static std::string quoted(const char* text, size_t capacity) {
     return out + "\"";
 }
 
+static std::string quoted(const char* text, size_t capacity) { return scan_quoted(text, capacity); }
+
+int scan_vst2(const char* library, const char* output, bool audio);
+int scan_clap(const char* library, const char* output, bool audio);
+
 static void progress(const char* stage) {
     if (std::getenv("PLUGG_SCAN_TRACE")) std::cerr << "SCAN_STAGE " << stage << std::endl;
 }
@@ -57,6 +63,12 @@ static void progress(const char* stage) {
 int main(int argc, char** argv) {
     if (std::getenv("PLUGG_SCAN_TRACE")) prctl(PR_SET_PTRACER, getppid(), 0, 0, 0);
     progress("load");
+    // plugg-scan --vst2|--clap NATIVE OUTPUT [--audio] probes those formats;
+    // without a flag it is the VST3 probe, as it always was.
+    if (argc >= 4 && (std::string(argv[1]) == "--vst2" || std::string(argv[1]) == "--clap")) {
+        const bool audio = argc >= 5 && std::string(argv[4]) == "--audio";
+        return std::string(argv[1]) == "--vst2" ? scan_vst2(argv[2], argv[3], audio) : scan_clap(argv[2], argv[3], audio);
+    }
     if (argc < 3) return 64;
     void* lib = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
     if (!lib) { std::cerr << dlerror() << '\n'; return 1; }

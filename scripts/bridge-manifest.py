@@ -9,6 +9,8 @@ import subprocess
 
 
 ARTIFACTS = ('libyabridge-vst3.so', 'libyabridge-chainloader-vst3.so',
+             'libyabridge-vst2.so', 'libyabridge-chainloader-vst2.so',
+             'libyabridge-clap.so', 'libyabridge-chainloader-clap.so',
              'yabridge-host.exe', 'yabridge-host.exe.so', 'plugg-scan', 'COPYING.yabridge')
 
 
@@ -70,7 +72,7 @@ def manifest(root, build, output):
             'ninja_version': subprocess.check_output(['ninja', '--version'], text=True).strip(),
             'scanner_compiler': subprocess.check_output(['c++', '--version'], text=True).splitlines()[0],
             'source_files': {str(p.relative_to(root)): digest(p) for p in
-                             [root / 'native/scan.cpp', root / 'scripts/build-bridge.sh', root / 'scripts/bridge-manifest.py', source / 'cross-wine.conf']},
+                             [root / 'native/scan.cpp', root / 'native/scan_formats.cpp', root / 'scripts/build-bridge.sh', root / 'scripts/bridge-manifest.py', source / 'cross-wine.conf']},
             'wrap_files': {p.name: digest(p) for p in sorted((source / 'subprojects').glob('*.wrap'))},
             'limitations': 'Observed versions and source hashes; system headers and transitive dependencies are not fully pinned.',
         },

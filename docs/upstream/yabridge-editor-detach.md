@@ -44,6 +44,10 @@ These are preliminary manual checks. Nobody recorded cycle counts or long sessio
 
 Do not present this as a fix for all Plugin Alliance plug-ins. The patch is small and the evidence justifies a review, but wider regression testing is still needed.
 
+## CLAP needs patch 0005 with it
+
+The destructor this patch adds to `Editor` removes the move constructor the compiler would otherwise generate. VST2 and VST3 never move an editor, but yabridge's CLAP host moves a temporary plug-in instance into its instance map, and that instance holds an `std::optional<Editor>`. With CLAP switched on, `src/wine-host/bridges/clap.cpp` then fails to compile, with any GCC. Patch `0005-clap-construct-instance-in-place.patch` builds the instance in place with `try_emplace`, so nothing is moved. Giving `Editor` a move constructor would be the other fix, but a moved-from editor's destructor would then run the X11 detach on a window it no longer owns. An upstream submission of this patch should include 0005.
+
 ## Local build and deployment
 
 `scripts/build-bridge.sh` checks the pinned upstream tree against the ordered `patches/*.patch` series. It applies any recorded patches that are missing from the end of the series and refuses unknown local source changes. `build.json` records the upstream revision, every patch hash and every artifact hash. This records where the source and build came from. It does not claim that different toolchains produce identical binaries.
