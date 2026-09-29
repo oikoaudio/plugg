@@ -11,7 +11,7 @@ Install a plug-in with the vendor's own Windows installer, and it shows up in yo
 - **Takes an installer or a VST3.** Drop in an EXE, an MSI, or a Windows VST3 file or bundle. Plugg installs it in the background into a private Windows environment and keeps the installer next to it.
 - **Runs the vendor's own manager.** Plugg installs, opens and watches Native Access, UA Connect, Softube Central or a vendor's helper app, and refreshes the library when you close it.
 - **Publishes native VST3s.** Plugg publishes what it finds where your DAW looks, with the plug-ins' original class IDs, so saved projects find them again.
-- **Uses recipes that are data, not scripts.** You can read off a shared recipe what it can do, and where it lives caps what it may declare.
+- **Uses recipes that are data, not scripts.** You can read what a shared recipe can do before you use it, and its location limits what it may declare.
 - **Protects what holds licences.** An environment with activations refuses operations that could cost you a seat, unless you acknowledge them explicitly.
 - **Shows the disk cost.** You see each environment's size and what takes the space. Deleting one needs a typed confirmation.
 
@@ -54,9 +54,9 @@ A recipe is a TOML file that describes how a vendor gets installed: the runtime,
 plugg recipe explain ./downloaded-recipe.toml
 ```
 
-That prints what the recipe can do in plain language, every download URL and hash, the exact arguments any installer would get, and anything worth a second look. Where a recipe lives caps what it may declare. An unreviewed recipe can't ask to run a vendor installer at all, and CI refuses anything over the ceiling. If you'd rather not trust anyone's finished recipe, `recipe components` lists the reviewed parts, each with the problem it solves, and you can assemble your own.
+That prints what the recipe can do in plain language, every download URL and hash, the exact arguments any installer would get, and anything worth a second look. A recipe's location limits what it may declare. An unreviewed recipe can't ask to run a vendor installer at all, and CI refuses anything over that limit. If you'd rather not trust anyone's finished recipe, `recipe components` lists the reviewed parts, each with the problem it solves, and you can assemble your own.
 
-The app shows the same report before you add a recipe, under **Recipes & fixes**. The person most likely to open a file someone posted is the one least likely to be at a terminal.
+The app shows the same report before you add a recipe, under **Recipes & fixes**, for people who don't use a terminal.
 
 See [recipe trust](docs/recipe-trust.md) for the model, [getting started](docs/recipes/getting-started.md) to write a recipe, and [CONTRIBUTING](CONTRIBUTING.md) for how to share what works.
 

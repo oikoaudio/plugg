@@ -6,7 +6,7 @@ This page sets out the design direction for vendor support. It covers how vendor
 
 A vendor page shows its installed plug-ins, an **Open Helper** button when the vendor has a manager, and the retained installers. The planned installer actions are **Run again**, **Add newer installer** and **Remove download**. Today the card offers **Saved installer**, which opens the retained installation set. Plug-ins stay visible in the main library and publish as ordinary Linux VST3s for compatible hosts, including Bitwig and REAPER. Plugg tracks host compatibility separately from successful installation and discovery.
 
-The basic flow is **Add installer → choose or confirm vendor → install → plug-ins appear**. Plugg treats an EXE and the BIN files next to it as one installation set. Folder and ZIP intake can come later, with a clear choice of executable when there is more than one installer. Vendor detection can suggest a name, but it should never guess the installation destination silently.
+In the basic flow, you add an installer, choose or confirm the vendor and install, and the plug-ins appear. Plugg treats an EXE and the BIN files next to it as one installation set. Folder and ZIP intake can come later, with a clear choice of executable when there is more than one installer. Vendor detection can suggest a name, but it should never guess the installation destination silently.
 
 The vendor's installer or helper stays available through Plugg. Opening a retained helper uses the same managed environment and account state. A newer standalone installer should be attached to its vendor, not create another prefix by default. The UI never makes you choose a Wine prefix or run a bridge synchronization command.
 
@@ -42,7 +42,7 @@ Recipes are added one vendor at a time, as they are tested and with evidence. Th
 
 ## Installer storage and updates
 
-Store immutable installation sets, not a single installer.exe that gets replaced. Keep the original filenames, the EXE/BIN pairing, SHA-256 inventories and a local acquisition timestamp. Track installers you imported separately from helper download caches and installed binaries.
+Store immutable installation sets, not a single installer.exe that gets replaced. Keep the original filenames, the pairing of EXE and BIN files, SHA-256 inventories and a local acquisition timestamp. Track installers you imported separately from helper download caches and installed binaries.
 
 By default, keep the most recent installer and the previous installer that is known to work, under a storage policy the user can see. Large sample payloads need size estimates and an optional retention choice. Removing a retained download must never remove an installed product. An installer is an input, not a full rollback. A helper can download newer binaries and change the registry, shared content and authorization state.
 

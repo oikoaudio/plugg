@@ -10,7 +10,7 @@ This project takes a different approach, in three parts:
 
 ## What a recipe can do
 
-There are eleven capabilities and nothing else. There is no shell field, command, script or dynamic import. That is not a convention. The schema has no place to put one.
+There are eleven capabilities and nothing else. There is no shell field, command, script or dynamic import. This does not depend on convention, because the schema has no place to put one.
 
 | Capability | What it means for you |
 | --- | --- |
@@ -46,7 +46,7 @@ The report lists the following:
 
 Add `--json` for a machine, an agent or your own tooling.
 
-The verdicts are deliberately boring:
+The report gives one of four verdicts:
 
 - `routine` means the recipe changes settings only.
 - `check-the-details` means it is ordinary for its kind, and the report lists the details.
@@ -96,7 +96,7 @@ On every pull request that touches `recipes/`, CI posts the report, refuses anyt
 2. For a flagged `claim-installer`, is this installer really the vendor's, and are those arguments the vendor's documented silent-install switches?
 3. For a tier promotion, has this person's earlier work held up?
 
-If a recipe's report is clean and its tier is `community`, reading the TOML adds nothing the machine has not already checked. That is the point.
+If a recipe's report is clean and its tier is `community`, reading the TOML adds nothing the machine has not already checked.
 
 ## Related
 

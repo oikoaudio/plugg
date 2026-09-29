@@ -20,11 +20,11 @@ Vendor-specific evidence is in [the compatibility notes](docs/compatibility/). A
 
 ## Next
 
-Roughly in order of how much each would change the project's usefulness.
+The items are roughly in order of how much each would change the project's usefulness.
 
 ### 1. Packages beyond Arch
 
-On Arch-based systems, `makepkg -si` builds and installs everything: the manager, the bridge, the scanner and the PowerShell forwarder, from pinned sources. Everywhere else you build from a checkout, which reaches only people comfortable doing that. The next step is a published release with prebuilt artifacts, then packages for other families of distributions. Plugg does not plan a Flatpak: [Cabinet](https://github.com/Mark12870/cabinet) serves people who want one, and [the Flatpak decision](docs/decisions/0003-flatpak.md) explains how the two projects fit together.
+On Arch-based systems, `makepkg -si` builds and installs everything: the manager, the bridge, the scanner and the PowerShell forwarder, from pinned sources. Everywhere else you build from a checkout, which reaches only people comfortable doing that. The next step is a published release with prebuilt artifacts, then packages for other families of distributions. Plugg does not plan a Flatpak. [Cabinet](https://github.com/Mark12870/cabinet) serves people who want one, and [the Flatpak decision](docs/decisions/0003-flatpak.md) explains how the two projects fit together.
 
 ### 2. DAW regression
 
@@ -36,7 +36,7 @@ The recipe path exists so that one person's compatibility fix helps the next per
 
 ### 4. Say when a plug-in does not need bridging at all
 
-Started. `recipe leads` marks the products in the bundled recipe leads that have a native Linux build, and `recipe init` warns when a vendor has one. The list only covers vendors the leads cover.
+Work on this has started. `recipe leads` marks the products in the bundled recipe leads that have a native Linux build, and `recipe init` warns when a vendor has one. The list only covers vendors the leads cover.
 
 Some vendors ship a native Linux build. For those, the right answer is to use it rather than write a recipe. The manager does not know this. It will bridge a Windows plug-in whose Linux version is a download away, with worse latency, worse editor behaviour and a licensing environment to protect for no reason.
 
@@ -56,7 +56,7 @@ Today a plug-in update means reinstalling, and a runtime change means a new envi
 
 ### 6. Storage accounting and shared runtimes
 
-Environments in a library share runtime files, but each prefix is an ordinary directory, not a thin overlay. On the development machine the shared runtime is about 2.2 GiB and a vendor prefix a few hundred megabytes. Layered filesystems were considered and deliberately deferred. They would change what a "machine" looks like to a licensing system, and making that safe is where this project has spent the most effort.
+Environments in a library share runtime files, but each prefix is an ordinary directory, not a thin overlay. On the development machine the shared runtime is about 2.2 GiB and a vendor prefix a few hundred megabytes. The project considered layered filesystems and deferred them. They would change what a "machine" looks like to a licensing system, and making that safe is where this project has spent the most effort.
 
 ### 7. Other desktops
 
@@ -74,16 +74,7 @@ The download data is already in the native entries of the bundled recipe leads. 
 
 **PACE and iLok.** `plugg ilok create` installs the unmodified PACE MSI on the `plugg-1` runtime, which carries source fixes for the two Wine gaps that stopped it. Activation works. Reboots, PACE updates and more vendors are still untested, and setup is command-line only. The app has no guided flow for it yet. Recipes can't provision PACE. See [iLok and PACE](docs/recipes/pace.md) and [the runtime](docs/runtime.md).
 
-**Building Windows code with the packager's flags.** Every bridged plug-in
-died while initialising on 2026-09-20, and the Windows host had been built by
-`makepkg` with this machine's `CFLAGS`, `-march=native` among them. A host
-compiled for anything above the x86-64 baseline overflows its main thread's
-stack inside the plug-in's `initialize`; the same source with yabridge's own
-flags loads. The bridge build now ignores the environment's compiler flags and
-records what it used ([the diagnosis](diagnostics/host-stack/README.md)). Wine
-10.0 could not even report the overflow, which is its own note. The lesson
-stands: the bridge runs in a launch path no one else uses, so what breaks it
-gets found by measurement, one variable at a time, not by argument.
+**Building Windows code with the packager's flags.** Every bridged plug-in died while initialising on 2026-09-20, and `makepkg` had built the Windows host with this machine's `CFLAGS`, `-march=native` among them. A host compiled for anything above the x86-64 baseline overflows its main thread's stack inside the plug-in's `initialize`. The same source built with yabridge's own flags loads. The bridge build now ignores the environment's compiler flags and records what it used ([the diagnosis](diagnostics/host-stack/README.md)). Wine 10.0 could not even report the overflow ([the unwinder note](diagnostics/collided-unwind/README.md)). The bridge runs in a launch path no one else uses, so faults in it have to be found by measurement, changing one variable at a time, rather than by argument.
 
 **Claiming an installer by hash.** A recipe binds to an installer by SHA-256, which is an unauthenticated claim about someone else's binary. Validation cannot fix this. Tiering and disclosure handle it instead. See [recipe trust](docs/recipe-trust.md).
 
@@ -94,7 +85,7 @@ gets found by measurement, one variable at a time, not by argument.
 - **Security sandboxing.** A Windows environment here is an environment, not a boundary. A malicious plug-in inside one can reach your files, exactly as on Windows.
 - **Defeating or working around licensing.** The project does not inspect, alter, emulate or bypass any licensing check, and will not accept a contribution that does.
 - **Redistributing anything a vendor licenses.** No installers, no runtimes that are not freely redistributable, and no activated prefixes, ever.
-- **Universal compatibility.** Claims are per product and per version, with evidence, or they are not made.
+- **Universal compatibility.** Plugg makes claims only per product and per version, with evidence.
 
 ## How to help
 

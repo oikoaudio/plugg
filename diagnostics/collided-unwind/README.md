@@ -1,19 +1,12 @@
 # Wine cannot report a stack overflow on x64
 
-While chasing [plug-ins dying during initialisation](../host-stack/README.md),
-Wine's own crash report turned out to be broken: dispatching the overflow
-recursed until the process died, with nothing printed. That is a separate
-upstream bug, fixed in Wine 11.7 and backported in `plugg-2`.
+The search for [plug-ins dying during initialisation](../host-stack/README.md) found that Wine's own crash report was broken. Dispatching the overflow recursed until the process died, and Wine printed nothing. That is a separate upstream bug, fixed in Wine 11.7 and backported in `plugg-2`.
 
-It is not why plug-ins failed. It is why the failure was invisible.
+This bug did not make the plug-ins fail. It made the failure invisible.
 
 ## What happens
 
-The bridge handshake completes, the factory answers, the instance is created,
-and the plug-in stops responding inside `IPluginBase::initialize`. The Windows
-host process is gone by then; `ps` shows it as a zombie while Wine's launcher
-below it still waits in `NtWaitForMultipleObjects`. The DAW waits on that
-launcher, so a crashed plug-in looks like a frozen DAW.
+The bridge handshake completes, the factory answers, the instance is created, and the plug-in stops responding inside `IPluginBase::initialize`. The Windows host process is gone by then. `ps` shows it as a zombie while Wine's launcher below it still waits in `NtWaitForMultipleObjects`. The DAW waits on that launcher, so a crashed plug-in looks like a frozen DAW.
 
 Wine, with its error output restored, says what happened:
 
@@ -21,8 +14,7 @@ Wine, with its error output restored, says what happened:
 err:virtual:virtual_setup_exception stack overflow 3392 bytes addr 0x6ffffffa9132 stack 0x202c0 (0x20000-0x21000-0x120000)
 ```
 
-and with `WINEDEBUG=+seh`, the same four frames repeat until the megabyte of
-stack is gone:
+With `WINEDEBUG=+seh`, the same frames repeat until the megabyte of stack is gone:
 
 ```
 warn:seh:virtual_unwind backtrace: ntdll.dll + 0x36FA0   (RtlVirtualUnwind2)
@@ -37,30 +29,20 @@ trace:seh:dispatch_exception code=c0000005 (EXCEPTION_ACCESS_VIOLATION) rip=0000
 
 ## Why
 
-A C++ exception unwinds through a collided frame. Wine's dispatcher handles
-that by calling `RtlVirtualUnwind()` with no handler data and no handler
-(`dlls/ntdll/signal_x86_64.c`, all three `ExceptionCollidedUnwind` cases), and
-`RtlVirtualUnwind2()` writes through those NULL pointers. The resulting fault
-is dispatched, collides again, and recurses until the stack is gone.
+A C++ exception unwinds through a collided frame. Wine's dispatcher handles that by calling `RtlVirtualUnwind()` with no handler data and no handler (`dlls/ntdll/signal_x86_64.c`, all three `ExceptionCollidedUnwind` cases), and `RtlVirtualUnwind2()` writes through those NULL pointers. The resulting fault is dispatched, collides again, and recurses until the stack is gone.
 
-Nothing of Plugg's is involved: the same code is in stock UMU-Proton 10.0-4,
-whose `ntdll.dll` is byte for byte the one this project's runtime carries.
+Plugg's code is not involved. The same code is in stock UMU-Proton 10.0-4, whose `ntdll.dll` is byte for byte the one this project's runtime carries.
 
-Upstream fixed it in [a55cddce98](https://gitlab.winehq.org/wine/wine/-/commit/a55cddce9839a1516f882ad2e5a2ab689084da92),
-released in Wine 11.7. UMU-Proton 10.0-4 is Wine 10.0.
+Upstream fixed it in [a55cddce98](https://gitlab.winehq.org/wine/wine/-/commit/a55cddce9839a1516f882ad2e5a2ab689084da92), released in Wine 11.7. UMU-Proton 10.0-4 is Wine 10.0.
 
-With the backport in place, the same load still failed, which is what ruled
-this out as the cause and sent the search back to the stack itself.
+With the backport in place, the same load still failed. That ruled this bug out as the cause, and the search went back to the stack itself.
 
 ## What made it hard to see
 
-- The session container started Wine with `WINEDEBUG=-all`, which silences Wine's
-  own error output along with everything else. The crash left no trace at all.
-- When the Windows program dies, its launcher keeps waiting, so the launch never
-  returns and the DAW has nothing to report but a timeout.
+- The session container started Wine with `WINEDEBUG=-all`, which silences Wine's own error output along with everything else. The crash left no trace at all.
+- When the Windows program dies, its launcher keeps waiting, so the launch never returns and the DAW has nothing to report but a timeout.
 
-Both are fixed: the session keeps Wine's errors, and it ends a launch whose
-Windows program has exited.
+Both are fixed. The session keeps Wine's errors, and it ends a launch whose Windows program has exited.
 
 ## Reproducing it
 
@@ -70,8 +52,7 @@ A load outside a DAW shows it, with Wine's error output left on:
 plugg-scan "$HOME/.vst3/plugg/NAME.vst3/Contents/x86_64-linux/NAME.so" /tmp/out.json --audio
 ```
 
-An exception thrown and caught in a plain winegcc-built Windows program does
-*not* reproduce it: the collision is what matters, not the exception.
+An exception thrown and caught in a plain winegcc-built Windows program does *not* reproduce it. The collision is what matters, not the exception.
 
 ## Probe
 

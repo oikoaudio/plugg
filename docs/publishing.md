@@ -43,7 +43,7 @@ Then check what would be shared, not only what changed:
 
 Some things only matter once strangers can submit recipes:
 
-1. Turn on branch protection and required reviews first, not after: `python3 scripts/github-settings.py --apply` applies `.github/repository.json` (rulesets for `main` and release tags, Code Owners review and the required checks) and reads it back. Without `--apply` it reports differences and changes nothing. Rulesets need a public repository, so run it right after the switch.
+1. Turn on branch protection and required reviews first, not after. `python3 scripts/github-settings.py --apply` applies `.github/repository.json` (rulesets for `main` and release tags, Code Owners review and the required checks) and reads it back. Without `--apply` it reports differences and changes nothing. Rulesets need a public repository, so run it right after the switch.
 2. Check that CI refuses an over-ceiling recipe on a real pull request. A community recipe that declares `run-vendor-installer` should fail the `Recipe review` job. Prove this once with a throwaway pull request.
 3. Decide whether `recipes/reviewed/` accepts anything yet. It is reasonable to start with community-tier contributions only, and open the reviewed tier once someone's evidence has held up.
 4. The README describes a developer preview. Keep it that way until packaging exists. If the first install fails on a machine without a checkout, people stop trusting the project.

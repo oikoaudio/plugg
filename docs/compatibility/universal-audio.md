@@ -2,7 +2,7 @@
 
 Universal Audio support is **experimental** and works for one product. On the maintainer's system (Bitwig, Hyprland/XWayland), UADx LA-2A Tube Compressor 1.0.8 works in Bitwig. Its editor closes and reopens repeatedly during playback. UA Connect 1.9.6.3797 opens from the app, installs products and triggers automatic discovery when you close it. Everything runs in the shared iLok/PACE environment described in [the PACE notes](../recipes/pace.md). [Universal Audio reusable setup](../recipes/universal-audio.md) describes the setup as a recipe.
 
-Not covered yet are other UAD products, project recall, persistence across reboots, longer sessions and desktops other than Hyprland.
+Other UAD products, project recall, persistence across reboots, longer sessions and desktops other than Hyprland are not covered yet.
 
 ## What the setup needs
 
@@ -48,7 +48,7 @@ Maintenance refuses to run while Bitwig, REAPER or unknown Windows applications 
 
 UA Connect and Klevgrand share `vendors.finish_installation()`. After UA Connect closes, Plugg releases its helper runtime and waits until the installed VST3 files have not changed for five seconds. It then probes new modules and publishes the ones it discovers. The runtime cleanup also runs after probing, including when a discovery check fails. Plugg keeps unchanged publications without probing them again or creating duplicate wrappers. It reports changed installed versions for your attention instead of republishing them. Because the PACE environment is shared, discovery covers all its installed VST3s from every vendor, and each plug-in keeps the vendor name it reports.
 
-The helper action and the desktop shortcut both run this workflow. Helper and job locks are held from launch through discovery. The UI shows progress and results. The DAW may still need its normal plug-in rescan. Installation, activation, audio validation and automatic product updates are separate jobs. [The UA recipe](../recipes/universal-audio.md#updating-ua-connect) covers updating UA Connect itself.
+The helper action and the desktop shortcut both run this workflow. Plugg holds the helper and job locks from launch through discovery. The UI shows progress and results. The DAW may still need its normal plug-in rescan. Installation, activation, audio validation and automatic product updates are separate jobs. [The UA recipe](../recipes/universal-audio.md#updating-ua-connect) covers updating UA Connect itself.
 
 ## Editor-close crash and the OLE32 guard
 

@@ -35,7 +35,7 @@ plugg ilok install SpaceBlender5_5.5.5.19885_64.exe EchoBoyJr5_5.5.5.19885_64.ex
 
 ## Activating
 
-Activation is a separate step, so it doesn't pile up. After an install, Plugg loads only the plug-ins that install added or changed, and each new product may ask for activation once. It doesn't reload plug-ins from earlier installs that are still waiting, and closing UA Connect or Softube Central doesn't reload them either.
+Activation prompts don't pile up. After an install, Plugg loads only the plug-ins that install added or changed, and each new product may ask for activation once. It doesn't reload plug-ins from earlier installs that are still waiting, and closing UA Connect or Softube Central doesn't reload them either.
 
 When you're ready, run `plugg ilok open` or press **Open iLok** on the card. Activate in iLok License Manager and close it. Plugg then loads every waiting plug-in and publishes the ones that now work. UA Connect and Softube Central have their own cards under the vendor's name, marked as living in the shared iLok environment. `ilok open ua-connect` and `ilok open softube` open them from the command line.
 
@@ -59,7 +59,7 @@ The fixtures in [diagnostics/msi-version](../../diagnostics/msi-version/) and [d
 2. Service configuration without removing any vendor check. Done, for installation.
 3. The PACE service starts, iLok License Manager signs in and activates. Done.
 4. UA Connect recognises PACE 6.0.1. Done.
-5. An activated plug-in through a service restart, a reboot and a saved project. Partly: plug-ins open and play in Bitwig. Reboot persistence and project recall are not recorded yet.
+5. An activated plug-in through a service restart, a reboot and a saved project. Partly. Plug-ins open and play in Bitwig. Reboot persistence and project recall are not recorded yet.
 6. Mono instead of Microsoft .NET. Not tested.
 7. Updating PACE, rolling back, and more vendors. Not tested.
 

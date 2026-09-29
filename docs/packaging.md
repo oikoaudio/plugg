@@ -47,7 +47,7 @@ Until the first release, the `plugg` PKGBUILD's archive checksum is all zeros, w
 2. Run it again without `--dry-run` to write both files. A new version starts at `pkgrel=1`. For a packaging-only change to the same version, pass `--pkgrel 2`. `--sha256` takes a known hash instead of downloading, and `--archive` hashes a local copy.
 3. Review and commit the change, for example as `build(aur): update plugg to 0.1.0`.
 4. Optionally, build the committed PKGBUILD as an AUR user would, from the published archive: `python3 packaging/test-aur.py --as-committed --output .test-aur/release-0.1.0`.
-5. Publish. This separate step is run only by the maintainer, who needs an AUR account with an SSH key. It refuses a stale `.SRCINFO`, uncommitted changes or an unset checksum. It clones `ssh://aur@aur.archlinux.org/plugg.git` into a new temporary directory, copies `PKGBUILD` and `.SRCINFO` in, commits and shows the commit. With `--dry-run` it stops there. Without it, it pushes:
+5. Publish. Only the maintainer runs this separate step, and it needs an AUR account with an SSH key. It refuses a stale `.SRCINFO`, uncommitted changes or an unset checksum. It clones `ssh://aur@aur.archlinux.org/plugg.git` into a new temporary directory, copies `PKGBUILD` and `.SRCINFO` in, commits and shows the commit. With `--dry-run` it stops there. Without it, it pushes:
 
    ```sh
    python3 scripts/update-aur.py publish plugg --dry-run
@@ -88,7 +88,7 @@ A release carries a prebuilt bridge, so an installed Plugg needs no compiler, Wi
 python3 scripts/build-release-bridge.py --output dist
 ```
 
-Installing that toolchain from the dated snapshot can take a long time, so the image is built once, whenever the Dockerfile changes, by `.github/workflows/bridge-builder.yml`, and published as `ghcr.io/oikoaudio/plugg-bridge-builder:dockerfile-<first 16 hex of the Dockerfile's SHA-256>`. The script pulls that image when it exists and builds it locally otherwise (`--local-image` forces a local build). One Dockerfile names one image, and a published tag is never overwritten. The bridge's `NOTICE.md` records the image digest it was built in.
+Installing that toolchain from the dated snapshot can take a long time, so `.github/workflows/bridge-builder.yml` builds the image once, whenever the Dockerfile changes, and publishes it as `ghcr.io/oikoaudio/plugg-bridge-builder:dockerfile-<first 16 hex of the Dockerfile's SHA-256>`. The script pulls that image when it exists and builds it locally otherwise (`--local-image` forces a local build). One Dockerfile names one image, and a published tag is never overwritten. The bridge's `NOTICE.md` records the image digest it was built in.
 
 The result is `plugg-bridge-<version>-x86_64.tar.gz` and its `.sha256`. The archive holds the six bridge files and `build.json`, as a checkout build does, plus `NOTICE.md` and `licenses/`. Those carry the licences of the VST3 SDK (used under its GPLv3 option), asio, bitsery, function2, toml++ and ghc::filesystem, and say where the source is. The build prints the newest glibc and libstdc++ symbol versions the binaries need: GLIBC_2.34 and GLIBCXX_3.4.29, which Ubuntu 22.04, Debian 12, Fedora 35 and Arch all have.
 
@@ -221,6 +221,6 @@ Under ordinary Docker isolation, as tested so far, UMU/pressure-vessel cannot cr
 - Validate the Ubuntu-built Windows host and full audio path in a suitable runner, from an installed .deb or .rpm rather than a checkout.
 - Check the packages on a real desktop: the menu entry, a DAW finding the published plug-ins, and Wayland.
 - Test upgrading from one package version to the next. Only a fresh install and removal are tested.
-- Decide artifact signing and update policy before public distribution. The .deb and .rpm are unsigned, and there is no apt or dnf repository, so each release is downloaded and installed by hand.
+- Decide artifact signing and update policy before public distribution. The .deb and .rpm are unsigned, and there is no apt or dnf repository, so users download and install each release by hand.
 
 Keep candidate bridges in a stable location. A new library can select one with `--bridge-dir`, and its published plug-ins keep depending on it. Do not replace a live library's recorded bridge or runtime as part of a packaging test.

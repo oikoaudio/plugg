@@ -15,4 +15,4 @@ The modules are Wine, which is free software under the GNU Lesser General Public
 
 Archive SHA-256: `2f2ebcfe16b7e8ca1538045e82f92962e300711ab282279d8b6a4417f02044ff`
 
-Plugg never modifies PACE, iLok or any vendor's binaries. These modules fix Wine itself: see `docs/runtime.md` and `docs/recipes/pace.md` in the repository.
+Plugg never modifies PACE, iLok or any vendor's binaries. These modules fix Wine itself. See `docs/runtime.md` and `docs/recipes/pace.md` in the repository.

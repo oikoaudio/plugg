@@ -20,7 +20,7 @@ The aim is for one person's compatibility fix to be useful to the next person. P
 
 Do not introduce a shell-command field into recipes. A downloaded recipe must not silently replace a working runtime or create a new licensing machine. Separate vendors from shared dependencies such as PACE.
 
-Operations that write inside a prefix must be classified in `plugg/licensing.py` and must call `licensing.guard` before their first write. An unclassified operation is refused on a protected environment, which is the intended default. Read [licensing safety](docs/licensing-safety.md) before adding one: some users' activations cannot be recovered at any price.
+Operations that write inside a prefix must be classified in `plugg/licensing.py` and must call `licensing.guard` before their first write. An unclassified operation is refused on a protected environment, which is the intended default. Read [licensing safety](docs/licensing-safety.md) before adding one, because some users' activations cannot be recovered at any price.
 
 ## Checks
 
@@ -39,13 +39,13 @@ python3 scripts/check-contribution.py --recipe-dir /path/to/my-recipes
 
 The check isolates application configuration so it does not load unrelated recipes from your home directory. It does not build the bridge or prove that a Windows plug-in works. [Building](docs/building.md) has the native build and the integration tests. Check the tools they need before running them.
 
-A compatibility report should include exact product and installer versions, runtime and bridge identities, Linux desktop/graphics setup, DAW version, and the smallest reproduction. State separately what was observed for installation, activation, audio, editor close/reopen, multiple instances and project recall. A factory scan is not a playback test.
+A compatibility report should include exact product and installer versions, runtime and bridge identities, Linux desktop and graphics setup, DAW version, and the smallest reproduction. State separately what was observed for installation, activation, audio, editor close and reopen, multiple instances and project recall. A factory scan is not a playback test.
 
 Keep installers, account data, callback URLs, licenses, downloaded runtimes and prefixes out of contributions. Trim logs to the relevant failure and check for private information. Never copy an activated prefix into a test fixture.
 
 ## Packaging
 
-The Arch packages (`packaging/aur/plugg-git/PKGBUILD`, and `packaging/aur/plugg/PKGBUILD` for a release) are complete installations. They build the bridge, the scanner and the PowerShell forwarder from pinned sources. A release's .deb and .rpm are complete installations too: `scripts/build-release-packages.py` packs the release wheel, bridge and forwarder, and `packaging/test-packages.py` installs them in clean Ubuntu, Debian and Fedora containers. The Python wheel on its own holds the manager, the recipe engine, the built-in recipes and the font. A release wheel downloads its pinned bridge the first time it needs one. A wheel built from a checkout has no bridge, so don't describe it as a working setup. See [packaging](docs/packaging.md).
+The Arch packages (`packaging/aur/plugg-git/PKGBUILD`, and `packaging/aur/plugg/PKGBUILD` for a release) are complete installations. They build the bridge, the scanner and the PowerShell forwarder from pinned sources. A release's .deb and .rpm are complete installations too. `scripts/build-release-packages.py` packs the release wheel, bridge and forwarder, and `packaging/test-packages.py` installs them in clean Ubuntu, Debian and Fedora containers. The Python wheel on its own holds the manager, the recipe engine, the built-in recipes and the font. A release wheel downloads its pinned bridge the first time it needs one. A wheel built from a checkout has no bridge, so don't describe it as a working setup. See [packaging](docs/packaging.md).
 
 When changing package data, build a wheel and check recipe commands from an isolated installation outside the checkout. With uv installed:
 
@@ -54,7 +54,7 @@ uv build --wheel --out-dir /tmp/plugg-wheel
 python3 scripts/test-python-package.py /tmp/plugg-wheel/plugg-*.whl
 ~~~
 
-The check compares packaged modules and assets with the current checkout, then installs into a disposable environment without resolving dependencies. It checks built-in and local recipes and read-only status outside the source tree. It requires no Wine installation or vendor accounts. Retain third-party attribution. For changes to bridge or runtime behavior, keep patches small and record the upstream revision, reproduction, validation and conditions for removing the patch.
+The check compares packaged modules and assets with the current checkout, then installs into a disposable environment without resolving dependencies. It checks built-in and local recipes and read-only status outside the source tree. It requires no Wine installation or vendor accounts. Keep third-party attribution. For changes to bridge or runtime behavior, keep patches small and record the upstream revision, reproduction, validation and conditions for removing the patch.
 
 For GUI changes, an optional GTK smoke check is available:
 
@@ -62,7 +62,7 @@ For GUI changes, an optional GTK smoke check is available:
 python3 scripts/test-ui.py
 ~~~
 
-It uses synthetic library data and temporary settings. A graphical GTK session is required. For headless development, run gtk4-broadwayd :8 separately and set GDK_BACKEND=broadway, GSK_RENDERER=broadway and BROADWAY_DISPLAY=:8 for the test. The harness covers widget behaviour. Check layout and desktop focus by eye when you change them.
+It uses synthetic library data and temporary settings. A graphical GTK session is required. For headless development, run gtk4-broadwayd :8 separately and set GDK_BACKEND=broadway, GSK_RENDERER=broadway and BROADWAY_DISPLAY=:8 for the test. The check covers widget behaviour. Check layout and desktop focus by eye when you change them.
 
 For changes to archive-tool preparation, there is a separate integration check:
 
@@ -70,7 +70,7 @@ For changes to archive-tool preparation, there is a separate integration check:
 python3 scripts/test-archive-component.py
 ~~~
 
-It downloads the pinned MSYS2 package set into a temporary cache, prepares a disposable Windows directory layout, checks license notices and repeats the operation to check unchanged output. It never starts Wine. Downloads and fixture files are removed when the check finishes. This does not test a vendor helper.
+It downloads the pinned MSYS2 package set into a temporary cache, prepares a disposable Windows directory layout, checks license notices and repeats the operation to check unchanged output. It never starts Wine. The check removes its downloads and fixture files when it finishes. This does not test a vendor helper.
 
 A real helper-recipe fixture check is available after building the test fixtures:
 

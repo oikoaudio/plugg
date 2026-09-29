@@ -2,7 +2,7 @@
 
 Plugg's runtimes carry three Wine fixes of its own. Upstream Wine is the right home for all three. Every Wine build would then install PACE and survive the drag-and-drop crash, including [Cabinet](https://github.com/Mark12870/cabinet)'s. Cabinet carries a yabridge patch for the same drag-and-drop bug and runs a probe that tells it when a Wine release fixes it. None of these patches has been submitted.
 
-Wine takes merge requests at https://gitlab.winehq.org/wine/wine. A merge request needs a real-name author, commits against current `master`, a conformance test under the module's `tests/` directory where the behaviour can be tested, and behaviour that matches Windows. The patches in `patches/` are against Valve's Wine at `b8fdff8e1f85` (Wine 10.0), and their author line is `Plugg <noreply@local>`, so each needs work before it can go.
+Wine takes merge requests at https://gitlab.winehq.org/wine/wine. A merge request needs a real-name author, commits against current `master`, a conformance test under the module's `tests/` directory where the behaviour can be tested, and behaviour that matches Windows. The patches in `patches/` are against Valve's Wine at `b8fdff8e1f85` (Wine 10.0), and their author line is `Plugg <noreply@local>`, so each needs work before it can be submitted.
 
 ## ole32: refuse to revoke another process's drop target
 

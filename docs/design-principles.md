@@ -5,11 +5,11 @@ Plugg should be a small application that makes Windows plug-ins comfortable on L
 ## Engineering
 
 - Each part has one job. The GUI presents operations. The core installs and publishes. Recipes describe a supported setup. The loader resolves and launches a plug-in. yabridge owns the bridge protocol and audio transport.
-- One implementation per mechanism. Vendors share helper launch, discovery and component detection when they really behave the same. Vendor exceptions stay visible and local.
+- One implementation per mechanism. Vendors share helper launch, discovery and component detection when they behave the same. Vendor exceptions stay visible and local.
 - Every operation knows its environment, who depends on it and when it's finished. Closing an editor or the manager never stops a playing plug-in.
 - Public identities don't move. Plug-in class IDs, publication paths, saved project state and licensing environments stay the same across refactors. A change that would create a new plug-in or a new licensing machine needs a migration.
 - Setup work stays out of the audio callback: no recipe execution, downloads, logging, filesystem scans or manager round trips during processing. The bridge is cross-process and waits for processing results, so don't assume in-process guarantees carry over.
-- Patches stay small. Each one has provenance, a test case and a condition for removing it. A shared framework comes after real duplication shows its shape, not before.
+- Patches stay small. Each one has provenance, a test case and a condition for removing it. Write a shared framework only after real duplicated code shows what it needs to cover.
 - Test the transitions that have broken before: helper focus and input, editor close, reopen and repaint, state recall, interrupted installs, runtime mismatches. Report what a person observed separately from what an automated check proved.
 
 ## The loader
@@ -20,11 +20,11 @@ Plugg should be a small application that makes Windows plug-ins comfortable on L
 2. Start the session through the same launch code the app uses. Keep helper window handling separate from the plug-in path.
 3. Report ready only after the bridge handshake succeeds. A process that started is not proof of a usable plug-in.
 4. Clean up only processes Plugg owns, keep the DAW's state, and give an error the user can act on when a runtime is missing or a worker dies. Don't promise crash recovery that hasn't been built and tested.
-5. The manager is optional while the DAW runs. No always-running daemon unless something really needs one, with a documented lifetime.
+5. The manager is optional while the DAW runs. Don't add an always-running daemon unless something needs one, and document its lifetime if you do.
 
 ## Interface
 
-The visual language follows OikoAudio: named colour roles in one local theme, never colour literals in components.
+The visual language follows OikoAudio. Components use named colour roles from one local theme, never colour literals.
 
 | Role | Dark | Light |
 | --- | --- | --- |

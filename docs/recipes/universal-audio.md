@@ -35,7 +35,7 @@ The adapter is built from these reusable operations:
 
 - `vendor_payload.unpack` makes a private copy, checks the pinned hash and size, and stages files with bounded libarchive extraction. Softube uses it too.
 - `windows_service` registers a fixed service specification defined in code, and checks it. Softube uses it too. UA needs `UAHelperService`, the installed x64 `uahelperservice.exe`, LocalSystem and automatic start. If a different service with that name exists, the operation refuses.
-- `licensed_setup` handles identity and PACE snapshots, keeps destination paths inside the environment and checks that the environment is idle. Softube shares it.
+- `licensed_setup` handles identity and PACE snapshots, keeps destination paths inside the environment and checks that the environment is idle. Softube uses it too.
 - `archive_component.install` provides the same pinned archive binaries and licence notices that other helpers use (revision 2).
 - `ua_connect.configure` and its lifecycle and publication path run after you give explicit consent for the Electron compatibility flags, or reuse consent already recorded for this exact helper behaviour.
 

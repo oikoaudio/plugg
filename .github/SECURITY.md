@@ -1,12 +1,12 @@
 # Security
 
-This is a developer preview that runs Windows software on Linux and manages environments holding people's licences. Treat it accordingly.
+This is a developer preview that runs Windows software on Linux and manages environments holding people's licences.
 
 ## Reporting
 
 Report privately through GitHub's security advisories rather than a public issue. If that is not available to you, say that you have a security report in an issue without details, and wait to be contacted.
 
-Please include what an attacker would need (a shared recipe, a crafted plug-in file, network position, local access), what they gain, and the smallest reproduction. A demonstrated finding is worth far more than a described one.
+Please include what an attacker would need (a shared recipe, a crafted plug-in file, network position, local access), what they gain, and the smallest reproduction. If you can, demonstrate the finding rather than only describing it.
 
 There is no bounty and no guaranteed response time. This is one person's side project, but security reports come first.
 
@@ -25,4 +25,4 @@ There is no bounty and no guaranteed response time. This is one person's side pr
 
 ## What the project does not do
 
-It does not inspect, alter, emulate or bypass any licensing check, and it will not accept a contribution that does. Recipes cannot carry commands, and that is enforced by the schema rather than by review.
+It does not inspect, alter, emulate or bypass any licensing check, and it will not accept a contribution that does. Recipes cannot carry commands. The schema enforces this, not review.

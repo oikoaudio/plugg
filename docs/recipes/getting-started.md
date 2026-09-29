@@ -8,7 +8,7 @@ Recipes currently support three operations:
 
 The complex vendor and licensing adapters stay separate. The helper section below defines what the helper path supports. Recipes cannot contain executable code. New typed operations can be added to the core when real compatibility evidence calls for them.
 
-To add a TOML file, use **Help → Add setup recipe** or `plugg recipe add ./my-vendor.toml`. Both validate the file before saving it in `~/.config/plugg/recipes`. Plugg respects `$XDG_CONFIG_HOME`. CLI checks can also take `--recipe-dir`. Add dependency components before the recipes that use them. Plugg validates the combined catalogue, accepts an identical file added twice, and refuses different contents under an existing revision. Adding a recipe does not run it or migrate existing installations. Start with a namespaced identity, and use a new revision for each shared change:
+To add a TOML file, use **Add recipe…** on the Recipes & fixes page, or run `plugg recipe add ./my-vendor.toml`. Both validate the file before saving it in `~/.config/plugg/recipes`. Plugg respects `$XDG_CONFIG_HOME`. CLI checks can also take `--recipe-dir`. Add dependency components before the recipes that use them. Plugg validates the combined catalogue, accepts an identical file added twice, and refuses different contents under an existing revision. Adding a recipe does not run it or migrate existing installations. Start with a namespaced identity, and use a new revision for each shared change:
 
 ```toml
 schema = 1
@@ -23,7 +23,7 @@ notes = "Describe tested versions and limitations here."
 "Program Files/Common Files/VST3/My Plugin.vst3" = "dxvk"
 ```
 
-The commands, with the environment path replaced by your own managed environment:
+These are the commands. Replace the environment path with your own managed environment:
 
 ```sh
 plugg recipe validate ./my-vendor.toml
@@ -39,7 +39,7 @@ plugg recipe apply local.my-vendor@1 --environment /path/to/environment
 - `validate` checks one file.
 - `check` resolves every graph in the catalogue, including local recipes. It rejects missing dependencies and conflicting settings, and needs no installed environment.
 - `plan` checks the required graphics files, resolves exact dependency revisions and explains the proposed policy.
-- `apply` recomputes the plan from the recipes on disk. If settings change, it requires the DAW to be idle. It records the exact resolved graph in `recipe-lock.json`. Applying an unchanged policy again does not restart a runtime. The lock is provenance. It is not a licence backup or a signed trust statement.
+- `apply` recomputes the plan from the recipes on disk. If settings change, it requires the DAW to be idle. It records the exact resolved graph in `recipe-lock.json`. Applying an unchanged policy again does not restart a runtime. The lock is a provenance record. It is not a licence backup or a signed trust statement.
 
 Components may omit a graphics default, but a complete vendor graph must supply one.
 
@@ -53,7 +53,7 @@ These are the supported fields:
 
 The sections below describe each. `graphics` has an optional `default` and a `plugins` table. At least one node in the graph must supply a default. Plug-in paths are exact paths below `drive_c`, as described in [recipe authoring](../recipe-authoring.md). There are no globs and no shell interpolation. Dependencies must be components. Missing dependencies, cycles, competing revisions, duplicate identities, unknown fields and conflicting graphics requirements all fail. The result never depends on file order. Per-plug-in settings that the graph does not mention stay as they are.
 
-A recipe does not prove compatibility by existing. In your contribution, include exact plug-in, runtime and bridge versions, say whether each observation is manual or automated, and list known failures. Do not include installers, account URLs, credentials, licence files or copied prefixes. Shared licensing such as PACE will need explicit typed components. Plugg never infers it from a vendor name.
+Having a recipe does not prove compatibility. In your contribution, include exact plug-in, runtime and bridge versions, say whether each observation is manual or automated, and list known failures. Do not include installers, account URLs, credentials, licence files or copied prefixes. Shared licensing such as PACE will need explicit typed components. Plugg never infers it from a vendor name.
 
 ## Adding a direct VST3 import
 
@@ -245,7 +245,7 @@ Setup then does the following:
 
 The resulting manager card has **Open Helper** and **Refresh library**. Closing the helper after a later launch triggers the same scan. No new vendor-specific GUI code is needed. The generic path has no vendor-specific focus fixes and never joins a shared licensing environment by itself.
 
-The worker records each stage in `helper-setup.json`. It refuses existing prefixes and refuses to replay a finished or interrupted setup. It also blocks a second setup of the same recipe identity when that helper is already configured. Inspect interrupted jobs. Do not simply rerun an installer that may have changed licensing state. **Refresh library** is for a configured helper environment. It does not finish an installation.
+The worker records each stage in `helper-setup.json`. It refuses existing prefixes and refuses to replay a finished or interrupted setup. It also blocks a second setup of the same recipe identity when that helper is already configured. Inspect interrupted jobs. Do not rerun an installer that may have changed licensing state. **Refresh library** is for a configured helper environment. It does not finish an installation.
 
 For now, validation uses a synthetic installer, with simulated process and probe steps. It covers intake, pinned execution after a local recipe changes, manager card availability, the completion callback, conflicting matches, a changed runtime selection and replay refusal. It does not yet show that any further commercial vendor works through this path.
 

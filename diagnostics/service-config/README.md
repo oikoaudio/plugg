@@ -1,6 +1,6 @@
 # Service configuration and rundll32 version fixtures
 
-Own-code checks for the two Wine gaps that stop PACE's unmodified installer. Neither needs a vendor binary or a licence. Run them only in a disposable prefix: the service fixture creates and deletes a scratch service.
+These are own-code checks for the two Wine gaps that stop PACE's unmodified installer. Neither needs a vendor binary or a licence. Run them only in a disposable prefix, because the service fixture creates and deletes a scratch service.
 
 Build with `sh diagnostics/service-config/build.sh` (Clang/lld and the installed Wine headers, as for the drag-and-drop fixture). Output goes to the ignored `build/diagnostics`.
 
@@ -9,6 +9,6 @@ Build with `sh diagnostics/service-config/build.sh` (Clang/lld and the installed
 
 ## Results on UMU-Proton-10.0-4
 
-Unpatched: reading failure actions fails with 124 (`ERROR_INVALID_LEVEL`), the value behind PACE's `0x8007007c` at `Wix4ExecServiceConfig_X86`. Writes are accepted and discarded. Inside rundll32, `GetVersionEx` reports 6.2, the value that stops PACE at LaunchConditions.
+Without the patches, reading failure actions fails with 124 (`ERROR_INVALID_LEVEL`), the value behind PACE's `0x8007007c` at `Wix4ExecServiceConfig_X86`. Writes are accepted and discarded. Inside rundll32, `GetVersionEx` reports 6.2, the value that stops PACE at LaunchConditions.
 
-With [the Wine patch series](../../patches/wine/): failure actions and the non-crash flag round-trip exactly on x64 and x86 and reload from the registry, and rundll32 reports 10.0 through both APIs. The exact results and artifact hashes are in `patches/wine/series.json`.
+With [the Wine patch series](../../patches/wine/), failure actions and the non-crash flag round-trip exactly on x64 and x86 and reload from the registry, and rundll32 reports 10.0 through both APIs. The exact results and artifact hashes are in `patches/wine/series.json`.

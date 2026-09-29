@@ -16,7 +16,7 @@ Klevgrand's [licence policy](https://klevgrand.com/support/how-many-computers-ma
 | REAMP | not recorded | Working in Bitwig |
 | Klevgrand Helper | 1.0.12, self-updates after login | Login, product installation and authorization work |
 
-Not checked yet are sustained stress tests, project save and reopen, and REAPER.
+Sustained stress tests, project save and reopen, and REAPER are not checked yet.
 
 ## What the setup needs
 
@@ -48,4 +48,4 @@ Helper updates itself after login, so the installed executable no longer matches
 
 Helper is a PE64 JUCE application. It does not statically import .NET, WebView2 or a Visual C++ runtime, but it may still load them dynamically. Factory discovery through the managed session, fixture audio and the lifecycle tests are automated. Everything that involves the Klevgrand account, authorization, editors and audio was checked by hand. This project records no account credentials or licence contents anywhere.
 
-The design that grew out of this vendor is in [vendor recipes](../vendor-recipes.md).
+The design based on this vendor's setup is in [vendor recipes](../vendor-recipes.md).

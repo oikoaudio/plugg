@@ -34,37 +34,27 @@ plugg runtime assemble plugg-1 --artifacts ~/.cache/plugg/runtime-build/plugg-1-
 
 The script downloads Wine at revision `b8fdff8e1f85`, the revision UMU-Proton 10.0-4 ships, and checks the archive's hash. It applies the patches from this repository, each checked against its recorded hash. It generates the files the source archive leaves out, then builds only the modules it needs. It links with the recorded timestamp through `SOURCE_DATE_EPOCH`. Without that, the timestamp is the only difference between two builds.
 
-With `--container`, the build runs in an Arch Linux container. Its packages come from the Arch Linux Archive snapshot of 19 September 2026, which has the toolchain the modules were first built with (clang and lld 22.1.8, autoconf 2.73). That build gives byte-for-byte the published modules and takes a few minutes. Without `--container` the script uses your own compiler. The modules then work, but their hashes probably differ, and `runtime assemble` refuses them. The script tells you which files differ.
+With `--container`, the build runs in an Arch Linux container. Its packages come from the Arch Linux Archive snapshot of 19 September 2026, which has the toolchain the modules were first built with (clang and lld 22.1.8, autoconf 2.73). That build reproduces the published modules byte for byte and takes a few minutes. Without `--container` the script uses your own compiler. The modules then work, but their hashes probably differ, and `runtime assemble` refuses them. The script tells you which files differ.
 
 `--package FILE` also writes the release archive. It is deterministic, so you can compare it with the published one too.
 
 `scripts/publish-runtime-release.py` publishes that archive as the runtime's GitHub release. It attaches the notes and source pointer from `packaging/runtime/<name>/` and Wine's licence files at the pinned revision, and it checks the archive against the hash in `runtime-overlays.json`. It only reports what it would do until you pass `--publish`. A runtime release is a pre-release titled as support files, so it is never mistaken for the app. The script never moves an existing tag, and it never replaces a file already published with different bytes.
 
-One detail: `ole32.dll` keeps its debug information, which names the directory it was first built in. The build maps its own directory to that path so the bytes match.
+`ole32.dll` keeps its debug information, which names the directory it was first built in. The build maps its own directory to that path so the bytes match.
 
 ## plugg-2, in progress
 
-`plugg-2` is `plugg-1` plus one more module, `ntdll.dll`, carrying the upstream
-Wine fix for `RtlVirtualUnwind2()` writing through NULL output parameters
-([a55cddce98](https://gitlab.winehq.org/wine/wine/-/commit/a55cddce9839a1516f882ad2e5a2ab689084da92),
-Wine 11.7). Without it, Wine cannot report a crash that takes this path: the
-report recurses until the process dies, and nothing is printed.
+`plugg-2` is `plugg-1` plus one more module, `ntdll.dll`, with the upstream Wine fix for `RtlVirtualUnwind2()` writing through NULL output parameters ([a55cddce98](https://gitlab.winehq.org/wine/wine/-/commit/a55cddce9839a1516f882ad2e5a2ab689084da92), Wine 11.7). Without it, Wine cannot report a crash that takes this path. The report recurses until the process dies, and nothing is printed.
 
-It fixes reporting, not plug-ins. The plug-in failures of 2026-09-20 were a
-Windows host built with the packager's `-march=native`, fixed in the bridge
-build; see [the diagnosis](../diagnostics/host-stack/README.md). `plugg-2` is
-what makes the next failure of this kind legible.
+The fix is for crash reporting. It does not fix plug-ins. The plug-in failures of 2026-09-20 came from a Windows host built with the packager's `-march=native`, and the bridge build fixed them. See [the diagnosis](../diagnostics/host-stack/README.md). With `plugg-2`, Wine can report the next failure of this kind.
 
-It is a draft: its modules have not been built and recorded, so Plugg refuses to
-assemble or select it. Building them records the hashes:
+It is a draft. Its modules have not been built and recorded, so Plugg refuses to assemble or select it. Building them records the hashes:
 
 ```sh
 python3 scripts/build-runtime-overlay.py plugg-2 --container docker
 ```
 
-Moving an existing environment to it keeps the prefix, the installed software
-and the machine identity; only Wine modules change. A protected environment
-still asks first, and an iLok environment should deactivate before it moves.
+Moving an existing environment to it keeps the prefix, the installed software and the machine identity. Only Wine modules change. A protected environment still asks first. Deactivate the plug-ins in an iLok environment before you move it.
 
 ## Changing it
 

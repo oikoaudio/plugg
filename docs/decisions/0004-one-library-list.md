@@ -11,15 +11,15 @@ The window showed the library through four tabs, one for each kind of record the
 `plugg/library_view.py` draws the library as one list, ordered by how often each thing is used:
 
 1. **Needs you.** Only what blocks you or puts an activation at risk: a protected environment whose machine identity has drifted. Usually this section is absent.
-2. **Vendors.** One row per vendor, by name, with a status dot (green: in your DAW; amber: something waiting for you, with the button that does it on the row; blue: its app is running), with its plug-in count, its size, and its own app as the button (Open Kilohearts Installer, Open Native Access). A shared iLok environment becomes an iLok row, which owns the size and settings, and one row per vendor in it, each with its own app. A helper's status, such as plug-ins waiting for activation, is a quiet line on its row. Opening a row lists its plug-ins.
+2. **Vendors.** One row per vendor, by name. Each row has a status dot (green: in your DAW; amber: something waiting for you, with the button that does it on the row; blue: its app is running), its plug-in count, its size, and its own app as the button (Open Kilohearts Installer, Open Native Access). A shared iLok environment becomes an iLok row, which owns the size and settings, and one row per vendor in it, each with its own app. A helper's status, such as plug-ins waiting for activation, is a quiet line on its row. Opening a row lists its plug-ins.
 3. **Cleanup.** A folded line under the vendors: orphaned, archived or dangling environments, unused runtimes, nested libraries, and space in the library folder that none of its parts explains, with what deleting them would free.
 4. **The whole folder**, added up by part in the footer.
 
-Every environment is a vendor row or a cleanup line, so nothing takes room unseen.
+Every environment is a vendor row or a cleanup line, so no environment uses disk space without showing up in the list.
 
 Rare actions sit behind a settings (cogwheel) button on each environment's row: show folder, rename, troubleshoot, licence handling, force close, and delete last, with the licence note right above Delete, the one place it is a warning and not a call to action. Runtime, ID and path are the menu's header, not the row's.
 
-The view calls the manager's existing actions, so deletion still needs the typed confirmation and passes the licensing guard. Recipes open from "Recipes & fixes" in the top bar and from "Troubleshoot…" in the settings menu. Everything the old tabs did has a place here: each plug-in's details (what the DAW sees, where it came from, its version and status) open from its name in the row, and a helper's less frequent actions (refresh library, Native Access sign-in, installer files, choosing a helper) are in the row's settings.
+The view calls the manager's existing actions, so deletion still needs the typed confirmation and passes the licensing guard. Recipes open from "Recipes & fixes" in the top bar and from "Troubleshoot…" in the settings menu. Everything the old tabs did has a place here. Each plug-in's details (what the DAW sees, where it came from, its version and status) open from its name in the row. A helper's less frequent actions (refresh library, Native Access sign-in, installer files, choosing a helper) are in the row's settings.
 
 ## Keyboard and accessibility
 
@@ -38,7 +38,7 @@ python3 -m plugg.library_view --demo --snapshot out.png --light --search tape
 PLUGG_UI_SMOKE=1 PLUGG_UI_SNAPSHOT=app.png bin/plugg --data <test library> gui
 ```
 
-Run either on a headless weston (`weston --backend=headless --socket=x`, then `WAYLAND_DISPLAY=x`) to keep it off your desktop.
+Run any of these on a headless weston (`weston --backend=headless --socket=x`, then `WAYLAND_DISPLAY=x`) to keep it off your desktop.
 
 ## Still open
 

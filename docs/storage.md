@@ -1,6 +1,6 @@
 # How much disk this needs, and what it is spent on
 
-Windows plug-ins on Linux take more disk than Windows plug-ins on Windows. Not much more, and for reasons you can list, but the first folder listing can still be a shock. This page breaks the number down.
+Windows plug-ins on Linux take more disk than Windows plug-ins on Windows. The difference is small and has specific causes, but the first folder listing can still be a surprise. This page breaks the number down.
 
 All figures come from a real library with five vendors and 38 published plug-ins, measured in September 2026.
 
@@ -21,7 +21,7 @@ A library with five vendors came to 20 GB. Two of those vendors used 13 GB of it
 
 ### Per vendor
 
-Each vendor gets its own environment, a private Windows for its installer to install into. One vendor's components therefore cannot break another's. That isolation is why a vendor keeps working once it works at all, and it costs disk.
+Each vendor gets its own environment, a private Windows for its installer to install into. One vendor's components therefore cannot break another's. Because of this isolation, a vendor that works keeps working. The cost is disk space.
 
 | Size | What |
 | --- | --- |
@@ -38,7 +38,7 @@ The second line is the one that matters, and it varies a lot:
 | Five instruments, with content | 5.9 GB | ~650 MB | 5.2 GB, of which 1.7 GB is sample content |
 | Three plug-ins, licensed through iLok | 7.4 GB | ~650 MB | 6.7 GB, including 2.2 GB of Microsoft .NET and 1.9 GB of PACE licensing components |
 
-So "a vendor costs 7 GB" is misleading. That vendor's *products* cost 7 GB. They would cost about the same in a Windows installation, because .NET, PACE and sample libraries are that size wherever they live.
+So "a vendor costs 7 GB" is misleading. That vendor's *products* cost 7 GB. They would cost about the same in a Windows installation, because .NET, PACE and sample libraries are that size wherever they are installed.
 
 ### Kept alongside
 
@@ -46,13 +46,13 @@ So "a vendor costs 7 GB" is misleading. That vendor's *products* cost 7 GB. They
 | --- | --- |
 | ~1 GB | A copy of each installer you added, kept beside its installation. |
 
-This one is easy to miss. It is invisible, and it duplicates files you already have in your downloads folder. A 300 MB installer stays 300 MB forever. Deleting an installation or discarding a failed attempt also deletes its copy.
+This one is easy to miss. The interface does not show it, and it duplicates files you already have in your downloads folder. A 300 MB installer keeps using 300 MB for as long as its installation exists. Deleting an installation or discarding a failed attempt also deletes its copy.
 
 ## What you can do about it
 
 **Install fewer, larger vendors rather than many small ones.** The 650 MB skeleton is per environment, so ten vendors with one plug-in each cost more in overhead than one vendor with fifty. Plug-ins that can share an environment already do. You can merge two that ended up apart, but the interface does not offer this yet. Doing it by hand means moving publications, prefixes and licensing records together.
 
-**Point vendor content at a shared location.** Several instrument vendors let you choose where sample content lives. Content outside the environment is stored once, however many environments exist. For a large instrument library it outweighs everything else on this page.
+**Point vendor content at a shared location.** Several instrument vendors let you choose where sample content lives. Content outside the environment is stored once, however many environments exist. For a large instrument library, this saves more space than everything else on this page.
 
 **Delete what you tried and did not keep.** The Environments view lists everything on disk with its size, and separates environments that publish plug-ins from those that do not. A failed experiment is usually the biggest single thing you can remove.
 
@@ -67,5 +67,5 @@ This one is easy to miss. It is invisible, and it duplicates files you already h
 ## What it does not do yet
 
 - **The Windows skeleton is copied, not shared.** On a copy-on-write filesystem (btrfs, XFS, ZFS), Plugg could create it from a clean template at almost no cost, and environments would only diverge where they differ. That would save about 18% of a library this size, and more for someone with many small vendors. It is not implemented.
-- **Microsoft runtimes are per environment.** Two vendors that both need .NET 4.8 pay for it twice. Sharing it is hard, because .NET installs into the environment's registry and cannot simply live in a shared directory. After the skeleton, it is the largest duplicated item.
+- **Microsoft runtimes are per environment.** Two vendors that both need .NET 4.8 store it twice. Sharing it is hard, because .NET installs into the environment's registry and cannot be placed in a shared directory. After the skeleton, it is the largest duplicated item.
 - **Plugg never reclaims installer copies on its own**, and the interface does not show them.

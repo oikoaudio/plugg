@@ -14,10 +14,10 @@ Building a Plugg Flatpak would mean solving, a second time, the problems Cabinet
 
 ## How Plugg reaches more people
 
-Natively: a published release with prebuilt artifacts first (the bridge and the `plugg-1` modules), so the README's steps work without building anything. Then packages for more distribution families, or a relocatable tarball. The Arch package stays the supported install until then.
+Plugg reaches more people through native packages. First comes a published release with prebuilt artifacts (the bridge and the `plugg-1` modules), so the README's steps work without building anything. Then come packages for more distribution families, or a relocatable tarball. The Arch package stays the supported install until then.
 
 ## If this is ever revisited
 
-A Flatpak could still be added later without disturbing anyone's library, as long as one rule holds: user data never belongs to the app's install location. The library lives in `~/.local/share/plugg`, and a Flatpak would be granted that directory and use the existing environments in place. Moving an environment changes its path and in practice its runtime copy, which for iLok and other deactivate-first licences means deactivating first ([licensing safety](../licensing-safety.md)). The machine identity is derived from the host's `/etc/machine-id`, which a Flatpak app can read. `plugg environment update-launcher` rewrites the scripts that start sessions.
+A Flatpak could still be added later without disturbing anyone's library, as long as user data never belongs to the app's install location. The library lives in `~/.local/share/plugg`, and a Flatpak would be granted that directory and use the existing environments in place. Moving an environment changes its path and in practice its runtime copy, which for iLok and other deactivate-first licences means deactivating first ([licensing safety](../licensing-safety.md)). The machine identity is derived from the host's `/etc/machine-id`, which a Flatpak app can read. `plugg environment update-launcher` rewrites the scripts that start sessions.
 
 Two questions would need answers first, both about Proton rather than about packaging. Can Plugg's persistent session run inside a Flatpak, in the kind of sub-sandbox the Steam Flatpak uses for pressure-vessel? And can a DAW outside the sandbox reach it without being granted `org.freedesktop.Flatpak`?

@@ -16,7 +16,7 @@ The observations come from the pinned UMU-Proton 10.0-4 / UMU 1.4.4 runtime, Plu
 | One instance stalls as another exits | Runtime-container ownership, shared Wine services | Reproduced with one container per launch. One persistent container per prefix fixes it in fixture tests. |
 | DAW cannot talk to the Windows bridge | Socket path visibility, backing filesystem | Use a private tmpfs directory that both the native host and the runtime container can see. |
 | Rescan finds duplicates | Installed roots versus installer download or cache roots | Helper caches can hold extracted VST3 copies. Scan only installed roots. |
-| DAW lists a plug-in but says it failed to initialize it | Do the bundle's bridge links under `Contents/x86_64-linux` resolve? `doctor` → `publications_outside_library` | Bundles that link into a renamed or moved checkout break. `relink-bundles --apply` moves them into the library. |
+| DAW lists a plug-in but says it failed to initialize it | Do the bundle's bridge links under `Contents/x86_64-linux` resolve? Does `doctor` report anything under `publications_outside_library`? | Bundles that link into a renamed or moved checkout break. `relink-bundles --apply` moves them into the library. |
 
 ## 1. Working controls, frozen editor images
 
@@ -46,7 +46,7 @@ The DAW's renderer and a Windows plug-in's renderer are separate. A DAW that use
 
 The tested Hyprland version uses a Lua dispatcher API (`hl.dsp.window.float`). The legacy `togglefloating` syntax does not work there. The floating dispatcher needs `action="enable"`. `action="set"` falls back to toggling, so do not use it. Check the installed compositor's API instead of assuming the old command syntax. A title and class rule applies to every matching window while it is enabled. It is not a PID-specific security boundary. The later fallback check also verifies that the window's PID belongs to the prefix. The rule syntax is in the [Hyprland window rules documentation](https://wiki.hypr.land/Configuring/Basics/Window-Rules/).
 
-Removing the Unix `SteamAppId` before starting Proton changes the window class from `steam_app_default` to `steam_proton`. Class-based rules for Steam games, such as sending them to a gaming workspace or forcing fullscreen, then do not catch vendor helpers. Clearing the variable only inside a Windows batch file does not work. Placement and renderer compatibility are separate problems. Correct geometry alone does not cure a frozen Helper.
+Removing the Unix `SteamAppId` before starting Proton changes the window class from `steam_app_default` to `steam_proton`. Class-based rules for Steam games, such as sending them to a gaming workspace or forcing fullscreen, then do not catch vendor helpers. Clearing the variable only inside a Windows batch file does not work. Placement and renderer compatibility are separate problems. Correct geometry alone does not fix a frozen Helper.
 
 ## 4. Helper maintenance versus plug-in runtime launch
 
@@ -74,7 +74,7 @@ DAW host grouping is not the same thing as Wine prefix or container ownership. H
 
 Use a private per-user tmpfs directory that both sides can see. Plugg's bridge defaults to `/dev/shm/plugg-<uid>` and checks its ownership, permissions, directory type and tmpfs backing. The container may not see a DAW's inherited runtime directory. An explicit `YABRIDGE_TEMP_DIR` must pass the same checks.
 
-A filesystem-backed transport for audio data can cause avoidable I/O stalls. The ext4 journal stall mentioned in third-party discussion comes from that author's report. This project has not reproduced it.
+A filesystem-backed transport for audio data can cause avoidable I/O stalls.
 
 ## 8. Discovery, authorization and validation boundaries
 

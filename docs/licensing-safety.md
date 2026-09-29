@@ -26,7 +26,7 @@ recovery = "deactivate-first"
 note = "Three machines, one in use at a time. Uninstall through the Helper before rebuilding."
 ~~~
 
-Every environment built from that recipe is protected from the moment Plugg creates it. Protection starts before there is anything to lose, not after someone asks what a rebuild would cost. The built-in Klevgrand recipe declares this, and vendor recipes should too.
+Every environment built from that recipe is protected from the moment Plugg creates it. Protection starts before there is anything to lose. The built-in Klevgrand recipe declares this, and vendor recipes should too.
 
 A recipe may **not** declare `activations_remaining`. How many validations a serial has left is a fact about one person's purchase, not about the product. A recipe shared with strangers must not carry it. You record it yourself, as below.
 
@@ -54,15 +54,15 @@ plugg licensing protect --environment <path> --product "soothe:deactivate-first"
 
 ## One computer, one machine
 
-Wine generates a fresh `MachineGuid` for every prefix it creates. Left alone, a computer with six managed environments would look like **six different machines** to any vendor that fingerprints on that value. Licences are sold per machine, so this would quietly spend an allowance on environments that all sit on one desk. One person on one computer could use up a vendor's "three machines" limit.
+Wine generates a fresh `MachineGuid` for every prefix it creates. Left alone, a computer with six managed environments would look like **six different machines** to any vendor that fingerprints on that value. Licences are sold per machine, so each environment would quietly use up an allowance, although they all run on one computer. One person on one computer could use up a vendor's "three machines" limit.
 
 Plugg therefore gives each new environment this computer's machine identity when it creates the environment, before any vendor component runs. Plugg derives the value by hashing the host's own `machine-id`. The result is the same for every environment on the computer and stays stable across libraries and reinstalls, and Windows software never sees the host identifier itself. Plugg writes the value through Wine's own registry tooling, not by editing the hive.
 
-Plugg never re-identifies an existing environment. Changing the value in an environment that already holds activations is exactly what makes a vendor see a different machine, so the guard refuses it. The aim is to stop new environments from inventing identities, not to rewrite the ones you have. An environment created before this feature keeps the identity its licences were issued to. `licensing status` reports `machine_identity_is_this_computer: false` for those.
+Plugg never re-identifies an existing environment. Changing the value in an environment that already holds activations is exactly what makes a vendor see a different machine, so the guard refuses it. The feature sets the identity of new environments only. It does not rewrite existing ones. An environment created before this feature keeps the identity its licences were issued to. `licensing status` reports `machine_identity_is_this_computer: false` for those.
 
-This has two limits. First, it handles the obvious fingerprint, not every one. PACE and similar schemes read much more than `MachineGuid`, so a fresh prefix may still look distinct to them. Second, each environment still has its own prefix creation date, which anything that looks can see.
+This has two limits. First, it handles the obvious fingerprint, not every one. PACE and similar schemes read much more than `MachineGuid`, so a fresh prefix may still look distinct to them. Second, each environment still has its own prefix creation date, which any software that checks can read.
 
-If you do this at any scale, tell the vendor. A tool that makes one computer look like one computer is easy to explain. A vendor finding it on their own is a different conversation.
+If you do this at any scale, tell the vendor. A tool that makes one computer look like one computer is easy to explain up front, and harder to explain after the vendor finds it on their own.
 
 ## What the guard does
 
@@ -121,7 +121,7 @@ When you add an operation that writes inside a prefix, classify it in `plugg/lic
 
 ## Recording a deactivation
 
-When you deactivate a product with its vendor (for iLok products, in iLok License Manager), tell the environment:
+When you deactivate a product with its vendor (for iLok products, in iLok License Manager), record it in the environment:
 
 ```sh
 plugg licensing deactivated --environment <dir> --product "Softube Saturation Knob"

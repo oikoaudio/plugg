@@ -49,16 +49,16 @@ The test builds a temporary publication around the synthetic Windows gain module
 
 ## Lifecycle test for a candidate bridge
 
-The managed Proton lifecycle harness accepts `--bridge` for a candidate build. Before it creates a prefix, it checks the candidate's files against the build manifest. It records the bridge manifest and the session-manager fingerprint in its results, with the manager fingerprint check enabled.
+The managed Proton lifecycle test accepts `--bridge` for a candidate build. Before it creates a prefix, it checks the candidate's files against the build manifest. It records the bridge manifest and the session-manager fingerprint in its results, with the manager fingerprint check enabled.
 
 ~~~sh
 python3 scripts/test-proton-lifecycle.py --bridge /path/to/bridge --managed-session --rounds 2 --survival
 ~~~
 
-In a new unactivated prefix, the harness does the following:
+In a new unactivated prefix, the test does the following:
 
 1. Runs concurrent gain scans in each round.
 2. Checks that gain processing continues when another instance closes normally, when its Windows host is forced to exit, and when its native host is forced to exit.
 3. Lets the idle session stop, then has two racing clients restart it.
 
-A bridge built from the full patch series, 0001 to 0003, has passed it. The harness checks that gain is applied correctly and covers specific process-lifetime cases. It is not a latency benchmark, a vendor editor regression test, or a Bitwig or REAPER test.
+A bridge built from the full patch series, 0001 to 0003, has passed it. The test checks that gain is applied correctly and covers specific process-lifetime cases. It is not a latency benchmark, a vendor editor regression test, or a Bitwig or REAPER test.

@@ -35,7 +35,7 @@ python3 -m plugg recipe setup-existing plugg.softube@2 \
   --environment "$HOME/.local/share/plugg/environments/EXISTING_ENVIRONMENT_ID"
 ```
 
-The selected environment must already belong to this library. It needs a protected, matching licensing identity, PACE License Support and the full Proton launcher. Plugg first adds what the recipe requires and the environment lacks, taking a recovery point before each: the pinned PowerShell 7.4 and the pinned Visual C++ 2015-2022 x64 runtime. It never creates a Windows machine.
+The selected environment must already belong to this library. It needs a protected, matching licensing identity, PACE License Support and the full Proton launcher. Plugg first adds the recipe's requirements that the environment lacks, which are the pinned PowerShell 7.4 and the pinned Visual C++ 2015-2022 x64 runtime. It takes a recovery point before each. It never creates a Windows machine.
 
 The command does the following:
 
@@ -81,7 +81,7 @@ The managed launcher (`plugg.softube`) starts the Softube service and Central in
 
 ## Known issues
 
-**Product installs from Central stall without the Visual C++ runtime.** Softube's product installers run their bundled `vcredist_x64.exe /quiet`. In an environment without the Visual C++ 2015-2022 runtime, that step installs the runtime and then never exits under Wine, so the product install never finishes and no window explains why. With the runtime already there, the same step returns at once. A Wine log of Fix Phaser's install shows this, and Fix Phaser and Dirty Tape then installed from Central. `plugg.softube@2` requires the runtime, so Plugg installs the pinned Microsoft runtime before Central runs, and adds it when you next open Central if an environment lacks it. Plugg's own install of the runtime has the same non-exiting installer, so Plugg stops waiting once the runtime is registered and ends the leftover processes.
+**Product installs from Central stall without the Visual C++ runtime.** Softube's product installers run their bundled `vcredist_x64.exe /quiet`. In an environment without the Visual C++ 2015-2022 runtime, that step installs the runtime and then never exits under Wine, so the product install never finishes and no window explains why. With the runtime already there, the same step returns at once. A Wine log of Fix Phaser's install shows this, and Fix Phaser and Dirty Tape then installed from Central. `plugg.softube@2` requires the runtime. Plugg installs the pinned Microsoft runtime before Central runs, and adds it the next time you open Central if an environment lacks it. Plugg's own install of the runtime has the same non-exiting installer, so Plugg stops waiting once the runtime is registered and ends the leftover processes.
 
 **Saturation Knob flickers with OpenGL on.** With OpenGL enabled in the plug-in, its UI flickers heavily under DXVK, and a WineD3D override does not help. Untick **Use OpenGL** in the plug-in's own settings. Nobody knows where that setting is stored or whether it affects other Softube products, so Plugg does not change it automatically.
 

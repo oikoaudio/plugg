@@ -14,7 +14,7 @@ Keep the ordinary case short. The defaults cover a user-supplied installer, inte
 2. **Reusable component description.** A versioned VC runtime, archive utility, graphics configuration or patched runtime artifact, detected and installed through existing operations. Several vendor recipes can require the same component. PACE belongs here, separate from UA Connect.
 3. **New core operation.** When the existing vocabulary cannot express a real compatibility requirement, add a small, tested operation to the core and document its interface. A local developer can extend the source. Recipe files never import arbitrary Python or run embedded shell scripts.
 
-Contributors get a clear way out when a recipe is not enough, and no custom code hides inside files that claim to be declarative. Keep manual steps possible and visible. Mark a setup as waiting for a manual step instead of pretending it is automated.
+Contributors have a defined path when a recipe is not enough, and files that claim to be declarative contain no custom code. Keep manual steps possible and visible. Mark a setup as waiting for a manual step instead of pretending it is automated.
 
 ## Minimal public interface
 
@@ -84,7 +84,7 @@ The author workflow has these steps:
 
 Checks that depend on activation happen separately, in a persistent environment chosen on purpose.
 
-The first implementation is complete when someone can add a second recipe using only a recipe file and existing components, without changing the GUI or vendor-specific Python dispatch. Test invalid fields, unresolved and conflicting dependencies, input mismatches and repeated application. Add a genuinely new core operation only when a concrete recipe shows the need.
+The first implementation is complete when someone can add a second recipe using only a recipe file and existing components, without changing the GUI or vendor-specific Python dispatch. Test invalid fields, unresolved and conflicting dependencies, input mismatches and repeated application. Add a new core operation only when a concrete recipe shows the need.
 
 ## Reusing installer completion (implemented Python interface)
 
@@ -185,6 +185,6 @@ When the operation and the requirements match, refer to an existing component. F
 
 Sharing means reusing the definition, the implementation and the validation. Each Windows environment still gets its own installed files and registry settings. Sharing a component does not mean a shared writable prefix or a layered filesystem.
 
-Keep installer identity, helper launch behaviour and product-specific settings in the vendor recipe. Reuse graphics settings, Windows libraries, extraction tools and compatibility fixes where the requirements really match. Test a dependency shared by two vendors with both of them. Sharing a declaration does not prove compatibility.
+Keep installer identity, helper launch behaviour and product-specific settings in the vendor recipe. Reuse graphics settings, Windows libraries, extraction tools and compatibility fixes where the requirements match. Test a dependency shared by two vendors with both of them. Sharing a declaration does not prove compatibility.
 
 By default, the catalogue shows the latest revision of each component. Turn on history to see older definitions. Recipes keep resolving their exact pinned revisions.

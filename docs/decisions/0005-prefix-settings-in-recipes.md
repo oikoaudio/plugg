@@ -1,12 +1,12 @@
-# Prefix settings in recipes: typed, never free-form
+# Typed prefix settings in recipes
 
 Decided in September 2026, not built yet. It comes after v0.1.0.
 
 ## The gap
 
-Many Windows plug-ins run under Wine only with a setting inside their environment: a native `d2d1`, the core fonts, a DPI value, a virtual desktop, or a flag for the vendor's app. Cabinet's catalogue records such settings per product, and Plugg shows them as hints ("ran in another project with ..., not tested here"). A Plugg recipe can't apply them yet. It can choose DXVK or WineD3D per plug-in and require typed components (Visual C++ runtimes, PowerShell, archive tools, the NTK service, a helper app entry point, bridge patches), and nothing more. So when someone finds the setting that makes a plug-in work, the next person can't get it from a recipe. That is the thing recipes exist for.
+Many Windows plug-ins run under Wine only with a setting inside their environment: a native `d2d1`, the core fonts, a DPI value, a virtual desktop, or a flag for the vendor's app. Cabinet's catalogue records such settings per product, and Plugg shows them as hints ("ran in another project with ..., not tested here"). A Plugg recipe can't apply them yet. It can choose DXVK or WineD3D per plug-in and require typed components (Visual C++ runtimes, PowerShell, archive tools, the NTK service, a helper app entry point, bridge patches), and nothing more. So when someone finds the setting that makes a plug-in work, the next person can't get it from a recipe, and passing a fix on is what recipes are for.
 
-Fixes to Wine's own code are a different matter. They belong in a new runtime (`plugg-1`, `plugg-2`), which is the right place and stays so. The settings here are per environment, and a runtime can't carry them.
+Fixes to Wine's own code go into a new runtime (`plugg-1`, `plugg-2`), and that doesn't change. The settings here belong to one environment, and a runtime can't carry them.
 
 ## Why not free-form
 
@@ -15,11 +15,11 @@ Plugg keeps two rules that free-form settings would break:
 - **Everything is pinned by hash.** winetricks downloads from many hosts without pinned hashes, and some of its verbs change the whole prefix.
 - **Nothing may quietly change a licensed environment.** An arbitrary registry key or DLL override in an environment that holds iLok or vendor activations can break it, and some activations can't be recovered ([licensing safety](../licensing-safety.md)).
 
-A free-form field also defeats the recipe report. A reviewer can read "sets `d2d1` to native". Nobody can review an arbitrary `.reg` file at a glance.
+A free-form field also can't be reviewed. A reviewer can check "sets `d2d1` to native" in a second, but not an arbitrary `.reg` file.
 
 ## The decision
 
-Each kind of setting gets its own typed shape, a place in the recipe report, and a tier ceiling ([recipe trust](../recipe-trust.md)):
+Each kind of setting gets its own typed shape, a line in the recipe report and a tier ceiling ([recipe trust](../recipe-trust.md)):
 
 | Kind | Shape | Who may declare it |
 | --- | --- | --- |
