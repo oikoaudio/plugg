@@ -52,6 +52,11 @@ class KnownFixesTests(unittest.TestCase):
         self.assertTrue(any(f['kind'] == 'native' for f in found))
         self.assertEqual(known_fixes.summary(found, limit=1)[0], found[[f['kind'] for f in found].index('native')]['text'])
 
+    def test_a_known_problem_is_said_before_hints_from_elsewhere(self):
+        found = known_fixes.lookup('Install The Glue v1.9.3.exe', 'd' * 64, vendor='Cytomic',
+                                   files=[lead('The Glue', 'Cytomic', sha256='d' * 64, setup={'dxvk': True})])
+        self.assertTrue(known_fixes.summary(found, limit=1)[0].startswith('Cytomic: known problem.'))
+
     def test_an_unrelated_file_learns_nothing(self):
         self.assertEqual(known_fixes.lookup('Unrelated.exe', 'c' * 64, vendor='Nobody', files=self.FILES), [])
 

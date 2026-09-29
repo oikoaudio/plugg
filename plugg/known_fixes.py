@@ -110,5 +110,5 @@ def lookup(path=None, sha256=None, vendor=None, known_modules=None, files=None):
 
 def summary(found, limit=2):
     """The one or two lines worth showing while something installs."""
-    order = {'native': 0, 'recipe': 1, 'tested': 2, 'experimental': 3, 'lead': 4}
+    order = {'native': 0, 'recipe': 1, 'known problem': 2, 'tested': 3, 'experimental': 4, 'lead': 5}
     return [item['text'] for item in sorted(found, key=lambda i: order.get(i['kind'], 9))[:limit]]

@@ -97,7 +97,7 @@ FAQ = (
 )
 
 #: What has been tested, by vendor, as (status, note). The status is
-#: "tested" or "experimental"; anything else is untested.
+#: "tested", "experimental" or "known problem"; anything else is untested.
 VENDORS = {
     'Klevgrand': ('tested',
                   "Skaka, Slammer, Korvpressor, Richter, DAW Cassette and REAMP work in Bitwig. Klevgrand Helper is managed by the app: install "
@@ -122,6 +122,10 @@ VENDORS = {
                         "HG-2, DSM V3, Metric AB and several bx and Shadow Hills plug-ins have worked. Some "
                         "need different graphics settings. DSM curve dragging is uneven, and Kirchhoff has "
                         "shown background flicker."),
+    'Cytomic': ('known problem',
+                "The Glue 1.9.3 installs, and its editor opens in Bitwig, but it cannot be authorised. "
+                "The authorisation window is black and crashes the plug-in host, in every host tried "
+                "and without the bridge too. No fix is known yet."),
 }
 
 UNTESTED = ("You can try any 64-bit Windows VST3. Direct imports and installers Plugg has no recipe for get a "
