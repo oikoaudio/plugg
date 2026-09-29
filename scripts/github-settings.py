@@ -89,7 +89,7 @@ def main():
 
     actions = desired.get('actions')
     if actions is not None:
-        permissions = {k: v for k, v in actions.items() if k != 'selected'}
+        permissions = {k: v for k, v in actions.items() if k in ('enabled', 'allowed_actions')}
         found = differences(permissions, gh_api(f'repos/{name}/actions/permissions'))
         if actions.get('selected') is not None and actions.get('allowed_actions') == 'selected' and not found:
             found = differences(actions['selected'], gh_api(f'repos/{name}/actions/permissions/selected-actions'))
@@ -102,6 +102,60 @@ def main():
             if actions.get('allowed_actions') == 'selected':
                 gh_api(f'repos/{name}/actions/permissions/selected-actions', 'PUT', actions['selected'])
             print('actions permissions updated')
+        drift |= bool(found) and not args.apply
+
+    if actions is not None:
+        found = []
+        if 'workflow' in actions:
+            found += ['workflow token ' + line for line in
+                      differences(actions['workflow'], gh_api(f'repos/{name}/actions/permissions/workflow'))]
+        if 'fork_pr_approval' in actions:
+            have = gh_api(f'repos/{name}/actions/permissions/fork-pr-contributor-approval').get('approval_policy')
+            if have != actions['fork_pr_approval']:
+                found.append(f'fork pull request approval: {have!r} should be {actions["fork_pr_approval"]!r}')
+        for line in found:
+            print('actions', line)
+        if found and args.apply:
+            if 'workflow' in actions:
+                gh_api(f'repos/{name}/actions/permissions/workflow', 'PUT', actions['workflow'])
+            if 'fork_pr_approval' in actions:
+                gh_api(f'repos/{name}/actions/permissions/fork-pr-contributor-approval', 'PUT',
+                       {'approval_policy': actions['fork_pr_approval']})
+            print('actions workflow settings updated')
+        drift |= bool(found) and not args.apply
+
+    security = desired.get('security')
+    if security is not None:
+        found = []
+        analysis = current.get('security_and_analysis') or {}
+        scanning = {k: security[k] for k in ('secret_scanning', 'secret_scanning_push_protection') if k in security}
+        for key, want in scanning.items():
+            have = (analysis.get(key) or {}).get('status')
+            if have != want:
+                found.append(f'{key}: {have!r} should be {want!r}')
+        if 'private_vulnerability_reporting' in security:
+            have = gh_api(f'repos/{name}/private-vulnerability-reporting').get('enabled')
+            if have != security['private_vulnerability_reporting']:
+                found.append(f'private vulnerability reporting: {have!r} should be {security["private_vulnerability_reporting"]!r}')
+        if 'vulnerability_alerts' in security:
+            try:
+                gh_api(f'repos/{name}/vulnerability-alerts')
+                have = True
+            except RuntimeError:
+                have = False
+            if have != security['vulnerability_alerts']:
+                found.append(f'vulnerability alerts: {have!r} should be {security["vulnerability_alerts"]!r}')
+        for line in found:
+            print('security', line)
+        if found and args.apply:
+            if scanning:
+                gh_api(f'repos/{name}', 'PATCH', {'security_and_analysis': {k: {'status': v} for k, v in scanning.items()}})
+            if 'private_vulnerability_reporting' in security:
+                gh_api(f'repos/{name}/private-vulnerability-reporting',
+                       'PUT' if security['private_vulnerability_reporting'] else 'DELETE')
+            if 'vulnerability_alerts' in security:
+                gh_api(f'repos/{name}/vulnerability-alerts', 'PUT' if security['vulnerability_alerts'] else 'DELETE')
+            print('security settings updated')
         drift |= bool(found) and not args.apply
 
     try:

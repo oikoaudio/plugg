@@ -26,7 +26,18 @@
       "github_owned_allowed": true,
       "verified_allowed": false,
       "patterns_allowed": []
-    }
+    },
+    "workflow": {
+      "default_workflow_permissions": "read",
+      "can_approve_pull_request_reviews": false
+    },
+    "fork_pr_approval": "all_external_contributors"
+  },
+  "security": {
+    "secret_scanning": "enabled",
+    "secret_scanning_push_protection": "enabled",
+    "private_vulnerability_reporting": true,
+    "vulnerability_alerts": true
   },
   "rulesets": [
     {
