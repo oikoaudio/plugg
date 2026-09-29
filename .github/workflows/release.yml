@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   release:
-    name: Build and draft the release
+    name: Build the release files
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -75,11 +75,45 @@ jobs:
             --wheel dist/plugg-*.whl --bridge dist/plugg-bridge-*.tar.gz --forwarder bundle/powershell-forwarder
           python3 packaging/test-packages.py dist --output "$RUNNER_TEMP/package-test"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: |
+            dist/plugg-*.whl
+            dist/plugg-bridge-*.tar.gz
+            dist/plugg_*_amd64.deb
+            dist/plugg-*.x86_64.rpm
+            dist/plugg-[0-9]*-x86_64.tar.gz
+          if-no-files-found: error
+
+  # Built in parallel, in a clean Arch container (see arch-package.yml).
+  arch:
+    uses: ./.github/workflows/arch-package.yml
+    with:
+      tag: ${{ github.ref_name }}
+
+  draft:
+    name: Draft the release
+    needs: [release, arch]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: arch-package
+          path: dist
+
       - name: Checksums
         working-directory: dist
         run: |
           sha256sum plugg-*.whl plugg-bridge-*.tar.gz plugg_*_amd64.deb plugg-*.x86_64.rpm \
-            plugg-[0-9]*-x86_64.tar.gz > SHA256SUMS
+            plugg-[0-9]*-x86_64.tar.gz plugg-*-x86_64.pkg.tar.zst > SHA256SUMS
 
       - name: Draft the release
         env:
@@ -99,4 +133,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --draft $candidate --verify-tag --title "Plugg ${GITHUB_REF_NAME#v}" \
             "${notes[@]}" \
             dist/plugg-*.whl dist/plugg-bridge-*.tar.gz dist/plugg_*_amd64.deb dist/plugg-*.x86_64.rpm \
-            dist/plugg-[0-9]*-x86_64.tar.gz dist/SHA256SUMS
+            dist/plugg-[0-9]*-x86_64.tar.gz dist/plugg-*-x86_64.pkg.tar.zst dist/SHA256SUMS

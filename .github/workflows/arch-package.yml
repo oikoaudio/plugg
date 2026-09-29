@@ -1,0 +1,94 @@
+name: Arch package
+
+# Builds the Arch package plugg-<version>-<pkgrel>-x86_64.pkg.tar.zst from a
+# v<version> tag with packaging/test-aur.py: makepkg in the digest-pinned Arch
+# image, packages from the dated Arch Linux Archive, the unit suite in check(),
+# then the installed-package checks as an ordinary user. A package that does
+# not install and pass is never uploaded.
+#
+# The release workflow calls this for every new tag. Run by hand, it attaches
+# the package to a release that already exists and adds it to SHA256SUMS; it
+# refuses when the release already has that package.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and attach to, for example v0.1.0'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test the Arch package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: The tag matches the declared version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          declared=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' plugg/__init__.py)
+          test "v$declared" = "$TAG" || {
+            echo "Tag $TAG does not match plugg/__init__.py ($declared)"; exit 1; }
+
+      - name: Build, install and check in a clean Arch container
+        run: |
+          python3 packaging/test-aur.py --output "$RUNNER_TEMP/arch" --cpus "$(nproc)" --memory 12g
+          mkdir dist
+          cp "$RUNNER_TEMP"/arch/plugg-[0-9]*-x86_64.pkg.tar.zst dist/
+          ls -l dist
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-package-logs
+          path: ${{ runner.temp }}/arch/*.log
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: dist/plugg-*-x86_64.pkg.tar.zst
+          if-no-files-found: error
+
+  attach:
+    name: Attach to the existing release
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: arch-package
+          path: dist
+
+      - name: Upload the package and the extended SHA256SUMS
+        run: |
+          cd dist
+          package=$(ls plugg-*-x86_64.pkg.tar.zst)
+          if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qxF "$package"; then
+            echo "$TAG already has $package. Delete that asset first to replace it."; exit 1
+          fi
+          gh release download "$TAG" --pattern SHA256SUMS
+          sha256sum "$package" >> SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$TAG" "$package"
+          gh release upload "$TAG" SHA256SUMS --clobber
