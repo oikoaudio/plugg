@@ -635,6 +635,17 @@ def forget_environment(store, env_id):
     return [forget_plugin(store, item["id"]) for item in found]
 
 
+#: Where a setup without its own journal records how far it got. Recipe
+#: helpers keep helper-setup.json and imports import-state.json; the plain
+#: installer path and the built-in Klevgrand recipe write this one.
+SETUP_STAGE = "setup-stage.json"
+
+
+def record_stage(store, job_id, stage):
+    """Save the last setup stage reached, so a failure can be judged afterwards."""
+    atomic_json(store.root / "jobs" / job_id / SETUP_STAGE, {"schema": 1, "stage": stage})
+
+
 def reconcile_journalled_jobs(store, journal_name, message, *, kind=None):
     """Mark interrupted operations using their lock, without replay or cleanup."""
     changed = 0
@@ -1435,6 +1446,7 @@ def _work(store: Store, job_id, rescan=False):
             # still went to a separate plain Wine 11 build.
             from . import licensing, recipes
             report = lambda msg: store.update(job_id, "preparing", msg)
+            record_stage(store, job_id, "preparing-runtime")
             runtime = recipes.provision(store, report, check)
             prefix.mkdir(parents=True, exist_ok=True)
             log = store.root / "jobs" / job_id / "installer.log"
@@ -1443,6 +1455,7 @@ def _work(store: Store, job_id, rescan=False):
             # it is readable only by its owner and is called out in the UI.
             log.touch(mode=0o600, exist_ok=True)
             store.update(job_id, "preparing", "Creating a private Windows environment")
+            record_stage(store, job_id, "preparing-environment")
             full, _ = recipes.configure(store, job_id, runtime, helper_enabled=False)
             env = os.environ.copy()
             rc = run_process([full, "cmd.exe", "/c", "exit", "0"], env, log, check, 300)
@@ -1456,6 +1469,7 @@ def _work(store: Store, job_id, rescan=False):
                 "session_launcher": str(prefix.parent / "launch-plugin"), "graphics_backend": "dxvk",
                 "sandbox": False})
             store.update(job_id, "installing", "Complete the vendor installer in its own window")
+            record_stage(store, job_id, "running-installer")
             installer = Path(job["installer"])
             args = ([full, "msiexec", "/i", "Z:" + str(installer).replace("/", "\\")] if job["kind"] == "msi"
                     else [full, installer])
@@ -1472,6 +1486,7 @@ def _work(store: Store, job_id, rescan=False):
             # Detached launchers/helpers may still be installing. A short quiet
             # period is a heuristic, not a claim that every vendor has finished.
             store.update(job_id, "scanning", "Looking for installed plug-ins")
+            record_stage(store, job_id, "scanning")
             last = None
             stable = 0
             for _ in range(15):
@@ -1483,10 +1498,15 @@ def _work(store: Store, job_id, rescan=False):
                     break
                 time.sleep(1)
             finish_scan(store, job)
+            record_stage(store, job_id, "complete")
         except Cancelled as exc:
             store.update(job_id, "cancelled", str(exc))
             if wine and wine.exists() and not any(p["env_id"] == job_id for p in store.plugins()):
                 subprocess.run([wine, "-k"], env={**os.environ, "WINEPREFIX": str(prefix)}, timeout=10, capture_output=True)
+            # Cancelling is handled here rather than raised, so work() never
+            # sees it; tidy up the same way it would after a failure.
+            from . import environments
+            environments.tidy_after_failure(store, job_id)
         except Exception as exc:
             store.update(job_id, "failed", str(exc))
             raise

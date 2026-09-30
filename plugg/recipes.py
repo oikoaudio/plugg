@@ -117,17 +117,21 @@ def work(store, job_id, installer_args=None):
             check=lambda:store.cancelled(job_id)
             report=lambda msg:store.update(job_id,'preparing',msg,pid=os.getpid())
             report('Preparing Klevgrand support')
+            core.record_stage(store,job_id,'preparing-runtime')
             runtime=provision(store,report,check)
             prefix=store.prefix(job_id);prefix.mkdir(parents=True,exist_ok=True)
+            core.record_stage(store,job_id,'preparing-environment')
             full,helper=configure(store,job_id,runtime)
             # Before the vendor installer runs, so it sees this computer rather
             # than an identity invented for this prefix.
             licensing.adopt_machine_identity(prefix.parent,[str(full)],os.environ.copy(),check,timeout=600)
             store.update(job_id,'installing','Installing Klevgrand Helper…')
+            core.record_stage(store,job_id,'installing-helper')
             # Discard vendor output; it may contain account information.
             with vendors.helper_placement():
                 helper_component.install(job,prefix,full,KLEVGRAND_HELPER,installer_args,check)
             report('Preparing the private archive utility')
+            core.record_stage(store,job_id,'preparing-components')
             archive_tools(store,prefix,report,check)
             proton_session.graphics_overrides(json.loads((prefix.parent/'session.json').read_text()))
             # Ensure the full installer runtime is gone before managed probes.
@@ -140,6 +144,7 @@ def work(store, job_id, installer_args=None):
             # Protected before the first activation exists, not after someone
             # thinks to ask what would happen if this were rebuilt.
             licensing.protect_declared(prefix.parent, recipe().get('licensing'))
+            core.record_stage(store,job_id,'complete')
             store.update(job_id,'ready','Klevgrand is ready. Open Helper to sign in and install VST3 plug-ins.')
         except core.Cancelled as exc:
             store.update(job_id,'cancelled',str(exc));raise

@@ -834,6 +834,29 @@ class TidyAfterFailureTests(unittest.TestCase):
         self.assertEqual(self.store.job('job')['status'], 'failed')
         self.assertFalse(self.directory.exists())
 
+    def test_an_installer_without_a_recipe_is_judged_by_its_own_journal(self):
+        core.record_stage(self.store, 'job', 'preparing-environment')
+        self.assertIsNotNone(environments.tidy_after_failure(self.store, 'job'))
+        self.assertFalse(self.directory.exists())
+
+    def test_an_installer_without_a_recipe_that_ran_is_kept(self):
+        core.record_stage(self.store, 'job', 'running-installer')
+        self.assertIsNone(environments.tidy_after_failure(self.store, 'job'))
+        self.assertTrue(self.directory.is_dir())
+
+    def test_a_plain_installer_that_fails_while_preparing_leaves_nothing(self):
+        # The generic path used to write no journal, so every failure kept its
+        # prefix, however early it stopped.
+        with self.store.db() as db:
+            db.execute("UPDATE jobs SET status='queued' WHERE id='job'")
+        with patch.object(core.Store, 'bridge'), patch('plugg.core.verify_installer'), \
+                patch('plugg.recipes.provision', return_value={}), \
+                patch('plugg.recipes.configure', side_effect=core.HostError('prefix failed')):
+            with self.assertRaises(core.HostError):
+                core.work(self.store, 'job')
+        self.assertEqual(self.store.job('job')['status'], 'failed')
+        self.assertFalse(self.directory.exists())
+
 
 class ActivationKnowledgeTests(unittest.TestCase):
     """The app does not know what is activated, and must not pretend to.
