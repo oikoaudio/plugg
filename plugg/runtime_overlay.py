@@ -229,6 +229,15 @@ def select_for_new_environments(store_root, name):
     return settings.get(SETTING)
 
 
+def selected_directory(store_root):
+    """The runtimes/ directory name new environments are set to use, or None for the base."""
+    try:
+        name = _settings(store_root).get(SETTING)
+        return directory_name(overlay(name)) if name else None
+    except (OSError, ValueError, core.HostError):
+        return None
+
+
 def proton_for_new_environment(store_root, base_proton):
     """The Proton directory a new environment should use: the selected overlay, or the base."""
     name = _settings(store_root).get(SETTING)

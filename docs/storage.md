@@ -61,7 +61,7 @@ This one is easy to miss. The interface does not show it, and it duplicates file
 ## What the app does for you
 
 - A failed setup that never got as far as installing anything removes its own environment, so a bad download does not leave a few gigabytes behind.
-- Environments share runtimes. The app offers to reclaim a runtime that no environment uses any more, and downloads it again if it is needed later.
+- Environments share runtimes. The app offers to reclaim a runtime that no environment uses any more, unless new environments are set to use it. The base runtime downloads again when a setup needs it. A patched runtime such as `plugg-1` needs `plugg runtime assemble` again.
 - Plug-ins that can share an environment do. Four plug-ins from one vendor are one environment, not four.
 
 ## What it does not do yet
