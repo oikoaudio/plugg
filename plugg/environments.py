@@ -545,8 +545,14 @@ def unused_runtimes(store):
     A runtime outlives the last environment that used it, silently: nothing
     ever looks. It is the one kind of leftover here that is genuinely safe to
     delete, because it is provisioned by download and comes back on demand.
+    The runtime selected for new environments is never offered.
     """
-    return sorted(name for name, users in runtime_users(store).items() if not users)
+    from . import runtime_overlay
+    # Selected for new environments counts as a use. An overlay does not come
+    # back on demand like the base runtime: it has to be assembled again.
+    selected = runtime_overlay.selected_directory(store.root)
+    return sorted(name for name, users in runtime_users(store).items()
+                  if not users and name != selected)
 
 
 def remove_runtime(store, name):
@@ -554,6 +560,10 @@ def remove_runtime(store, name):
     import shutil
     if '/' in name or name in ('.', '..'):
         raise core.HostError('Not a runtime name: ' + name)
+    from . import runtime_overlay
+    if name == runtime_overlay.selected_directory(store.root):
+        raise core.HostError('New environments are set to use this runtime: ' + name + '. Run '
+                             'plugg runtime unselect, or select another, before reclaiming it.')
     if name not in unused_runtimes(store):
         raise core.HostError('This runtime is still used by an environment: ' + name)
     path = store.root / 'runtimes' / name

@@ -605,6 +605,20 @@ class RuntimeReclaimTests(unittest.TestCase):
             environments.remove_runtime(self.store, 'proton-10.0-4-guard')
         self.assertTrue((self.store.root / 'runtimes' / 'proton-10.0-4-guard').is_dir())
 
+    def test_the_runtime_selected_for_new_environments_is_never_offered(self):
+        # Before any environment uses it, it is still what the next setup
+        # needs, and an overlay is not downloaded again on demand.
+        from plugg import runtime_overlay
+        name = runtime_overlay.directory_name(runtime_overlay.overlay('plugg-1'))
+        (self.store.root / 'runtimes' / name).mkdir()
+        core.atomic_json(self.store.root / 'settings.json', {runtime_overlay.SETTING: 'plugg-1'})
+        self.assertNotIn(name, environments.unused_runtimes(self.store))
+        with self.assertRaisesRegex(core.HostError, 'New environments are set to use'):
+            environments.remove_runtime(self.store, name)
+        self.assertTrue((self.store.root / 'runtimes' / name).is_dir())
+        runtime_overlay.select_for_new_environments(self.store.root, None)
+        self.assertIn(name, environments.unused_runtimes(self.store))
+
     def test_deleting_the_last_environment_makes_its_runtime_reclaimable(self):
         import shutil
         shutil.rmtree(self.store.root / 'environments' / 'beta')
