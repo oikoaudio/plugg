@@ -363,6 +363,14 @@ class RemovalTests(unittest.TestCase):
         # Refused before the acknowledgement was recorded, so nothing was used up.
         self.assertIsNone(licensing.read(self.directory).get('acknowledgement'))
 
+    def test_an_unreadable_licensing_record_stops_it_before_anyone_types(self):
+        (self.directory / 'licensing.json').write_text('{ not json')
+        record = self.record()
+        self.assertTrue(any('could not be read' in r for r in environments.blockers(self.store, record)))
+        with self.assertRaisesRegex(core.HostError, 'could not be read'):
+            environments.remove(self.store, record, environments.removal_phrase(record))
+        self.assertTrue(self.directory.is_dir())
+
     def test_nothing_stands_in_the_way_of_a_finished_environment(self):
         self.job('old', archived=True)
         self.assertEqual(environments.blockers(self.store, self.record()), [])

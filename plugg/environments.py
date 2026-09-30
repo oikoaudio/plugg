@@ -300,6 +300,12 @@ def blockers(store, record):
     if busy:
         reasons.append('Still working on ' + ', '.join(j['name'] for j in busy)
                        + '. Cancel it first.')
+    if record['protected'] is None:
+        # Unreadable is treated as protected everywhere else. Asking for
+        # DELETE <VENDOR> and then failing in the guard said neither.
+        reasons.append('Its licensing record (licensing.json) could not be read, so there is no '
+                       'telling what deleting it would cost. See why with: plugg licensing status '
+                       '--environment ' + record['path'])
     try:
         path, _ = entry(store, record)
         # Windows programs, not Wine's own services: an idle plug-in session
