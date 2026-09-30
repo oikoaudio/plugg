@@ -15,6 +15,7 @@ The aim is for one person's compatibility fix to be useful to the next person. P
 - To add a direct VST3 or graphics recipe, follow the [recipe guide](docs/recipes/getting-started.md). Local recipes work without a fork.
 - For a new installer or licensing requirement, read the [extension boundaries](docs/recipe-authoring.md) and existing compatibility notes. Propose a typed core operation only when the current ones cannot express it.
 - For the GUI and loader, follow the [design principles](docs/design-principles.md).
+- [Lifecycles](docs/lifecycles.md) shows how runtimes, environments and plug-ins are added and removed, and where the licence guard is asked.
 - For Wine fixes, read [the runtime page](docs/runtime.md). A runtime that environments already use never changes. A fix goes into a new runtime.
 - Build decisions and current limits are in [the recipe ADR](docs/decisions/0001-recipe-engine.md) and [the build ADR](docs/decisions/0002-build-tooling.md).
 

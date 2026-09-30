@@ -121,6 +121,8 @@ A recipe may not create, recreate or relocate a licensed environment, and may no
 
 When you add an operation that writes inside a prefix, classify it in `plugg/licensing.py` and call `licensing.guard` before the first write. The guard refuses unclassified operations on purpose. A new operation should have to state what it does to a licensed machine.
 
+[Lifecycles](lifecycles.md) shows where the existing operations call the guard.
+
 ## Recording a deactivation
 
 When you deactivate a product with its vendor (for iLok products, in iLok License Manager), record it in the environment:
