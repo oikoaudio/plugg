@@ -299,6 +299,16 @@ class RemovalTests(unittest.TestCase):
         environments.remove(self.store, record, environments.removal_phrase(record))
         self.assertFalse(self.directory.exists())
 
+    def test_an_environment_recorded_as_holding_nothing_licensed_can_be_deleted(self):
+        # Protected, but only with free plug-ins: the phrase is DELETE
+        # <VENDOR>, and the guard still has to accept the removal.
+        licensing.protect(self.directory, [{'name': 'Free Synth', 'recovery': 'unlicensed'}])
+        record = self.record()
+        self.assertTrue(record['protected'])
+        self.assertEqual(environments.removal_phrase(record), 'DELETE KLEVGRAND')
+        environments.remove(self.store, record, 'DELETE KLEVGRAND')
+        self.assertFalse(self.directory.exists())
+
     def test_the_records_of_what_lived_here_go_with_it(self):
         # Asking someone to archive them first was asking for a ritual on the
         # way to the same place: they describe what was in this environment.
