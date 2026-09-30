@@ -1428,6 +1428,20 @@ class Manager(Gtk.Application):
                          'you are the only one who knows. Deactivate them in the vendor’s own '
                          'manager if you have not already; typing the phrase below is how you '
                          'say that you have.')
+        if linked is None:
+            # They live inside the environment, so they go with it. Someone
+            # who took one before a risky change should hear that now.
+            from . import licensing
+            try:
+                points = len(licensing.backups(record['path']))
+            except OSError:
+                points = 0
+            if points:
+                lines.append(('Its licensing recovery point is' if points == 1 else
+                              'Its %d licensing recovery points are' % points)
+                             + ' stored inside it and deleted with it. To keep '
+                             + ('it' if points == 1 else 'them')
+                             + ', copy its licensing-backups folder somewhere else first.')
         size = self.sizes.get(record['id'])
         if size and linked is None:
             lines.append('Frees about ' + survey.readable(size) + '.')

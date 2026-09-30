@@ -104,6 +104,8 @@ plugg licensing restore --environment <path> \
 
 A recovery point copies only the identity files, meaning the registry hives, the runtime version and the runtime markers. It is small enough to take before every risky change. Unlike `licensing.json`, a recovery point is **not** shareable. Its registry copies contain your machine's identifiers in the clear, and so does the key file beside the record. Restore refuses to run while plug-ins from the environment are running. It checks every file against the manifest and first takes a fresh recovery point of the current state, so you can reverse a restore too.
 
+Recovery points are stored inside the environment, in `licensing-backups/`. Deleting the environment deletes them too, and the app's delete dialog says so when there are any. To keep one, copy that folder somewhere else first.
+
 This is a way back from an identity change. It is **not** a backup of installed products, activation payloads or user data, and it is not a filesystem snapshot.
 
 ## What this does not prove
@@ -127,4 +129,4 @@ When you deactivate a product with its vendor (for iLok products, in iLok Licens
 plugg licensing deactivated --environment <dir> --product "Softube Saturation Knob"
 ```
 
-It prints the exact phrase to repeat with `--confirm`. The product moves from the environment's list to its history, with the date. When no products are left, the environment is no longer protected and you can rebuild it. Its identity record and recovery points stay. This project never checks activation state itself, so the record is only as current as what you tell it. The app's iLok card lists the plug-ins *installed* in the environment, not activations.
+It prints the exact phrase to repeat with `--confirm`. The product moves from the environment's list to its history, with the date. When no products are left, the environment is no longer protected and you can rebuild it. Its identity record and recovery points stay until you delete the environment. This project never checks activation state itself, so the record is only as current as what you tell it. The app's iLok card lists the plug-ins *installed* in the environment, not activations.

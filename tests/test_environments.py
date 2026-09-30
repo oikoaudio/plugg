@@ -503,6 +503,10 @@ class RemovalPresentationTests(unittest.TestCase):
         self.assertIn("if record['protected']:", self.text)
         self.assertIn('Deactivate them in the vendor', self.text)
 
+    def test_the_dialog_says_recovery_points_go_with_it(self):
+        self.assertIn("licensing.backups(record['path'])", self.text)
+        self.assertIn('stored inside it and deleted with it', self.text)
+
     def test_what_stops_it_is_said_before_anyone_is_asked_to_type(self):
         # Asking for a confirmation phrase and only then refusing wastes the
         # one moment the person was paying full attention.
