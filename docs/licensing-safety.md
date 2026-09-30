@@ -1,6 +1,6 @@
 # Protecting activated environments
 
-An environment that holds product activations is not disposable. Recreating it, moving it or rewriting the Windows identity inside it can make a vendor treat it as a different computer. What that costs depends on the product, so Plugg does not guess. It records what you tell it, then refuses operations that would spend something you cannot get back.
+An environment that holds product activations is not disposable. Recreating it, moving it or rewriting the Windows identity inside it can make a vendor treat it as a different computer. What that costs depends on the product, so Plugg does not guess. It records what you tell it, then refuses operations that would spend something you cannot get back, or only slowly.
 
 Nothing here inspects, alters, emulates or bypasses a licensing check. It only stops this project's own operations from destroying your activations.
 
@@ -9,7 +9,7 @@ Nothing here inspects, alters, emulates or bypasses a licensing check. It only s
 | Recovery | What it means | Example |
 | --- | --- | --- |
 | `reactivatable` | You can enter the serial again as often as needed. | Most download-and-serial products. |
-| `deactivate-first` | Licences are bound to this environment as one machine. You get the seat back only if you deactivate before the change. | iLok/PACE products, vendor managers with a machine limit. |
+| `deactivate-first` | Licences are bound to this environment as one machine. Deactivate before the change and the seat is free straight away. Without that, getting it back is slow: for iLok it takes a request the publisher has to approve (see [iLok and PACE](recipes/pace.md#if-the-environment-is-already-gone)). | iLok/PACE products, vendor managers with a machine limit. |
 | `limited-activations` | The serial validates a fixed number of times, ever. A lost activation is gone, and you buy the product again. | A serial with, say, five validations in total. |
 | `unknown` | Not recorded. Plugg treats it as strictly as `limited-activations`. | Anything you have not classified yet. |
 
