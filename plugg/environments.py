@@ -332,8 +332,12 @@ def remove(store, record, confirmation):
     if record['protected']:
         # The phrase has already been typed; this records the acknowledgement
         # the guard consumes, so removal follows exactly the path every other
-        # identity-changing operation follows.
-        licensing.acknowledge(path, 'remove_environment', confirmation)
+        # identity-changing operation follows. An environment recorded as
+        # holding nothing licensed was confirmed with DELETE <VENDOR>, which
+        # the guard does not know, so its own phrase for that case stands in.
+        licensing.acknowledge(path, 'remove_environment',
+                              licensing.CONFIRMATION['unlicensed']
+                              if record['severity'] == 'unlicensed' else confirmation)
     licensing.guard(path, 'remove_environment')
     # Found before anything changes: once the environment is gone, its
     # bundles point at nothing and their manifests are all that tie them to it.
