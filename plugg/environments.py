@@ -191,9 +191,12 @@ def worthless(store, job_id):
     if any(p['env_id'] == job['env_id'] for p in store.plugins()):
         return False
     from . import formats
-    name = 'import-state.json' if formats.is_import(job) else 'helper-setup.json'
+    names = (('import-state.json',) if formats.is_import(job)
+             else ('helper-setup.json', core.SETUP_STAGE))
+    journal = next((store.root / 'jobs' / job_id / name for name in names
+                    if (store.root / 'jobs' / job_id / name).exists()), None)
     try:
-        stage = json.loads((store.root / 'jobs' / job_id / name).read_text()).get('stage')
+        stage = json.loads(journal.read_text()).get('stage')
     except (OSError, ValueError, AttributeError):
         return False
     return stage in NOTHING_INSTALLED_YET

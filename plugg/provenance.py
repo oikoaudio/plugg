@@ -89,11 +89,15 @@ def installation_progress(root, job):
     """Describe the last saved stage, without treating it as live process state."""
     filename = 'import-state.json' if job.get('kind') in FORMATS else 'helper-setup.json'
     path = Path(root) / 'jobs' / job['id'] / filename
+    if filename == 'helper-setup.json' and not path.exists():
+        # Installers without a helper recipe keep their stage here instead.
+        path = path.with_name('setup-stage.json')
     stages = {
         'preparing-runtime': 'Preparing Windows support',
         'preparing-environment': 'Preparing the installation environment',
         'preparing-vc-runtime': 'Installing Microsoft runtime components',
         'installing-helper': 'Running the vendor installer',
+        'running-installer': 'Running the vendor installer',
         'preparing-components': 'Preparing supporting components',
         'installing-files': 'Installing plug-in files',
         'scanning': 'Checking plug-ins for your DAW',
