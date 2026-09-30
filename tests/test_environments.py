@@ -330,11 +330,38 @@ class RemovalTests(unittest.TestCase):
 
     def test_it_refuses_while_something_is_running_inside(self):
         record = self.record()
-        with patch('plugg.proton_session.foreign_prefix_processes', return_value=[42]):
-            self.assertTrue(environments.blockers(self.store, record))
+        with patch('plugg.vendors.program_names', return_value=['Helper.exe']):
+            self.assertTrue(any('Helper.exe' in r for r in environments.blockers(self.store, record)))
             with self.assertRaisesRegex(core.HostError, 'still running'):
                 environments.remove(self.store, record, environments.removal_phrase(record))
         self.assertTrue(self.directory.is_dir())
+
+    def test_an_idle_session_does_not_block_and_is_stopped_first(self):
+        # It stays up for minutes after the last plug-in closes. That is not a
+        # reason to make someone wait with the dialog open.
+        (self.directory / 'session.json').write_text('{}')
+        record = self.record()
+        with patch('plugg.vendors.program_names', return_value=[]), \
+                patch('plugg.proton_session.foreign_prefix_processes', return_value=[42]), \
+                patch('plugg.proton_session.stop_idle_session') as stop:
+            self.assertEqual(environments.blockers(self.store, record), [])
+            environments.remove(self.store, record, environments.removal_phrase(record))
+        stop.assert_called_once_with(self.directory / 'session.json')
+        self.assertFalse(self.directory.exists())
+
+    def test_a_session_that_will_not_stop_keeps_everything_and_the_phrase(self):
+        licensing.protect(self.directory, [{'name': 'Klevgrand', 'recovery': 'deactivate-first'}])
+        (self.directory / 'session.json').write_text('{}')
+        record = self.record()
+        with patch('plugg.vendors.program_names', return_value=[]), \
+                patch('plugg.proton_session.foreign_prefix_processes', return_value=[42]), \
+                patch('plugg.proton_session.stop_idle_session',
+                      side_effect=RuntimeError('Vendor runtime did not stop.')):
+            with self.assertRaisesRegex(core.HostError, 'did not stop'):
+                environments.remove(self.store, record, environments.removal_phrase(record))
+        self.assertTrue(self.directory.is_dir())
+        # Refused before the acknowledgement was recorded, so nothing was used up.
+        self.assertIsNone(licensing.read(self.directory).get('acknowledgement'))
 
     def test_nothing_stands_in_the_way_of_a_finished_environment(self):
         self.job('old', archived=True)

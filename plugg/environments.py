@@ -294,7 +294,7 @@ def blockers(store, record):
     Asking for a confirmation phrase and only then refusing wastes the one
     moment the person was paying full attention.
     """
-    from . import proton_session
+    from . import vendors
     reasons = []
     busy = [job for job in record['jobs'] if job['status'] not in core.TERMINAL]
     if busy:
@@ -302,12 +302,37 @@ def blockers(store, record):
                        + '. Cancel it first.')
     try:
         path, _ = entry(store, record)
-        if proton_session.foreign_prefix_processes(path / 'prefix'):
-            reasons.append('Windows programs are still running in this environment. Use Force '
-                           'close on its card, then try again.')
+        # Windows programs, not Wine's own services: an idle plug-in session
+        # stays up for minutes after the last plug-in closes, and remove()
+        # stops it itself.
+        running = vendors.program_names(path / 'prefix')
+        if running:
+            reasons.append('Windows programs are still running in this environment ('
+                           + ', '.join(running) + '). Close them, or close the DAW that '
+                           'uses its plug-ins, then try again.')
     except core.HostError as exc:
         reasons.append(str(exc))
     return reasons
+
+
+def _stop_idle_session(path):
+    """Stop what is left running in an environment that runs no Windows program.
+
+    That is the managed plug-in session, idle until its timeout, and Wine's
+    services with it. stop_idle_session checks again under the session lock
+    that nothing but those is running before it ends anything.
+    """
+    from . import proton_session
+    prefix = path / 'prefix'
+    if not proton_session.foreign_prefix_processes(prefix):
+        return
+    try:
+        if not (path / 'session.json').is_file():
+            raise RuntimeError('This environment has no managed session to stop.')
+        proton_session.stop_idle_session(path / 'session.json')
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise core.HostError('Something is still running in this environment and could not be '
+                             'stopped safely: ' + str(exc) + ' Wait a minute and try again.') from exc
 
 
 def remove(store, record, confirmation):
@@ -332,6 +357,10 @@ def remove(store, record, confirmation):
                              + expected)
     for reason in blockers(store, record):
         raise core.HostError(reason)
+    if foreign is None:
+        # Before the acknowledgement, which the guard uses up: a session that
+        # will not stop should not cost the person their typed phrase.
+        _stop_idle_session(path)
     if record['protected']:
         # The phrase has already been typed; this records the acknowledgement
         # the guard consumes, so removal follows exactly the path every other
