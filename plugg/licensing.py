@@ -5,7 +5,8 @@ Two failure modes matter and they are not the same.
 * **Machine-bound activations** (iLok/PACE and comparable schemes) treat one
   Windows environment as one computer. Recreating its prefix, moving it, or
   rewriting the identity values inside it makes the vendor see a different
-  machine. The seat is recoverable, but only if the user deactivates first.
+  machine. Deactivating first frees the seat at once; afterwards, getting it
+  back needs the vendor (for iLok, a report the publisher has to approve).
 * **Limited activations** spend a finite number of validations per serial
   number. Nothing can be deactivated to get one back. Losing one means the
   user has to buy the product again.

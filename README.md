@@ -75,7 +75,7 @@ plugg licensing protect --environment <path> \
   --product "SpaceBlender:deactivate-first" --product "ExampleSynth:limited-activations:3"
 ```
 
-A machine-bound licence such as iLok survives a change only if you deactivate first. Some serial-limited activations can't be recovered at all. After you protect an environment, an identity-changing operation needs an explicit acknowledgement that expires, and Plugg can take a small recovery point first. Plugg records no serial numbers or credentials, and stores identity values only as hashes. See [licensing safety](docs/licensing-safety.md).
+A machine-bound licence such as iLok survives a change easily if you deactivate first. Without that, getting the activation back means asking the publisher. Some serial-limited activations can't be recovered at all. After you protect an environment, an identity-changing operation needs an explicit acknowledgement that expires, and Plugg can take a small recovery point first. Plugg records no serial numbers or credentials, and stores identity values only as hashes. See [licensing safety](docs/licensing-safety.md).
 
 Environments are not security sandboxes, and they are not disposable. Never run generic cleanup such as `git clean -fdx` in a checkout you've used, because ignored directories hold live vendor installations and authorisation data.
 

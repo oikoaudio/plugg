@@ -511,6 +511,10 @@ class RemovalPresentationTests(unittest.TestCase):
         self.assertIn("if record['protected']:", self.text)
         self.assertIn('Deactivate them in the vendor', self.text)
 
+    def test_the_dialog_says_a_lost_ilok_machine_can_be_reported(self):
+        self.assertIn("if record['severity'] == 'deactivate-first':", self.text)
+        self.assertIn('report this one as unusable', self.text)
+
     def test_the_dialog_says_recovery_points_go_with_it(self):
         self.assertIn("licensing.backups(record['path'])", self.text)
         self.assertIn('stored inside it and deleted with it', self.text)

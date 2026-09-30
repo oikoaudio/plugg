@@ -1428,6 +1428,10 @@ class Manager(Gtk.Application):
                          'you are the only one who knows. Deactivate them in the vendor’s own '
                          'manager if you have not already; typing the phrase below is how you '
                          'say that you have.')
+            if record['severity'] == 'deactivate-first':
+                lines.append('Deleting it first is not the end for iLok licences, only slow: iLok '
+                             'License Manager on another computer can report this one as unusable, '
+                             'and each publisher decides whether to return the activations.')
         if linked is None:
             # They live inside the environment, so they go with it. Someone
             # who took one before a risky change should hear that now.

@@ -43,6 +43,17 @@ When you're ready, run `plugg ilok open` or press **Open iLok** on the card. Act
 
 iLok ties an activation to what it sees as the machine. Anything that changes the environment's identity, such as a new runtime, a new prefix or a restored copy, can make it look like another computer. Before any of that, deactivate in iLok License Manager. See [licensing safety](../licensing-safety.md). Record what the environment holds with `plugg licensing protect`, and Plugg refuses identity-changing operations until you record a deactivation.
 
+## If the environment is already gone
+
+Deleting or rebuilding an environment without deactivating first does not lose the activations for good. iLok still lists the old environment as a computer, and you can ask for its activations back:
+
+1. Sign in to iLok License Manager on another computer.
+2. Select the old computer in the sidebar. It is greyed out.
+3. Choose Show Details, then Report as Unusable.
+4. Say that the environment was lost, and submit.
+
+The publisher of each product has to approve the request before the activations return to your account, so it can take a few business days. If it stays pending, contact the publisher. The same applies when a reinstall makes this computer look like a different machine.
+
 ## Why it needs its own runtime
 
 PACE's installer fails on stock Wine for two reasons, and `plugg-1` carries a source fix for each. [The runtime page](../runtime.md) explains how to get it or build it yourself.
