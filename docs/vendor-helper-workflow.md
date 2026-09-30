@@ -20,7 +20,9 @@ Install products in Helper, then close it. The worker waits for the remaining Wi
 
 Plugg scans only `drive_c/Program Files/Common Files/VST3`, plus the standard VST2 and CLAP folders when the library publishes those formats (see [plug-in formats](plugin-formats.md)). It skips AAX and the copies in Helper's download cache. Discovery handles flat VST3 modules and modules inside VST3 bundles. It does not follow symlinked files or directories. It reports unsupported 32-bit modules.
 
-Plugg matches existing publications by their resolved Windows module path and hash. An existing publication keeps its class ID and is not duplicated. Plugg does not reload unchanged modules. A new module must pass discovery and a post-probe hash check before Plugg publishes it. Plugg reports a changed installed version for your attention instead of republishing it. That does not undo changes a vendor updater has already made. Managed update rollback does not exist yet. Plugg does not unpublish removed products automatically.
+Plugg matches existing publications by their resolved Windows module path and hash. An existing publication keeps its class ID and is not duplicated. Plugg does not reload unchanged modules. A new module must pass discovery and a post-probe hash check before Plugg publishes it. Plugg reports a changed installed version for your attention instead of republishing it. That does not undo changes a vendor updater has already made. Managed update rollback does not exist yet.
+
+When you uninstall a product in Helper, the next refresh notices that its module is gone and removes the plug-in from your DAW's folder. It only does this when it can read the environment, so an environment it cannot read never loses its plug-ins this way.
 
 For a configured vendor environment, **Check again** runs this refresh workflow instead of the generic installer rescan.
 
