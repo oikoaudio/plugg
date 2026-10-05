@@ -7,6 +7,7 @@ Plugg is a developer preview. It works on the maintainer's machine with the vend
 - A managed Windows environment per vendor, all on one runtime (`plugg-1`: UMU-Proton 10.0-4 with Plugg's Wine fixes) and a patched yabridge build, independent of the system's Wine and yabridge.
 - Packages for Ubuntu, Debian, Fedora and Arch in each release, built and install-tested by the release workflow.
 - Windows VST3 discovery and publication as native Linux VST3 bundles, with the original class identities.
+- VST2 and CLAP publication beside VST3, chosen under Settings, including 32-bit VST2 plug-ins in every package except Arch's (see [Parked](#32-bit-plug-ins-in-the-arch-package)).
 - Drag-and-drop installer intake, background installation and cancellation. Plugg rescans automatically when a vendor helper closes.
 - Direct import of exact Windows VST3 files and bundles, with the pinned Microsoft runtime each one needs.
 - Automated setup of a fresh environment from a recipe for recognized helper installers, on a persistent Proton session per vendor.
@@ -69,13 +70,16 @@ A small curated set of good free Linux plug-ins with direct vendor downloads, in
 
 The download data is already in the native entries of the bundled recipe leads. Updates need deciding first. Some vendors keep fixed versioned links and others serve a rolling "latest". The options are to re-pin hashes with each Plugg release, or to accept a vendor's HTTPS download for rolling links. This is parked until the Windows side is finished. It would make a good self-contained first contribution.
 
-### 32-bit plug-ins
+### 32-bit plug-ins in the Arch package
 
-Plugg bridges 64-bit plug-ins only. It skips 32-bit VST2 and CLAP files an installer leaves behind, and refuses a dropped 32-bit DLL. Many old Windows freebies that older projects use were never released as 64-bit, so this matters most for VST2.
+32-bit VST2 plug-ins run through yabridge's 32-bit host. Building that host needs a Wine with a 32-bit Unix side, and Arch's `wine` package has none (only `i386-windows`). The Arch package compiles its bridge on Arch, so it has no 32-bit host. The `.deb`, `.rpm`, tarball and wheel carry the bridge built in the Ubuntu container, which has it.
 
-yabridge can host them through its bitbridge, a separate 32-bit Wine host that the bridge picks for a 32-bit DLL. The shipped UMU-Proton 10.0-4 still has a 32-bit `bin/wine` loader and 32-bit Unix libraries, `ntdll.so` and `winex11.so` among them. Two things are unknown: whether the 32-bit host builds without trouble (multilib GCC and 32-bit Wine and xcb libraries, locally, in the release container and for the AUR), and whether it runs under this Proton, with DXVK and the `plugg-1` overlay. Installers also often put a 32-bit and a 64-bit copy of one plug-in side by side, so Plugg would publish the 64-bit one and skip the other.
+The Arch package could ship that container-built bridge instead. It runs on Arch, and the SQ8L played through its 32-bit host. But every 64-bit plug-in in a library would then go through a host built in the Ubuntu container, and that host has not been checked with plug-in editors on Arch, where the Arch-built one is the known good one. Moving every Arch user to it for the sake of 32-bit support is the wrong trade.
 
-The next step is a short test: build the bridge with `-Dbitbridge=true`, build a 32-bit copy of the VST2 gain fixture, and play audio through it in a throwaway library. If the build or the runtime fights back, this stays parked.
+Two ways forward, either one after `scripts/test-carla.py` and a pass with real plug-ins show the container-built 64-bit host works as well on Arch:
+
+- Ship the container-built bridge in the Arch package, like the other packages.
+- Keep the Arch-built bridge and download only the pinned 32-bit host when a 32-bit plug-in first needs it, the way the wheel downloads its bridge. That mixes hosts from two builds of the same revision, which needs its own test.
 
 ## Known hard problems
 
