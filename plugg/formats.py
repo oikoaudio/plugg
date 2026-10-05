@@ -39,6 +39,10 @@ PLUGIN_LIBRARY = {'vst3': 'libyabridge-vst3.so', 'vst2': 'libyabridge-vst2.so', 
 CHAINLOADER = {'vst3': 'libyabridge-chainloader-vst3.so', 'vst2': 'libyabridge-chainloader-vst2.so',
                'clap': 'libyabridge-chainloader-clap.so'}
 HOST = ('yabridge-host.exe', 'yabridge-host.exe.so')
+#: The host yabridge starts for a 32-bit VST2 plug-in, found beside the plug-in library.
+HOST_32 = ('yabridge-host-32.exe', 'yabridge-host-32.exe.so')
+#: PE machine numbers.
+X86_64, I386 = 0x8664, 0x14C
 #: The file a DAW loads, by format.
 NATIVE_SUFFIX = {'vst3': '.so', 'vst2': '.so', 'clap': '.clap'}
 #: The Windows module beside it, named as yabridge looks for it.
@@ -199,9 +203,26 @@ def windows_link(bundle, name):
     return bundle / (bundle.name + WINDOWS_SUFFIX[name])
 
 
-def bridge_links(name):
-    """The bridge files a bundle links to rather than copies."""
-    return (PLUGIN_LIBRARY[name],) + HOST
+def bridge_links(name, bitbridge=False):
+    """The bridge files a bundle links to rather than copies.
+
+    A bundle for a 32-bit VST2 plug-in also links the 32-bit host.
+    """
+    return (PLUGIN_LIBRARY[name],) + HOST + (HOST_32 if bitbridge else ())
+
+
+def links_in(native, name):
+    """The bridge files an existing bundle's native directory links to."""
+    return bridge_links(name, (Path(native) / HOST_32[0]).is_symlink())
+
+
+def is_32_bit(module):
+    """Whether a Windows module is 32-bit. Unreadable counts as not."""
+    from .core import HostError, pe_machine
+    try:
+        return pe_machine(module) == I386
+    except (HostError, OSError):
+        return False
 
 
 def make_bundle(bridge, module, dest, name):
@@ -212,7 +233,10 @@ def make_bundle(bridge, module, dest, name):
     # The DLL and Linux proxy need corresponding basenames.
     shutil.copy2(Path(bridge) / CHAINLOADER[name], loader(dest, name))
     (native / '.plugg-managed').write_text('1\n')
-    for item in bridge_links(name):
+    bitbridge = name == 'vst2' and is_32_bit(module)
+    if bitbridge and not all((Path(bridge) / item).is_file() for item in HOST_32):
+        raise FormatError('This bridge build has no 32-bit host, so it cannot load a 32-bit plug-in.')
+    for item in bridge_links(name, bitbridge):
         (native / item).symlink_to(Path(bridge) / item)
     windows = windows_link(dest, name)
     windows.parent.mkdir(exist_ok=True)

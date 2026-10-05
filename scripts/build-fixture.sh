@@ -46,6 +46,11 @@ test -d "$clap_include" || { echo "Build the bridge first: $clap_include is miss
 clang++ --target=x86_64-pc-windows-msvc -std=c++17 -O1 -ffreestanding -fno-exceptions -fno-rtti \
     -fno-threadsafe-statics -fno-stack-protector -c tests/fixtures/gain-vst2.cpp -o build/fixtures/gain-vst2.obj
 lld-link /dll /nodefaultlib /entry:DllMain "/out:build/fixtures/Plugg Test Gain 2.dll" build/fixtures/gain-vst2.obj
+# The same VST2 gain as a 32-bit plug-in, for bridges built with the 32-bit host.
+clang++ --target=i686-pc-windows-msvc -std=c++17 -O1 -ffreestanding -fno-exceptions -fno-rtti \
+    -fno-threadsafe-statics -fno-stack-protector -c tests/fixtures/gain-vst2.cpp -o build/fixtures/gain-vst2-32.obj
+lld-link /dll /nodefaultlib /machine:x86 /safeseh:no /entry:DllMain \
+    "/out:build/fixtures/Plugg Test Gain 2 (32-bit).dll" build/fixtures/gain-vst2-32.obj
 clang --target=x86_64-pc-windows-msvc -std=c11 -O1 -ffreestanding -fno-stack-protector -I"$clap_include" \
     -c tests/fixtures/gain-clap.c -o build/fixtures/gain-clap.obj
 lld-link /dll /nodefaultlib /entry:DllMain "/out:build/fixtures/Plugg Test Gain.clap" build/fixtures/gain-clap.obj

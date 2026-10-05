@@ -55,7 +55,7 @@ For an installer Plugg has no recipe for, Plugg searches the whole Windows drive
 
 Vendor apps such as Native Access and UA Connect are only searched in their install folders, never in their download caches. For VST2 those are `Program Files\Common Files\VST2`, `Program Files\Common Files\Steinberg\VST2`, `Program Files\VSTPlugins`, `Program Files\Steinberg\VSTPlugins` and `Program Files\Native Instruments\VSTPlugins 64 bit`. For CLAP it is `Program Files\Common Files\CLAP`.
 
-A `.clap` file counts only when it exports `clap_entry`. Plugg skips 32-bit VST2 and CLAP files without reporting them. Installers often put them next to the 64-bit ones, and the bridge hosts 64-bit plug-ins only.
+A `.clap` file counts only when it exports `clap_entry`. Plugg skips 32-bit CLAP files without reporting them. 32-bit VST2 files are covered [below](#32-bit-vst2).
 
 ## Identities
 
@@ -69,7 +69,15 @@ Plugg refuses to publish two plug-ins with the same identity within one format. 
 
 ## Dropping a plug-in file
 
-You can drop a VST2 `.dll` or a CLAP `.clap` on the window, as you can a `.vst3`. Plugg checks the file's headers before it copies anything. A DLL that does not export a VST2 entry point is refused as "not a VST2 plug-in", and so is a 32-bit one. Plugg then installs the file into a private environment, under `Program Files\Common Files\VST2` or `Program Files\Common Files\CLAP`, and publishes it in its own format. That happens even if the format is switched off under Settings, because dropping the file is the request. See [standalone import](standalone-import.md).
+You can drop a VST2 `.dll` or a CLAP `.clap` on the window, as you can a `.vst3`. Plugg checks the file's headers before it copies anything. A DLL that does not export a VST2 entry point is refused as "not a VST2 plug-in". A 32-bit VST2 is taken when the bridge has the 32-bit host. Plugg then installs the file into a private environment, under `Program Files\Common Files\VST2` or `Program Files\Common Files\CLAP`, and publishes it in its own format. That happens even if the format is switched off under Settings, because dropping the file is the request. See [standalone import](standalone-import.md).
+
+## 32-bit VST2
+
+Old Windows projects often use 32-bit VST2 plug-ins, some of which never had a 64-bit build. The release bridge includes yabridge's 32-bit host, and Plugg's runtime has the 32-bit side of Wine that it needs. A 32-bit VST2 plug-in then works like a 64-bit one: it runs in its environment's Proton session and is published in the VST2 folder. Its bundle also links the 32-bit host.
+
+Installers often put a 32-bit build next to the 64-bit one, with the same unique ID. Plugg publishes the 64-bit build and leaves the 32-bit one out without reporting it. A 32-bit plug-in with no 64-bit build is published as it is.
+
+A bridge without the 32-bit host leaves 32-bit VST2 files out, as before, and refuses a dropped one. Bridges built on Arch have no 32-bit host (see [building](building.md)). 32-bit VST3 and CLAP plug-ins are not supported.
 
 ## Not supported
 

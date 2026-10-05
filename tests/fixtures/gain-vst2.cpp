@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Minimal freestanding Windows VST2 fixture: halves its input, like gain.cpp.
 // The AEffect layout is the published VST 2.4 one. Not a product plug-in.
-using intptr = long long;
+using intptr = __INTPTR_TYPE__;
 struct AEffect;
 using HostCallback = intptr (*)(AEffect*, int, int, intptr, void*, float);
 struct AEffect {
@@ -66,5 +66,5 @@ extern "C" __declspec(dllexport) AEffect* VSTPluginMain(HostCallback) {
     effect->processReplacing = halve;
     return effect;
 }
-extern "C" int DllMain(void*, unsigned, void*) {return 1;}
+extern "C" int __stdcall DllMain(void*, unsigned, void*) {return 1;}
 extern "C" { int _fltused = 0; }

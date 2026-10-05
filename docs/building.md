@@ -63,6 +63,8 @@ PLUGG_BRIDGE_OUTPUT=/tmp/plugg-artifacts \
 scripts/build-bridge.sh
 ```
 
+`PLUGG_BITBRIDGE=1` also builds the 32-bit host, which loads 32-bit VST2 plug-ins. It needs a Wine with 32-bit Winelib support (`lib/wine/i386-unix`) and multilib compilers. Wine built as pure WoW64, like Arch's, cannot build it, so a bridge built on Arch has no 32-bit host. The release bridge is built with it, in the container from `packaging/bridge/Dockerfile`.
+
 ## Run
 
 To try an isolated evaluation library that touches nothing you already have:

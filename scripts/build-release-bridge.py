@@ -41,7 +41,7 @@ BUILD = r'''
 set -eu
 mkdir src && tar -x -C src && cd src
 {
-  PLUGG_BUILD_DIR="$HOME/build" PLUGG_BRIDGE_OUTPUT="$HOME/out" PLUGG_BUILD_JOBS="$(nproc)" scripts/build-bridge.sh
+  PLUGG_BITBRIDGE=1 PLUGG_BUILD_DIR="$HOME/build" PLUGG_BRIDGE_OUTPUT="$HOME/out" PLUGG_BUILD_JOBS="$(nproc)" scripts/build-bridge.sh
   mkdir -p "$HOME/out/licenses"
   for dir in vendor/yabridge/subprojects/*/; do
     name=$(basename "$dir")

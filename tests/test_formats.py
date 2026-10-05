@@ -159,6 +159,28 @@ class PublicationTests(unittest.TestCase):
         self.assertTrue((target / '.plugg-managed').is_file())
         self.assertEqual(os.readlink(target / 'libyabridge-vst2.so'), str(self.bridge / 'libyabridge-vst2.so'))
 
+    def test_a_32_bit_vst2_also_links_the_32_bit_host(self):
+        for name in formats.HOST_32:
+            write(self.bridge / name, ('fixture ' + name).encode())
+        item = self.module('Program Files (x86)/VSTPlugins/Old.dll', pe_exporting(['VSTPluginMain'], 0x14c))
+        core.publish(self.store, item, 'job', self.metadata('vst2', name='Old'))
+        target = Path(self.store.plugins()[0]['publication'])
+        for name in formats.HOST_32:
+            self.assertEqual(os.readlink(target / name), str(self.bridge / name))
+        self.assertEqual(formats.links_in(target, 'vst2'), formats.bridge_links('vst2', True))
+
+    def test_a_64_bit_vst2_does_not_link_the_32_bit_host(self):
+        for name in formats.HOST_32:
+            write(self.bridge / name, ('fixture ' + name).encode())
+        core.publish(self.store, self.module('Program Files/VSTPlugins/Gain.dll'), 'job', self.metadata('vst2'))
+        target = Path(self.store.plugins()[0]['publication'])
+        self.assertFalse((target / formats.HOST_32[0]).exists())
+
+    def test_a_32_bit_vst2_needs_a_bridge_with_the_32_bit_host(self):
+        item = self.module('Program Files (x86)/VSTPlugins/Old.dll', pe_exporting(['VSTPluginMain'], 0x14c))
+        with self.assertRaisesRegex(formats.FormatError, 'no 32-bit host'):
+            core.publish(self.store, item, 'job', self.metadata('vst2', name='Old'))
+
     def test_a_clap_keeps_the_windows_file_out_of_the_daws_scan(self):
         item = self.module('Program Files/Common Files/CLAP/Gain.clap', pe_exporting(['clap_entry']))
         core.publish(self.store, item, 'job', self.metadata('clap', 'org.example.gain'))
@@ -268,11 +290,44 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(self.found(core.discover(self.prefix)),
                          [('vst3', 'Program Files/Common Files/VST3/Gain.vst3')])
 
-    def test_64_bit_vst2_and_clap_are_found_and_32_bit_ones_left_out(self):
+    def test_32_bit_vst2_is_found_and_32_bit_clap_left_out(self):
+        write(self.drive / 'Program Files (x86)/Common Files/CLAP/Gain.clap', pe_exporting(['clap_entry'], 0x14c))
         self.assertEqual(self.found(core.discover(self.prefix, formats.FORMATS)), [
             ('clap', 'Program Files/Common Files/CLAP/Gain.clap'),
+            ('vst2', 'Program Files (x86)/VSTPlugins/Gain.dll'),
             ('vst2', 'Program Files/VSTPlugins/Gain.dll'),
             ('vst3', 'Program Files/Common Files/VST3/Gain.vst3')])
+
+    def store_with_bridge(self, bitbridge):
+        store = core.Store(self.prefix.parent / 'library', self.prefix.parent / 'published')
+        bridge = self.prefix.parent / ('bridge-%s' % bitbridge)
+        for name in formats.HOST_32 if bitbridge else ():
+            write(bridge / name, b'host')
+        bridge.mkdir(exist_ok=True)
+        started = patch.object(store, 'bridge', return_value=bridge)
+        started.start()
+        self.addCleanup(started.stop)
+        return store
+
+    def test_32_bit_vst2_is_left_out_without_a_32_bit_host(self):
+        items = core.hostable(self.store_with_bridge(False), core.discover(self.prefix, ('vst2',)))
+        self.assertEqual(self.found(items), [('vst2', 'Program Files/VSTPlugins/Gain.dll')])
+
+    def test_with_a_32_bit_host_the_64_bit_build_comes_first(self):
+        items = core.hostable(self.store_with_bridge(True), core.discover(self.prefix, ('vst2',)))
+        self.assertEqual([item['machine'] for item in items], [0x8664, 0x14c])
+
+    def test_a_32_bit_build_of_a_published_plug_in_is_left_out_quietly(self):
+        store = self.store_with_bridge(True)
+        metadata = {'format': 'vst2', 'classes': [{'id': '50674732', 'name': 'Gain'}]}
+        with store.db() as db:
+            db.execute('INSERT INTO plugins(id,env_id,name,module,hash,status,metadata,publication,message)'
+                       " VALUES('p','env','Gain','Gain.dll','h','ready',?,'','ok')", (json.dumps(metadata),))
+        old = {'machine': 0x14c}
+        self.assertTrue(core.duplicate_32_bit(store, old, metadata))
+        other = {'format': 'vst2', 'classes': [{'id': '4f6c6421', 'name': 'Old'}]}
+        self.assertFalse(core.duplicate_32_bit(store, old, other))
+        self.assertFalse(core.duplicate_32_bit(store, {'machine': 0x8664}, metadata))
 
     def test_vendor_apps_are_looked_for_in_their_install_folders_only(self):
         write(self.drive / 'ProgramData/Helper/cache/Gain.dll', pe_exporting(['VSTPluginMain']))
@@ -327,6 +382,23 @@ class BridgeReleaseTests(unittest.TestCase):
         expected = hashlib.sha256('\n'.join(lines).encode()).hexdigest()[:16]
         self.assertEqual(bridge_bundle.release_name(old)[0], expected)
 
+    def test_a_build_with_the_32_bit_host_is_accepted_and_named_apart(self):
+        names = bridge_bundle.ARTIFACTS + bridge_bundle.FORMAT_ARTIFACTS
+        without = self.build(names)
+        with_host = self.build(names + bridge_bundle.BITBRIDGE_ARTIFACTS)
+        bridge_bundle.inspect(with_host)
+        self.assertTrue(bridge_bundle.has_bitbridge(with_host))
+        self.assertFalse(bridge_bundle.has_bitbridge(without))
+        self.assertNotEqual(bridge_bundle.release_name(with_host)[0], bridge_bundle.release_name(without)[0])
+        release = bridge_bundle.install_release(with_host, self.root / 'releases')
+        self.assertTrue(bridge_bundle.has_bitbridge(release))
+
+    def test_half_a_32_bit_host_is_refused(self):
+        partial = self.build(bridge_bundle.ARTIFACTS + bridge_bundle.FORMAT_ARTIFACTS
+                             + bridge_bundle.BITBRIDGE_ARTIFACTS[:1])
+        with self.assertRaisesRegex(ValueError, 'incomplete 32-bit'):
+            bridge_bundle.release_name(partial)
+
     def test_a_release_with_part_of_the_new_files_is_refused(self):
         partial = self.build(bridge_bundle.ARTIFACTS + bridge_bundle.FORMAT_ARTIFACTS[:1])
         with self.assertRaisesRegex(ValueError, 'incomplete'):
@@ -363,6 +435,28 @@ class DirectImportTests(unittest.TestCase):
         self.assertEqual(self.store.jobs(), [])
         self.assertEqual(list((self.store.root / 'jobs').iterdir()) if (self.store.root / 'jobs').exists() else [], [])
 
-    def test_a_32_bit_vst2_is_refused(self):
-        with self.assertRaisesRegex(core.HostError, '64-bit Windows VST2'):
+    def bridge(self, bitbridge):
+        bridge = self.root / ('bridge-%s' % bitbridge)
+        bridge.mkdir(exist_ok=True)
+        for name in formats.HOST_32 if bitbridge else ():
+            write(bridge / name, b'host')
+        started = patch.object(self.store, 'bridge_source', return_value=bridge)
+        started.start()
+        self.addCleanup(started.stop)
+
+    def test_a_32_bit_vst2_is_taken_when_the_bridge_has_a_32_bit_host(self):
+        self.bridge(True)
+        job = self.store.job(self.store.ingest(write(self.root / 'Old.dll', pe_exporting(['main'], 0x14c))))
+        self.assertEqual(job['kind'], 'vst2')
+
+    def test_a_32_bit_vst2_is_refused_when_the_bridge_has_no_32_bit_host(self):
+        self.bridge(False)
+        with self.assertRaisesRegex(core.HostError, 'no 32-bit host'):
             self.store.ingest(write(self.root / 'Old.dll', pe_exporting(['main'], 0x14c)))
+        self.assertEqual(self.store.jobs(), [])
+
+    def test_32_bit_clap_and_other_machines_are_still_refused(self):
+        with self.assertRaisesRegex(core.HostError, 'Only 64-bit Windows CLAP'):
+            self.store.ingest(write(self.root / 'Old.clap', pe_exporting(['clap_entry'], 0x14c)))
+        with self.assertRaisesRegex(core.HostError, 'Only 64-bit Windows VST2 plug-ins are supported, and 32-bit'):
+            self.store.ingest(write(self.root / 'Arm.dll', pe_exporting(['main'], 0xaa64)))

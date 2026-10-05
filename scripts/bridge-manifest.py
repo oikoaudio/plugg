@@ -12,6 +12,8 @@ ARTIFACTS = ('libyabridge-vst3.so', 'libyabridge-chainloader-vst3.so',
              'libyabridge-vst2.so', 'libyabridge-chainloader-vst2.so',
              'libyabridge-clap.so', 'libyabridge-chainloader-clap.so',
              'yabridge-host.exe', 'yabridge-host.exe.so', 'plugg-scan', 'COPYING.yabridge')
+#: The 32-bit host, in builds made with PLUGG_BITBRIDGE=1.
+BITBRIDGE = ('yabridge-host-32.exe', 'yabridge-host-32.exe.so')
 
 
 def digest(path):
@@ -63,7 +65,8 @@ def manifest(root, build, output):
         'upstream': 'https://github.com/robbert-vdh/yabridge',
         'revision': subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip(),
         'patches': {str(p.relative_to(root)): digest(p) for p in (root / 'patches' / name for name in names)},
-        'files': {name: digest(output / name) for name in ARTIFACTS},
+        'files': {name: digest(output / name) for name in ARTIFACTS + BITBRIDGE
+                  if name in ARTIFACTS or (output / name).is_file()},
         'build_inputs': {
             'compilers': compilers, 'dependencies': dependencies, 'options': options, 'arguments': arguments,
             'subprojects': subprojects,

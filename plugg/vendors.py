@@ -403,8 +403,8 @@ def installed(prefix, kinds=None):
     """Plug-ins in the standard install folders, never the Helper download cache.
 
     kinds limits the formats; by default every format is listed, which is what
-    a before-and-after snapshot wants. 32-bit VST2 and CLAP files are left out,
-    as discover() does.
+    a before-and-after snapshot wants. 32-bit CLAP files are left out, as
+    discover() does; 32-bit VST2 files are listed, and core.hostable() decides.
     """
     from . import formats
     kinds = formats.FORMATS if kinds is None else kinds
@@ -429,7 +429,7 @@ def installed(prefix, kinds=None):
                         arch = core.pe_machine(path)
                     except core.HostError:
                         continue
-                    if kind != 'vst3' and arch != 0x8664:
+                    if kind == 'clap' and arch != 0x8664 or kind == 'vst2' and arch not in (0x8664, 0x14C):
                         continue
                     seen.add(path)
                     result.append({'path': path, 'name': path.stem, 'machine': arch, 'hash': core.digest(path),
@@ -448,7 +448,7 @@ def refresh_library(store, job_id, *, probe_only=None):
     """
     from . import formats
     configuration(store, job_id)
-    items = installed(store.prefix(job_id), formats.enabled(store.root))
+    items = core.hostable(store, installed(store.prefix(job_id), formats.enabled(store.root)))
     existing = {}
     for plugin in store.plugins():
         if plugin['status'] == 'removed' or not plugin['publication']:
@@ -479,11 +479,13 @@ def refresh_library(store, job_id, *, probe_only=None):
             waiting.append(item['name'])
             continue
         try:
-            if item['machine'] != 0x8664:
-                raise core.HostError('Only 64-bit VST3 plug-ins are supported.')
+            if item['machine'] != 0x8664 and item['format'] != 'vst2':
+                raise core.HostError('32-bit VST3 plug-ins are not supported.')
             metadata = core.probe(store, item['path'], job_id, item['format'])
             if core.digest(item['path']) != item['hash']:
                 raise core.HostError('Installation is still changing. Close the Helper and refresh again.')
+            if core.duplicate_32_bit(store, item, metadata):
+                continue
             core.publish(store, item, job_id, metadata)
             added += 1
         except (core.HostError, OSError, ValueError) as exc:

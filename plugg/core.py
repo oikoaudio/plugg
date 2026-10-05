@@ -831,9 +831,10 @@ def discover(prefix: Path, kinds=("vst3",)):
     """Bound discovery to the managed drive; do not follow directory symlinks.
 
     kinds are the plug-in formats to look for. A VST2 plug-in is any DLL that
-    exports a VST2 entry point, wherever the vendor put it. 32-bit VST2 and
-    CLAP files are left out rather than reported: installers commonly add
-    them beside the 64-bit ones, and the bridge hosts 64-bit plug-ins only.
+    exports a VST2 entry point, wherever the vendor put it. 32-bit CLAP files
+    are left out rather than reported: installers commonly add them beside
+    the 64-bit ones, and no bridge hosts them. 32-bit VST2 files are listed;
+    hostable() decides whether this bridge can load them.
     """
     from . import formats
     suffixes = {".vst3": "vst3", ".dll": "vst2", ".clap": "clap"}
@@ -859,7 +860,7 @@ def discover(prefix: Path, kinds=("vst3",)):
                 arch = pe_machine(path)
             except HostError:
                 continue
-            if kind != "vst3" and arch != 0x8664:
+            if kind == "clap" and arch != 0x8664 or kind == "vst2" and arch not in (0x8664, 0x14C):
                 continue
             result.append({"path": path, "name": path.stem, "machine": arch, "hash": digest(path), "format": kind})
     return result
@@ -1194,7 +1195,7 @@ def relink_publications(store: Store, apply=False):
             if os.readlink(publication) != str(bundle):
                 changes.append({"link": str(publication), "from": os.readlink(publication), "to": str(bundle)})
             native = formats.native_directory(bundle, kind)
-            links = formats.bridge_links(kind)
+            links = formats.links_in(native, kind)
             current = {name: native / name for name in links}
             if not all(x.is_symlink() for x in current.values()):
                 problems.append({"id": row["id"], "name": row["name"],
@@ -1266,7 +1267,7 @@ def adopt_current_bridge(store: Store, apply=False):
             bundle = formats.bundles(store, kind) / Path(row["publication"]).name
             native = formats.native_directory(bundle, kind)
             loader = formats.loader(bundle, kind)
-            links = {name: native / name for name in formats.bridge_links(kind)}
+            links = {name: native / name for name in formats.links_in(native, kind)}
             if not native.is_dir() or not loader.is_file() or not all(x.is_symlink() for x in links.values()):
                 problems.append({"id": row["id"], "name": row["name"],
                                  "problem": "Its bridge files are not what this library publishes."})
@@ -1274,6 +1275,10 @@ def adopt_current_bridge(store: Store, apply=False):
             if kind not in supported:
                 problems.append({"id": row["id"], "name": row["name"],
                                  "problem": "The current bridge build has no " + formats.LABELS[kind] + " support."})
+                continue
+            if formats.HOST_32[0] in links and not all((release / x).is_file() for x in formats.HOST_32):
+                problems.append({"id": row["id"], "name": row["name"],
+                                 "problem": "The current bridge build has no 32-bit host for this 32-bit plug-in."})
                 continue
             if all(Path(os.readlink(link)).parent == release for link in links.values()) \
                     and digest(loader) == digest(release / formats.CHAINLOADER[kind]):
@@ -1299,20 +1304,53 @@ def adopt_current_bridge(store: Store, apply=False):
         return {"release": release.name, "planned": done, "problems": problems, "record": str(record)}
 
 
+def hostable(store: Store, items):
+    """The discovered modules this library's bridge can load, 64-bit first.
+
+    32-bit VST2 plug-ins need the bridge's 32-bit host; without it they are
+    left out, as they always were. They come last so that a plug-in installed
+    both ways is published as its 64-bit build (see duplicate_32_bit).
+    """
+    from . import bridge_bundle
+    bitbridge = bridge_bundle.has_bitbridge(store.bridge())
+    kept = [item for item in items if item["machine"] == 0x8664 or item["format"] == "vst3"
+            or (item["format"] == "vst2" and bitbridge)]
+    return sorted(kept, key=lambda item: item["machine"] != 0x8664)
+
+
+def duplicate_32_bit(store: Store, item, metadata):
+    """Whether a 32-bit VST2 plug-in is already published as a 64-bit one.
+
+    Installers often put both builds of a plug-in side by side, with the same
+    unique ID. A project finds either by that ID, so the 64-bit one is kept
+    and the 32-bit one is left out quietly instead of being reported as a
+    conflict.
+    """
+    from . import formats
+    if item["machine"] != 0x14C:
+        return False
+    ids = {x["id"] for x in metadata["classes"]}
+    return any(row["status"] == "ready" and formats.of(row["metadata"]) == "vst2"
+               and ids & {x["id"] for x in json.loads(row["metadata"])["classes"]}
+               for row in store.plugins())
+
+
 def scan_and_publish(store: Store, job_id):
     from . import formats
     skipped = kept_out(store)
-    items = [item for item in discover(store.prefix(job_id), formats.enabled(store.root))
-             if plugin_identity(job_id, item["path"]) not in skipped]
+    items = hostable(store, [item for item in discover(store.prefix(job_id), formats.enabled(store.root))
+                             if plugin_identity(job_id, item["path"]) not in skipped])
     failures = []
     count = 0
     for item in items:
         store.cancelled(job_id)
         store.update(job_id, "scanning", "Checking " + item["name"])
         try:
-            if item["machine"] != 0x8664:
-                raise HostError("32-bit plug-ins are outside this prototype's support.")
+            if item["machine"] != 0x8664 and item["format"] != "vst2":
+                raise HostError("32-bit VST3 plug-ins are not supported.")
             metadata = probe(store, item["path"], job_id, item["format"])
+            if duplicate_32_bit(store, item, metadata):
+                continue
             publish(store, item, job_id, metadata)
             count += 1
         except Cancelled:

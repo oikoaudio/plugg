@@ -52,8 +52,14 @@ def module_path(source):
         if len(modules) != 1:
             raise core.HostError('Choose a Windows VST3 bundle containing one x86_64-win module.')
         module = modules[0]
-    if module.is_symlink() or core.pe_machine(module) != 0x8664:
-        raise core.HostError('Only 64-bit Windows ' + formats.LABELS[kind] + ' plug-ins are supported.')
+    if module.is_symlink():
+        raise core.HostError('Choose the plug-in file itself, not a link to it.')
+    machine = core.pe_machine(module)
+    if machine == formats.I386 and kind == 'vst2':
+        return module
+    if machine != formats.X86_64:
+        raise core.HostError('Only 64-bit Windows ' + formats.LABELS[kind] + ' plug-ins are supported'
+                             + (', and 32-bit ones.' if kind == 'vst2' else '.'))
     return module
 
 
@@ -97,6 +103,15 @@ def ingest(store, source):
         raise core.HostError('Choose the original plug-in file, not a link.')
     module_path(source)
     kind = import_kind(source)
+    if kind == 'vst2' and formats.is_32_bit(source):
+        from . import bridge_bundle
+        try:
+            bridge = store.bridge_source()
+        except core.HostError:
+            bridge = None  # Not downloaded yet; publishing says so if it cannot host it.
+        if bridge is not None and not bridge_bundle.has_bitbridge(bridge):
+            raise core.HostError('This is a 32-bit VST2 plug-in, and the plug-in bridge in use has no '
+                                 '32-bit host.')
     job_id = uuid.uuid4().hex
     directory = store.root / 'jobs' / job_id
     payload = directory / 'payload'

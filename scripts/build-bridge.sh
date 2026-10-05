@@ -19,23 +19,35 @@ mkdir -p "$output"
 output="$(readlink -f "$output")"
 export PLUGG_BRIDGE_OUTPUT="$output"
 
+# The 32-bit host loads 32-bit VST2 plug-ins. Building it needs 32-bit
+# Winelib support: a Wine with i386-unix and multilib compilers. Wine built as
+# pure WoW64, as Arch's is, has neither, so it is opt-in.
+bitbridge=false
+if [ "${PLUGG_BITBRIDGE:-0}" = 1 ]; then bitbridge=true; fi
+
 build_dir="${PLUGG_BUILD_DIR:-build}"
 mkdir -p "$build_dir"
 build_dir="$(readlink -f "$build_dir")"
 if [ ! -f "$build_dir/build.ninja" ]; then
-    meson setup "$build_dir" vendor/yabridge --cross-file vendor/yabridge/cross-wine.conf --buildtype=release -Dclap=true -Dbitbridge=false
+    meson setup "$build_dir" vendor/yabridge --cross-file vendor/yabridge/cross-wine.conf --buildtype=release -Dclap=true -Dbitbridge="$bitbridge"
 fi
 # A build directory set up before VST2 and CLAP were bridged has CLAP off;
 # the Wine host has to be rebuilt with it on to host CLAP plug-ins.
-meson configure "$build_dir" -Dclap=true -Dbitbridge=false
+meson configure "$build_dir" -Dclap=true -Dbitbridge="$bitbridge"
 if grep -q -- '-march=' "$build_dir/compile_commands.json"; then
     echo "The build directory $build_dir was configured with -march flags; remove it and build again." >&2
     exit 1
 fi
 formats="libyabridge-vst3.so libyabridge-chainloader-vst3.so libyabridge-vst2.so libyabridge-chainloader-vst2.so libyabridge-clap.so libyabridge-chainloader-clap.so"
-ninja -C "$build_dir" -j "${PLUGG_BUILD_JOBS:-4}" $formats yabridge-host
+hosts="yabridge-host"
+host_files="yabridge-host.exe yabridge-host.exe.so"
+if [ "$bitbridge" = true ]; then
+    hosts="$hosts yabridge-host-32"
+    host_files="$host_files yabridge-host-32.exe yabridge-host-32.exe.so"
+fi
+ninja -C "$build_dir" -j "${PLUGG_BUILD_JOBS:-4}" $formats $hosts
 mkdir -p "$output"
-for file in $formats yabridge-host.exe yabridge-host.exe.so; do cp "$build_dir/$file" "$output/"; done
+for file in $formats $host_files; do cp "$build_dir/$file" "$output/"; done
 c++ -std=c++20 -O2 -DRELEASE=1 -Ivendor/yabridge/subprojects/vst3 -Ivendor/yabridge/src/include \
     -Ivendor/yabridge/subprojects/clap/include native/scan.cpp native/scan_formats.cpp \
     -Wl,--start-group "$build_dir/src/common/vst3/libpluginterfaces_native.a" \

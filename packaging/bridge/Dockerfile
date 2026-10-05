@@ -4,7 +4,8 @@
 # glibc 2.34 and GCC 11's libstdc++, so one build runs on Ubuntu 22.04,
 # Debian 12, Fedora 35 and Arch, or anything newer.
 # Wine comes from WineHQ at 10.0, the Wine that UMU-Proton 10.0-4 is based on;
-# Ubuntu's own Wine 6.0 is older than yabridge supports well.
+# Ubuntu's own Wine 6.0 is older than yabridge supports well. The multilib
+# compilers and 32-bit libxcb build the 32-bit host for 32-bit VST2 plug-ins.
 #
 # Everything is pinned: the image by digest, Ubuntu's packages by a dated
 # snapshot of the archive, Wine by version, Meson by hash. Changing the
@@ -41,7 +42,7 @@ RUN dpkg --add-architecture i386 \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
       g++ git make patch ninja-build pkg-config cmake python3 python3-pip binutils \
-      libxcb1-dev libdbus-1-dev \
+      libxcb1-dev libdbus-1-dev gcc-multilib g++-multilib libxcb1-dev:i386 \
       "wine-stable=$WINE_VERSION" "wine-stable-amd64=$WINE_VERSION" \
       "wine-stable-i386=$WINE_VERSION" "wine-stable-dev=$WINE_VERSION" \
  && rm -rf /var/lib/apt/lists/* /tmp/winehq.key

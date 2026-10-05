@@ -13,6 +13,9 @@ ARTIFACTS = ('libyabridge-vst3.so', 'libyabridge-chainloader-vst3.so',
 #: then have none of these and still work for VST3.
 FORMAT_ARTIFACTS = ('libyabridge-vst2.so', 'libyabridge-chainloader-vst2.so',
                     'libyabridge-clap.so', 'libyabridge-chainloader-clap.so')
+#: The 32-bit host, which loads 32-bit VST2 plug-ins. Only builds made with
+#: 32-bit Winelib support have it (scripts/build-bridge.sh, PLUGG_BITBRIDGE).
+BITBRIDGE_ARTIFACTS = ('yabridge-host-32.exe', 'yabridge-host-32.exe.so')
 
 
 def inspect(directory, expected_manifest=None):
@@ -28,7 +31,9 @@ def inspect(directory, expected_manifest=None):
             raise ValueError('build manifest changed since this library was created')
         manifest = json.loads(raw)
         files = manifest.get('files') if isinstance(manifest, dict) else None
-        if not isinstance(files, dict) or set(files) not in (set(ARTIFACTS), set(ARTIFACTS + FORMAT_ARTIFACTS)):
+        if not isinstance(files, dict) or set(files) not in (
+                set(ARTIFACTS), set(ARTIFACTS + FORMAT_ARTIFACTS),
+                set(ARTIFACTS + FORMAT_ARTIFACTS + BITBRIDGE_ARTIFACTS)):
             raise ValueError('build manifest must list the bridge artifacts')
         for name in files:
             expected = files[name]
@@ -91,12 +96,22 @@ def release_name(directory):
     optional = [name for name in OPTIONAL_RELEASE_FILES if (directory / name).exists()]
     if optional and len(optional) != len(OPTIONAL_RELEASE_FILES):
         raise ValueError('incomplete VST2 and CLAP bridge files')
-    for name in optional:
+    # Named after the files above as well, so a build without the 32-bit
+    # host keeps the release name it always had.
+    bitbridge = [name for name in BITBRIDGE_ARTIFACTS if (directory / name).exists()]
+    if bitbridge and (len(bitbridge) != len(BITBRIDGE_ARTIFACTS) or not optional):
+        raise ValueError('incomplete 32-bit bridge files')
+    for name in optional + bitbridge:
         path = directory / name
         if path.is_symlink() or not path.is_file():
             raise ValueError('linked bridge file: ' + name)
         lines.append(name + ' ' + digest(path))
     return hashlib.sha256('\n'.join(lines).encode()).hexdigest()[:16], dict(x.split(' ') for x in lines)
+
+
+def has_bitbridge(directory):
+    """Whether a bridge build or release can host 32-bit VST2 plug-ins."""
+    return all((Path(directory) / name).is_file() for name in BITBRIDGE_ARTIFACTS)
 
 
 def install_release(source, releases):
@@ -121,7 +136,7 @@ def install_release(source, releases):
         releases.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix='.release-', dir=releases))
         try:
-            for item in RELEASE_FILES + OPTIONAL_RELEASE_FILES + RELEASE_NOTES:
+            for item in RELEASE_FILES + OPTIONAL_RELEASE_FILES + BITBRIDGE_ARTIFACTS + RELEASE_NOTES:
                 if (source / item).is_file():
                     shutil.copy2(source / item, staging / item)
             os.chmod(staging, 0o755)
