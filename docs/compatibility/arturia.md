@@ -20,6 +20,16 @@ The Arturia recipe therefore also writes `"disabled_dlls": ["uiautomationcore"]`
 
 The GUI also logged missing `WebView2Loader.dll`, a missing `ProgramData/Arturia/Shared/x64/webview2` directory, and `glGetString returned nullptr`. Those warnings alone did not explain the crash: the captured fault is in UI Automation. WebView2 has not been added to the recipe. A later browser-dependent workflow may still need it.
 
+## Product installer that does not exit
+
+ASC installs a product as several Inno Setup installers, run one after another with `/VERYSILENT /NORESTART`. On 2026-10-15, the first install of Analog Lab V 5.12.6 (Analog Lab Play) stopped making progress at `Analog_Lab_V__5_12_6_6914__vst3.exe`. That installer had written the VST3, `unins000.dat` and its uninstall registry entry within two seconds. It then stayed idle for more than 13 minutes, with no child processes, and never exited. The other nine installers of that product exited normally.
+
+Ending the stuck `Analog_Lab_V__…_vst3.exe` and its `is-*.tmp\Analog_Lab_V__…_vst3.tmp` process is safe once the installer has written `unins000.dat`. ASC then runs the same installer again without `/VERYSILENT`. Click through it, and ASC logs "Install firstly failed with silent install then succeed" and counts the product as installed.
+
+This happened once. After uninstalling Analog Lab and installing it again in the same environment, every installer exited normally, the VST3 one in about a second. The one difference found between the two runs: on the first install, Proton created Linux menu entries in `drive_c/proton_shortcuts/` two seconds before the installer went idle, and on the second they already existed. That has not been shown to be the cause.
+
+If it happens again, start ASC with Wine's messages kept: copy the environment's `launch-full-proton`, change `WINEDEBUG=-all` to `WINEDEBUG=fixme-all` in the copy, and run `<copy> cmd.exe /c 'C:\Plugg\launch-helper.cmd'` from the environment directory with its output saved to a file. While the installer is stuck, run `<copy> winedbg --command "bt all"` from another terminal to record where every thread is waiting. Leave out account details when sharing either log.
+
 ## Existing installations
 
 The recipe intake creates a fresh environment; it does not migrate or reinstall an existing manager. Preserve existing activation state. To fix an existing ASC environment by hand, close ASC and the environment's plug-ins, and keep copies of the files you change. For ASC, add `export WINEDLLOVERRIDES=uiautomationcore=` to `launch-full-proton` after its `unset` line. For the plug-in hosts, run `plugg environment update-launcher <id>` with Plugg 0.2.1 or later, then add `"disabled_dlls": ["uiautomationcore"]` to `session.json`. Account sign-in remains a user action. Raw vendor and Wine logs may contain account information and are not included here.
