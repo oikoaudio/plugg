@@ -24,6 +24,10 @@ A session configured with `graphics_backend: dxvk` checks the prepared 64-bit `d
 
 With DXVK selected, fixture audio passed before and after an idle restart. On the maintainer's system, the affected Klevgrand editors redraw correctly with this setting.
 
+## Disabling a Wine DLL
+
+Some plug-ins crash inside a Wine built-in that they can do without. A session's `disabled_dlls` list adds `<name>=` to every child's `WINEDLLOVERRIDES`, after the graphics overrides, so Wine does not load that DLL for plug-in hosts. The prefix registry and the shared runtime are not changed. Only names in `DISABLEABLE_DLLS` in `plugg/proton_session.py` are accepted, each with the reason it is there, and the session refuses to start with any other. The one entry so far is `uiautomationcore`, which Arturia's plug-in editors crash in when their window closes ([Arturia notes](compatibility/arturia.md#editor-close-crash)).
+
 ## Vendor helpers
 
 Some vendor manager applications do not work through `runinprefix`. Klevgrand Helper, for example, needs a full Proton launch, so its environment stops the idle managed session before opening Helper. See [the vendor Helper workflow](vendor-helper-workflow.md#helper-uses-the-full-proton-launch).

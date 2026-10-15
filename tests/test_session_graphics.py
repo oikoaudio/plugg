@@ -33,6 +33,41 @@ class GraphicsTests(unittest.TestCase):
         self.assertIsNone(graphics_overrides(self.cfg))
 
 
+class DisabledDllTests(GraphicsTests):
+    def test_every_child_gets_the_disabled_dll_next_to_its_graphics(self):
+        from plugg.proton_session import prepare_graphics,graphics_environment
+        self.cfg['disabled_dlls']=['uiautomationcore']
+        prepared=prepare_graphics(self.cfg)
+        self.assertEqual(prepared['default'],'d3d11=n;dxgi=n;d3d10core=n;d3d9=n;uiautomationcore=')
+        args=['/bridge/yabridge-host.exe','VST3','/prefix/drive_c/Example.vst3','/ipc','123']
+        self.assertEqual(graphics_environment(args,prepared)['WINEDLLOVERRIDES'],prepared['default'])
+        module='Program Files/Common Files/VST3/Example.vst3'
+        self.cfg['graphics_policy']={'schema':1,'default':'dxvk','plugins':{module:'wined3d'}}
+        prepared=prepare_graphics(self.cfg)
+        self.assertTrue(prepared['default'].endswith(';uiautomationcore='))
+        self.assertTrue(all(value.endswith(';uiautomationcore=') for value in prepared['plugins'].values()))
+
+    def test_without_a_backend_the_disabled_dll_stands_alone(self):
+        from plugg.proton_session import prepare_graphics
+        self.cfg.pop('graphics_backend')
+        self.assertIsNone(prepare_graphics(self.cfg)['default'])
+        self.cfg['disabled_dlls']=['uiautomationcore']
+        self.assertEqual(prepare_graphics(self.cfg)['default'],'uiautomationcore=')
+
+    def test_session_config_cannot_disable_arbitrary_dlls(self):
+        import json,os
+        from plugg.proton_session import configuration
+        root=Path(self.tmp.name)
+        (root/'prefix/drive_c').mkdir(parents=True,exist_ok=True)
+        for name in ('proton','entry'):
+            (root/name).write_text('#!/bin/sh\n');os.chmod(root/name,0o700)
+        base={'prefix':str(root/'prefix'),'proton':str(root/'proton'),'runtime_entry':str(root/'entry')}
+        self.assertEqual(configuration(None,contents=json.dumps({**base,'disabled_dlls':['uiautomationcore']}))['disabled_dlls'],['uiautomationcore'])
+        for value in (['ntdll'],['uiautomationcore','uiautomationcore'],'uiautomationcore',['uiautomationcore;ntdll']):
+            with self.subTest(value=value),self.assertRaisesRegex(RuntimeError,'disable only'):
+                configuration(None,contents=json.dumps({**base,'disabled_dlls':value}))
+
+
 class PolicyTests(GraphicsTests):
     def setUp(self):
         super().setUp()

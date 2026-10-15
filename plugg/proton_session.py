@@ -153,6 +153,17 @@ def client(path,args):
             if 'exit' in event:return event['exit']
             os.write(2,base64.b64decode(event['output']))
     return 125
+# Wine built-ins a vendor's plug-ins are known to crash in, which the session
+# may switch off for its children. A name here is a reviewed exception, not a
+# general override mechanism: session.json cannot add others.
+DISABLEABLE_DLLS={
+    # JUCE's accessibility support disconnects from UI Automation when an editor
+    # window closes. Wine's UIAutomationCore then reads a null pointer and takes
+    # the plug-in host down (Arturia, see docs/compatibility/arturia.md). JUCE
+    # carries on without accessibility when the DLL does not load.
+    'uiautomationcore',
+}
+
 def configuration(path, *, contents=None, verify_manager=False):
     cfg=json.loads(Path(path).read_bytes() if contents is None else contents)
     if not isinstance(cfg,dict):
@@ -167,6 +178,9 @@ def configuration(path, *, contents=None, verify_manager=False):
         if not Path(cfg[key]).is_file() or not os.access(cfg[key],os.X_OK):raise RuntimeError('Managed session executable unavailable: '+key)
     idle=cfg.get('idle_seconds',300)
     if type(idle) is not int or not 2<=idle<=3600:raise RuntimeError('Invalid session idle timeout')
+    disabled=cfg.get('disabled_dlls',[])
+    if not isinstance(disabled,list) or len(set(disabled))!=len(disabled) or not all(isinstance(n,str) and n in DISABLEABLE_DLLS for n in disabled):
+        raise RuntimeError('Managed session can disable only: '+', '.join(sorted(DISABLEABLE_DLLS)))
     if verify_manager and 'manager_sha256' in cfg:
         expected=cfg['manager_sha256']
         if not isinstance(expected,str) or len(expected)!=64 or any(c not in '0123456789abcdef' for c in expected):
@@ -279,9 +293,12 @@ def validate_graphics_policy(policy):
 
 def prepare_graphics(cfg):
     """Resolve exact module identities and verify required runtime DLLs once per session."""
+    disabled = [name + '=' for name in cfg.get('disabled_dlls', [])]
+    def combined(overrides):
+        return ';'.join([overrides, *disabled] if overrides else disabled) or None
     policy = cfg.get('graphics_policy')
     if policy is None:
-        return {'default': graphics_overrides(cfg), 'plugins': {}}
+        return {'default': combined(graphics_overrides(cfg)), 'plugins': {}}
     validate_graphics_policy(policy)
     root = (Path(cfg['prefix']) / 'drive_c').resolve()
     overrides = {}
@@ -294,8 +311,8 @@ def prepare_graphics(cfg):
             raise RuntimeError('Graphics module escapes the managed prefix')
         if str(module) in plugins:
             raise RuntimeError('Duplicate graphics module identity')
-        plugins[str(module)] = overrides[backend]
-    return {'default': overrides[policy['default']], 'plugins': plugins}
+        plugins[str(module)] = combined(overrides[backend])
+    return {'default': combined(overrides[policy['default']]), 'plugins': plugins}
 
 
 def graphics_environment(args, graphics=None):
