@@ -2,6 +2,10 @@
 
 Each release's full notes are in [packaging/release-notes](packaging/release-notes/) and on the [releases page](https://github.com/oikoaudio/plugg/releases). The [ROADMAP](ROADMAP.md) lists what works, what comes next and what this project does not claim.
 
+## 0.2.2
+
+- Arturia Software Center no longer crashes while it synchronizes licences. 0.2.1's workaround for Wine's UI Automation did not take effect for the Software Center.
+
 ## 0.2.1
 
 - Arturia Software Center installs from its exact installer, and Arturia's plug-ins open and close their editors without crashing the DAW.
