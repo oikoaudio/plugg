@@ -71,7 +71,7 @@ def _load(path):
         raise ValueError('ntk_daemon requires a component with value true')
     if 'powershell' in data and (data['kind'] != 'component' or data['powershell'] is not True):
         raise ValueError('powershell requires a component with value true')
-    if 'helper_profile' in data and (data['kind'] != 'vendor' or data['helper_profile'] != 'native-access' or 'helper' not in data):
+    if 'helper_profile' in data and (data['kind'] != 'vendor' or data['helper_profile'] not in ('native-access', 'arturia') or 'helper' not in data):
         raise ValueError('Unsupported helper profile')
     if 'archive_tools' in data and (data['kind'] != 'component' or data['archive_tools'] is not True):
         raise ValueError('archive_tools requires a component with value true')
@@ -89,6 +89,10 @@ def _load(path):
         helper_recipes.validate(data['helper'])
         if data.get('helper_profile') == 'native-access' and data['helper']['executable'] != 'Program Files/Native Instruments/Native Access/Native Access.exe':
             raise ValueError('Native Access profile requires the Native Access executable path')
+        if data.get('helper_profile') == 'arturia':
+            from .helper_component import ARTURIA_EXECUTABLE
+            if data['helper']['executable'] != ARTURIA_EXECUTABLE:
+                raise ValueError('Arturia profile requires the Arturia Software Center executable path')
     if 'licensing' in data:
         from . import licensing
         if data['kind'] != 'vendor':
