@@ -118,17 +118,30 @@ installer_sha256="''' + core.digest(self.installer) + '"\n')
                 patch('plugg.proton_session.foreign_prefix_processes', return_value=[]), \
                 patch.object(vendors, 'finish_installation', return_value={'added': 0, 'unchanged': 0, 'failures': []}):
             core.work(self.store, job)
-        return json.loads((self.store.prefix(job).parent / 'session.json').read_text())
+        return self.store.prefix(job).parent
 
-    def test_arturia_plugin_hosts_run_without_ui_automation(self):
+    def test_arturia_runs_without_ui_automation(self):
         from plugg import helper_component
         self.recipe.write_text(self.recipe.read_text()
                                .replace('requires=', 'helper_profile="arturia"\nrequires=')
                                .replace('Program Files/Example/Manager.exe', helper_component.ARTURIA_EXECUTABLE))
-        self.assertEqual(self.run_setup(helper_component.ARTURIA_EXECUTABLE)['disabled_dlls'], ['uiautomationcore'])
+        directory = self.run_setup(helper_component.ARTURIA_EXECUTABLE)
+        # Plug-in hosts get it from the session, the Software Center and its
+        # children from the full launcher, before Proton starts. A cmd.exe
+        # `set` in the helper batch came too late and Wine loaded the DLL.
+        self.assertEqual(json.loads((directory / 'session.json').read_text())['disabled_dlls'], ['uiautomationcore'])
+        full = (directory / 'launch-full-proton').read_text()
+        self.assertLess(full.index('unset '), full.index('export WINEDLLOVERRIDES=uiautomationcore=\n'))
+        self.assertNotIn('WINEDLLOVERRIDES', (directory / 'prefix/drive_c/Plugg/launch-helper.cmd').read_text())
 
     def test_other_helpers_keep_ui_automation(self):
-        self.assertNotIn('disabled_dlls', self.run_setup('Program Files/Example/Manager.exe'))
+        directory = self.run_setup('Program Files/Example/Manager.exe')
+        self.assertNotIn('disabled_dlls', json.loads((directory / 'session.json').read_text()))
+        self.assertNotIn('export WINEDLLOVERRIDES', (directory / 'launch-full-proton').read_text())
+
+    def test_only_reviewed_dlls_can_be_disabled(self):
+        with self.assertRaisesRegex(ValueError, 'Unsupported disabled'):
+            recipes.configure(self.store, 'job', self.root / 'runtime', disabled_dlls=['ntdll'])
 
     def test_ambiguous_installer_claims_disable_both_recipes_without_blocking_intake(self):
         second = self.directory / 'other.toml'

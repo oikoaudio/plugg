@@ -231,14 +231,10 @@ def work(store, job_id):
             prefix.mkdir(parents=True)
             with core.lock(prefix.parent / 'helper.lock', blocking=False):
                 stage('preparing-environment')
-                full, launcher = recipes.configure(store, job_id, runtime, helper_spec=spec)
-                if selected.get('helper_profile') == 'arturia':
-                    launcher = helper_component.configure(prefix, full, spec, profile='arturia')
-                    # Arturia's plug-ins crash in the same DLL as their manager
-                    # when an editor window closes, so plug-in hosts drop it too.
-                    session = prefix.parent / 'session.json'
-                    core.atomic_json(session, {**json.loads(session.read_text()),
-                                               'disabled_dlls': ['uiautomationcore']})
+                # Arturia Software Center and Arturia's plug-in editors crash
+                # in Wine's UIAutomationCore; both launchers leave it out.
+                disabled = ['uiautomationcore'] if selected.get('helper_profile') == 'arturia' else []
+                full, launcher = recipes.configure(store, job_id, runtime, helper_spec=spec, disabled_dlls=disabled)
                 # Before any vendor component runs in this environment.
                 licensing.adopt_machine_identity(prefix.parent, [str(full)], os.environ.copy(),
                                                  check, timeout=600)

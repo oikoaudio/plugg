@@ -68,8 +68,16 @@ def executable(path, text):
     path.write_text(text);path.chmod(0o700)
 
 
-def configure(store, job_id, runtime, helper_enabled=True, *, helper_spec=None):
-    """Prepare launch files; caller owns environment allocation and idle locking."""
+def configure(store, job_id, runtime, helper_enabled=True, *, helper_spec=None, disabled_dlls=()):
+    """Prepare launch files; caller owns environment allocation and idle locking.
+
+    disabled_dlls go into both launchers. A full launch must set them before
+    Proton starts: a cmd.exe `set` inside the prefix comes too late, and Wine
+    still loads the DLL.
+    """
+    disabled_dlls=list(disabled_dlls)
+    if any(name not in proton_session.DISABLEABLE_DLLS for name in disabled_dlls) or len(set(disabled_dlls))!=len(disabled_dlls):
+        raise ValueError('Unsupported disabled DLLs: '+', '.join(disabled_dlls))
     custom_helper = helper_spec is not None
     if custom_helper and not helper_enabled:
         raise ValueError('A helper description cannot be supplied when helper launch is disabled')
@@ -89,9 +97,10 @@ def configure(store, job_id, runtime, helper_enabled=True, *, helper_spec=None):
     executable(adapter/'proton','#!/usr/bin/env python3\nimport os,sys\nos.environ.pop("SteamAppId",None)\np='+repr(str(original/'proton'))+'\nos.execv(p,[p,*sys.argv[1:]])\n')
     exports={'UMU_FOLDERS_PATH':str(runtime/'runtime'),'XDG_CACHE_HOME':str(store.root/'runtime-cache'),'WINEPREFIX':str(prefix),'PROTONPATH':str(adapter),'GAMEID':'umu-default','PROTON_VERB':'run','UMU_RUNTIME_UPDATE':'0','WINEDEBUG':'-all','PROTON_LOG':'0','PRESSURE_VESSEL_SHARE_PID':'1','PRESSURE_VESSEL_COPY_RUNTIME':'1'}
     full=directory/'launch-full-proton'
+    if disabled_dlls:exports['WINEDLLOVERRIDES']=';'.join(name+'=' for name in disabled_dlls)
     executable(full,'#!/bin/sh\nset -eu\nunset WINELOADER WINESERVER WINEARCH WINEDLLPATH WINEDLLOVERRIDES WAYLAND_DISPLAY LD_PRELOAD\n'+''.join('export '+k+'='+shlex.quote(v)+'\n' for k,v in exports.items())+'exec '+shlex.quote(str(runtime/'umu/umu-run'))+' "$@"\n')
     source=Path(proton_session.__file__);manager=directory/('session-manager-'+core.digest(source)[:16]+'.py');shutil.copy2(source,manager)
-    core.atomic_json(directory/'session.json',{'prefix':str(prefix),'proton':str(original/'proton'),'runtime_entry':str(runtime/'runtime/umu/steamrt3/_v2-entry-point'),'idle_seconds':300,'manager_sha256':core.digest(manager),'graphics_backend':'dxvk','recipe':profile})
+    core.atomic_json(directory/'session.json',{'prefix':str(prefix),'proton':str(original/'proton'),'runtime_entry':str(runtime/'runtime/umu/steamrt3/_v2-entry-point'),'idle_seconds':300,'manager_sha256':core.digest(manager),'graphics_backend':'dxvk','recipe':profile,**({'disabled_dlls':disabled_dlls} if disabled_dlls else {})})
     plugin=directory/'launch-plugin'
     executable(plugin,'#!/bin/sh\nunset WINEPREFIX\nexec '+shlex.join([sys.executable,str(manager),'launch',str(directory/'session.json')])+' "$@"\n')
     (prefix/'.plugg-runtime').write_text(str(plugin)+'\n')
