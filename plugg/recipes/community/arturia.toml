@@ -6,7 +6,7 @@ name = "Arturia Software Center"
 vendor = "Arturia"
 helper_profile = "arturia"
 requires = ["plugg.graphics-dxvk@1"]
-notes = "Installs ASC 2.12.0.3157 into a fresh managed environment. Disables Wine UIAutomationCore only for the manager process tree to avoid the captured text-input null-pointer crash. This limits manager accessibility. No WebView2 dependency: missing browser warnings were not the captured crash. Sign-in, product installation and refresh passed with the launch workaround; the user confirmed Delay TAPE-201, Jun-6 V and Tape MELLO-FI work in Bitwig. Fresh unattended recipe setup remains unverified; see docs/compatibility/arturia.md."
+notes = "Installs ASC 2.12.0.3157 into a fresh managed environment. Disables Wine UIAutomationCore for the manager process tree, to avoid the captured text-input null-pointer crash, and for plug-in hosts, whose JUCE editors crashed the host on close. This limits accessibility in the manager and plug-in editors. No WebView2 dependency: missing browser warnings were not the captured crash. Sign-in, product installation and refresh passed with the launch workaround; Delay TAPE-201, Jun-6 V and Tape MELLO-FI worked in Bitwig, and closing TAPE-201's editor no longer crashed with the plug-in host setting. Fresh unattended recipe setup remains unverified; see docs/compatibility/arturia.md."
 
 [helper]
 name = "Arturia Software Center"

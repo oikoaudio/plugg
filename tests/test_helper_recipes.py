@@ -101,6 +101,35 @@ installer_sha256="''' + core.digest(self.installer) + '"\n')
             helper_recipes.work(self.store, job)
         provision.assert_not_called()
 
+    def run_setup(self, executable):
+        job = self.store.ingest(self.installer)
+        runtime = self.root / 'runtime'
+        (runtime / 'UMU-Proton-10.0-4').mkdir(parents=True)
+        (runtime / 'UMU-Proton-10.0-4/proton').write_text('fixture')
+        def execute(command, *args, **kwargs):
+            if 'reg' not in command:
+                target = self.store.prefix(job) / 'drive_c' / executable
+                target.parent.mkdir(parents=True)
+                target.write_bytes(b'fixture helper')
+            return 0
+        with patch.object(recipes, 'provision', return_value=runtime), \
+                patch.object(core, 'run_process', side_effect=execute), \
+                patch('plugg.proton_session.graphics_overrides'), \
+                patch('plugg.proton_session.foreign_prefix_processes', return_value=[]), \
+                patch.object(vendors, 'finish_installation', return_value={'added': 0, 'unchanged': 0, 'failures': []}):
+            core.work(self.store, job)
+        return json.loads((self.store.prefix(job).parent / 'session.json').read_text())
+
+    def test_arturia_plugin_hosts_run_without_ui_automation(self):
+        from plugg import helper_component
+        self.recipe.write_text(self.recipe.read_text()
+                               .replace('requires=', 'helper_profile="arturia"\nrequires=')
+                               .replace('Program Files/Example/Manager.exe', helper_component.ARTURIA_EXECUTABLE))
+        self.assertEqual(self.run_setup(helper_component.ARTURIA_EXECUTABLE)['disabled_dlls'], ['uiautomationcore'])
+
+    def test_other_helpers_keep_ui_automation(self):
+        self.assertNotIn('disabled_dlls', self.run_setup('Program Files/Example/Manager.exe'))
+
     def test_ambiguous_installer_claims_disable_both_recipes_without_blocking_intake(self):
         second = self.directory / 'other.toml'
         second.write_text(self.recipe.read_text().replace('local.example-helper', 'local.other-helper'))
