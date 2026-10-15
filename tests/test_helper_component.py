@@ -30,20 +30,6 @@ class HelperComponentTest(unittest.TestCase):
                 helper.configure(self.prefix, self.root / 'full', {**self.spec, 'executable': path})
         self.assertFalse(self.prefix.exists())
 
-    def test_arturia_override_is_scoped_to_manager_batch(self):
-        spec = {**self.spec, 'executable': helper.ARTURIA_EXECUTABLE}
-        full = self.root / 'full'
-        full.write_text('shared launcher remains unchanged')
-        helper.configure(self.prefix, full, spec, profile='arturia')
-        batch = (self.prefix / 'drive_c/Plugg/launch-helper.cmd').read_text()
-        self.assertIn('set "WINEDLLOVERRIDES=%WINEDLLOVERRIDES%;uiautomationcore="', batch)
-        self.assertEqual(full.read_text(), 'shared launcher remains unchanged')
-        with self.assertRaises(ValueError):
-            helper.configure(self.prefix, full, self.spec, profile='arturia')
-        # A normal helper must not inherit the Arturia-only setting.
-        helper.configure(self.prefix, full, spec)
-        self.assertNotIn('WINEDLLOVERRIDES', (self.prefix / 'drive_c/Plugg/launch-helper.cmd').read_text())
-
     def test_installed_target_must_exist_and_stay_in_environment(self):
         with self.assertRaises(core.HostError):
             helper.installed_binary(self.prefix, self.spec)

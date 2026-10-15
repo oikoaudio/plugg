@@ -28,6 +28,8 @@ With DXVK selected, fixture audio passed before and after an idle restart. On th
 
 Some plug-ins crash inside a Wine built-in that they can do without. A session's `disabled_dlls` list adds `<name>=` to every child's `WINEDLLOVERRIDES`, after the graphics overrides, so Wine does not load that DLL for plug-in hosts. The prefix registry and the shared runtime are not changed. Only names in `DISABLEABLE_DLLS` in `plugg/proton_session.py` are accepted, each with the reason it is there, and the session refuses to start with any other. The one entry so far is `uiautomationcore`, which Arturia's plug-in editors crash in when their window closes ([Arturia notes](compatibility/arturia.md#editor-close-crash)).
 
+The same list goes into the environment's `launch-full-proton`, which starts vendor apps and installers. There it is exported before Proton starts. Setting `WINEDLLOVERRIDES` later, with `set` in a `cmd.exe` batch file inside the prefix, does not stop Wine loading the DLL.
+
 ## Vendor helpers
 
 Some vendor manager applications do not work through `runinprefix`. Klevgrand Helper, for example, needs a full Proton launch, so its environment stops the idle managed session before opening Helper. See [the vendor Helper workflow](vendor-helper-workflow.md#helper-uses-the-full-proton-launch).
