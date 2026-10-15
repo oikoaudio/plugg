@@ -24,6 +24,7 @@ CAPABILITIES = {
     'install-ntk-daemon': 'Install the pinned bundled NTKDaemon service and start it with Native Access',
     'install-powershell': 'Install pinned Microsoft PowerShell and the source-built forwarding launcher',
     'native-access-session': 'Manage Native Access background services and its browser sign-in handoff',
+    'arturia-helper-compatibility': 'Disable Wine UI Automation for the Arturia manager to avoid its text-input crash; limits accessibility support',
     'configure-graphics': 'Change which graphics driver an environment uses',
     'create-environment': 'Create a new Windows environment',
     'join-environment': 'Install into a Windows environment that already exists',
@@ -50,7 +51,7 @@ TIERS = {
     'reviewed': {'configure-graphics', 'create-environment', 'join-environment',
                  'import-module', 'claim-module', 'claim-installer',
                  'download-component', 'run-vendor-installer', 'prepare-archive-tools',
-                 'install-powershell', 'native-access-session', 'install-ntk-daemon'},
+                 'install-powershell', 'native-access-session', 'install-ntk-daemon', 'arturia-helper-compatibility'},
     'shipped': set(CAPABILITIES),
     #: A recipe the user wrote for themselves. No ceiling; the report is still
     #: shown, because "I wrote it" and "I read it" are not the same thing.
@@ -107,8 +108,10 @@ def capabilities(ordered, record):
             found.add('install-ntk-daemon')
         if declared.get('powershell'):
             found.add('install-powershell')
-        if declared.get('helper_profile'):
+        if declared.get('helper_profile') == 'native-access':
             found.add('native-access-session')
+        if declared.get('helper_profile') == 'arturia':
+            found.add('arturia-helper-compatibility')
         if declared.get('archive_tools'):
             found.add('prepare-archive-tools')
         if 'graphics' in declared:

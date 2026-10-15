@@ -50,6 +50,21 @@ installer_sha256="''' + core.digest(self.installer) + '"\n')
         with self.assertRaisesRegex(ValueError, 'Archive tools'):
             recipe_engine.plan(records, selected['reference'], self.root / 'does-not-exist')
 
+    def test_arturia_recipe_pins_installer_and_validates_profile_target(self):
+        records = recipe_engine.catalogue([Path(recipe_engine.__file__).parent / 'recipes/community'])
+        fingerprint = 'e92baaaa94f4635fb33b6cbad4f6397d619d07c9e0997e6460a8d64544f1bfb8'
+        selected = helper_recipes.catalogue(records)[fingerprint]
+        self.assertEqual(selected['reference'], 'plugg.arturia@1')
+        self.assertEqual(selected['helper_profile'], 'arturia')
+        self.assertFalse(selected['helper']['archive_tools'])
+        self.assertEqual(selected['licensing']['recovery'], 'deactivate-first')
+        source = Path(recipe_engine.__file__).parent / 'recipes/community/arturia.toml'
+        altered = self.root / 'arturia.toml'
+        altered.write_text(source.read_text().replace('plugg.arturia', 'local.arturia').replace(
+            selected['helper']['executable'], 'Other/Manager.exe'))
+        with self.assertRaisesRegex(ValueError, 'Arturia profile'):
+            recipe_engine.load(altered)
+
     def test_intake_pins_recipe_and_worker_publishes_helper_card(self):
         job = self.store.ingest(self.installer)
         snapshot = json.loads((self.store.root / 'jobs' / job / 'helper-recipe.json').read_text())

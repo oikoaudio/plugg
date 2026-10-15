@@ -232,6 +232,8 @@ def work(store, job_id):
             with core.lock(prefix.parent / 'helper.lock', blocking=False):
                 stage('preparing-environment')
                 full, launcher = recipes.configure(store, job_id, runtime, helper_spec=spec)
+                if selected.get('helper_profile') == 'arturia':
+                    launcher = helper_component.configure(prefix, full, spec, profile='arturia')
                 # Before any vendor component runs in this environment.
                 licensing.adopt_machine_identity(prefix.parent, [str(full)], os.environ.copy(),
                                                  check, timeout=600)

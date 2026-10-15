@@ -8,6 +8,8 @@ import os
 
 from . import core, licensing
 
+ARTURIA_EXECUTABLE = 'Program Files (x86)/Arturia/Arturia Software Center/Arturia Software Center.exe'
+
 
 def validate(spec):
     if not isinstance(spec, dict) or set(spec) != {'name', 'executable', 'archive_tools'}:
@@ -33,8 +35,10 @@ def installed_binary(prefix, spec):
     return binary
 
 
-def configure(prefix, full_launcher, spec):
+def configure(prefix, full_launcher, spec, *, profile=None):
     validate(spec)
+    if profile is not None and (profile != 'arturia' or spec['executable'] != ARTURIA_EXECUTABLE):
+        raise ValueError('Arturia helper profile requires the Arturia Software Center executable')
     prefix = Path(prefix)
     licensing.guard(prefix.parent, 'install_helper')
     batch = prefix / 'drive_c/Plugg/launch-helper.cmd'
@@ -43,6 +47,10 @@ def configure(prefix, full_launcher, spec):
     batch.parent.mkdir(parents=True, exist_ok=True)
     path = 'C:\\' + spec['executable'].replace('/', '\\')
     lines = ['@echo off', 'set "SteamAppId="']
+    if profile == 'arturia':
+        # ASC's JUCE text input crashes in Wine UIAutomationCore. Scope the
+        # workaround to the helper's children, not the prefix or shared Wine.
+        lines.append('set "WINEDLLOVERRIDES=%WINEDLLOVERRIDES%;uiautomationcore="')
     if spec['archive_tools']:
         lines.append('set "PATH=C:\\Plugg\\Tools\\Archive;%PATH%"')
     lines.append('"' + path + '"')
