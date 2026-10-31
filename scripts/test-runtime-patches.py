@@ -98,6 +98,17 @@ def unwind(run, prefix):
     return 'survived' not in said, said
 
 
+def msi_width(run, prefix):
+    said = []
+    for exe in ('msi-width-probe64.exe', 'msi-width-probe32.exe'):
+        clear(prefix, 'msi-width-probe.txt')
+        run([exe])
+        said.append(text(prefix, 'msi-width-probe.txt'))
+    if not all('grew the string pool' in s for s in said):
+        return None, '\n'.join(said)
+    return any('read Other: untouched' not in s for s in said), '\n'.join(said)
+
+
 PROBE_TABLE = [
     ('ole32 foreign RevokeDragDrop', 'patches/0004-ole32-revoke-foreign-drop-target.patch', ['dragdrop.exe'], ole32),
     ('services failure actions', 'patches/wine/0002-services-Store-and-report-service-failure-actions.patch',
@@ -106,6 +117,8 @@ PROBE_TABLE = [
      ['version-probe64.dll', 'version-probe32.dll'], rundll32),
     ('RtlVirtualUnwind2 NULL write', 'patches/wine/0003-ntdll-Do-not-crash-in-RtlVirtualUnwind2-on-NULL-outp.patch',
      ['unwind-probe.exe'], unwind),
+    ('MSI string reference width', 'patches/wine/0004-msi-Rewrite-every-table-when-the-string-reference-wi.patch',
+     ['msi-width-probe64.exe', 'msi-width-probe32.exe'], msi_width),
 ]
 
 

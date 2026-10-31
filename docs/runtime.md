@@ -42,17 +42,29 @@ With `--container`, the build runs in an Arch Linux container. Its packages come
 
 `ole32.dll` keeps its debug information, which names the directory it was first built in. The build maps its own directory to that path so the bytes match.
 
-## plugg-2, in progress
+## plugg-2
 
-`plugg-2` is `plugg-1` plus one more module, `ntdll.dll`, with the upstream Wine fix for `RtlVirtualUnwind2()` writing through NULL output parameters ([a55cddce98](https://gitlab.winehq.org/wine/wine/-/commit/a55cddce9839a1516f882ad2e5a2ab689084da92), Wine 11.7). Without it, Wine cannot report a crash that takes this path. The report recurses until the process dies, and nothing is printed.
+`plugg-2` is `plugg-1` plus two fixes:
 
-The fix is for crash reporting. It does not fix plug-ins. The plug-in failures of 2026-09-20 came from a Windows host built with the packager's `-march=native`, and the bridge build fixed them. See [the diagnosis](../diagnostics/host-stack/README.md). With `plugg-2`, Wine can report the next failure of this kind.
+| Module | Patch | What it fixes |
+| --- | --- | --- |
+| `ntdll.dll` (x64) | [0003](../patches/wine/0003-ntdll-Do-not-crash-in-RtlVirtualUnwind2-on-NULL-outp.patch) | Wine cannot report some crashes |
+| `msi.dll` (x86, x64) | [0004](../patches/wine/0004-msi-Rewrite-every-table-when-the-string-reference-wi.patch) | Kontakt 8's installer installs nothing |
 
-It is a draft. Its modules have not been built and recorded, so Plugg refuses to assemble or select it. Building them records the hashes:
+The `ntdll.dll` patch is the upstream Wine fix for `RtlVirtualUnwind2()` writing through NULL output parameters ([a55cddce98](https://gitlab.winehq.org/wine/wine/-/commit/a55cddce9839a1516f882ad2e5a2ab689084da92), Wine 11.7). Without it, Wine cannot report a crash that takes this path. The report recurses until the process dies, and nothing is printed.
+
+That fix is for crash reporting. It does not fix plug-ins. The plug-in failures of 2026-09-20 came from a Windows host built with the packager's `-march=native`, and the bridge build fixed them. See [the diagnosis](../diagnostics/host-stack/README.md). With `plugg-2`, Wine can report the next failure of this kind.
+
+The `msi.dll` patch fixes a Wine bug in saving large MSI databases. An MSI stores references to its strings in 2 or 3 bytes, and every table must use the same width. Wine picks the width from the capacity of the string pool, which grows by half each time, so a database of about 43,700 strings crosses the limit when it gains one string. Wine then saves only the tables it has open, and nothing can read the file after that. Kontakt 8's installer edits its MSI before it installs, so it hits this. `MsiInstallProduct` returns without running an action, the installer exits normally and Native Access reports success with nothing installed. See [the Native Instruments notes](compatibility/native-instruments.md#kontakt-8) and [the diagnosis](../diagnostics/msi-string-width/README.md). The patch is not in upstream Wine yet.
+
+`python3 scripts/build-runtime-overlay.py plugg-2 --container docker` rebuilds its modules byte for byte from source. To use it for new environments:
 
 ```sh
-python3 scripts/build-runtime-overlay.py plugg-2 --container docker
+plugg runtime assemble plugg-2
+plugg runtime select plugg-2
 ```
+
+Kontakt 8 Player installs, activates and plays on it. Nobody has tested PACE or iLok on it, and `plugg ilok create` still requires `plugg-1`.
 
 Moving an existing environment to it keeps the prefix, the installed software and the machine identity. Only Wine modules change. A protected environment still asks first. Deactivate the plug-ins in an iLok environment before you move it.
 

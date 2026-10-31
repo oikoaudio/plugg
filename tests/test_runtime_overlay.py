@@ -219,18 +219,12 @@ if __name__ == '__main__':
 class DraftRuntimeTests(unittest.TestCase):
     """A runtime whose modules have not been built yet is described, not usable."""
 
-    def setUp(self):
-        self.spec = overlay.overlay('plugg-2')
-
-    def test_plugg_2_is_still_a_draft(self):
-        self.assertTrue(self.spec.get('draft'))
-        self.assertIsNone(self.spec['files']['x86_64-windows/ntdll.dll']['sha256'])
-
     def test_a_draft_cannot_be_assembled_planned_or_selected(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        draft = dict(overlay.overlay('plugg-2'), draft=True)
+        with tempfile.TemporaryDirectory() as temporary, patch.object(overlay, 'overlay', return_value=draft):
             root = Path(temporary)
-            for action in (lambda: overlay.plan(self.spec, root, root / 'runtimes'),
-                           lambda: overlay.check_artifacts(self.spec, root),
+            for action in (lambda: overlay.plan(draft, root, root / 'runtimes'),
+                           lambda: overlay.check_artifacts(draft, root),
                            lambda: overlay.select_for_new_environments(root, 'plugg-2')):
                 with self.assertRaisesRegex(core.HostError, 'draft'):
                     action()
@@ -242,7 +236,17 @@ class DraftRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(core.HostError, 'draft'):
             overlay.refuse_draft(spec)
 
-    def test_the_draft_keeps_the_base_and_the_modules_of_plugg_1(self):
+
+class SecondRuntimeTests(unittest.TestCase):
+    def setUp(self):
+        self.spec = overlay.overlay('plugg-2')
+
+    def test_every_module_is_recorded(self):
+        self.assertNotIn('draft', self.spec)
+        self.assertTrue(all(entry['sha256'] for entry in self.spec['files'].values()))
+        self.assertEqual(overlay.directory_name(self.spec), 'proton-10.0-4-plugg-2-edcb4b9cee2e')
+
+    def test_it_keeps_the_base_and_the_modules_of_plugg_1(self):
         one = overlay.overlay('plugg-1')
         self.assertEqual(self.spec['base'], one['base'])
         for relative, entry in one['files'].items():
@@ -261,3 +265,10 @@ class DraftRuntimeTests(unittest.TestCase):
         patch_file = (REPO / self.spec['files']['x86_64-windows/ntdll.dll']['patch']).read_text()
         self.assertIn('a55cddce9839a1516f882ad2e5a2ab689084da92', patch_file)
         self.assertIn('dlls/ntdll/unwind.c', patch_file)
+
+    def test_the_msi_fix_is_built_for_both_architectures(self):
+        # Kontakt 8's setup is a 32-bit process; other installers use the 64-bit module.
+        for architecture in ('i386', 'x86_64'):
+            self.assertIn('0004-msi-', self.spec['files'][architecture + '-windows/msi.dll']['patch'])
+        tree = next(tree for tree in self.spec['build']['trees'] if tree['name'] == 'msi')
+        self.assertIn('--enable-archs=i386,x86_64', tree['configure'])

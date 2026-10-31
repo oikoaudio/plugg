@@ -190,8 +190,9 @@
   },
   {
    "name": "plugg-2",
-   "draft": true,
-   "purpose": "plugg-1 plus the upstream Wine fix for RtlVirtualUnwind2 writing through NULL output parameters. Without it, a plug-in that throws during initialisation takes the whole Windows host down and the DAW waits on a process that has already died.",
+   "identity": "edcb4b9cee2e",
+   "content_sha256": "edcb4b9cee2ede5a99e6c091d4e02a99acb4f3fd2ceca5c29458133d12643e51",
+   "purpose": "plugg-1 plus two Wine fixes. The upstream fix for RtlVirtualUnwind2 writing through NULL output parameters lets Wine report a crash that would otherwise take the whole Windows host down with no message. The msi.dll fix stops Wine damaging an MSI whose string pool outgrows 2-byte references, which made Kontakt 8's installer install nothing while Native Access reported success.",
    "base": {
     "release": "UMU-Proton-10.0-4",
     "archive_sha256": "62e99e029a18fa313e6fa63d42390918101730a940e3491c54d9d58cab887c69",
@@ -229,15 +230,27 @@
      "patch": "patches/0004-ole32-revoke-foreign-drop-target.patch"
     },
     "x86_64-windows/ntdll.dll": {
-     "sha256": null,
+     "sha256": "527c61f485217c8ba458c2d6611871a5e83b64898bccaaa76559c8780a916ab2",
      "patch": "patches/wine/0003-ntdll-Do-not-crash-in-RtlVirtualUnwind2-on-NULL-outp.patch"
+    },
+    "i386-windows/msi.dll": {
+     "sha256": "50b38e98c06e07cf35aad0c5d4b44fcad405494c98ccfbe0b7a8cdac1f35181d",
+     "patch": "patches/wine/0004-msi-Rewrite-every-table-when-the-string-reference-wi.patch"
+    },
+    "x86_64-windows/msi.dll": {
+     "sha256": "19279aab2403ebd17c034714b2a3dd96998270cd628712434ff4bd320b5418ac",
+     "patch": "patches/wine/0004-msi-Rewrite-every-table-when-the-string-reference-wi.patch"
     }
    },
    "not_yet_tested": [
     "A 32-bit plug-in editor closing (the ole32 guard exists for 64-bit only)",
-    "The 32-bit unwinder, which has its own code and is not patched"
+    "The 32-bit unwinder, which has its own code and is not patched",
+    "PACE 6.0.1 and iLok on this runtime, whose msi.dll and ntdll.dll differ from plugg-1. The iLok setup still requires plugg-1."
    ],
-   "validated": [],
+   "validated": [
+    "Kontakt 8 Player 8.14.1 installs through Native Access in a fresh environment, activates, and plays in Bitwig (2026-10-31)",
+    "scripts/test-runtime-patches.py: all five probes pass, and fail on stock UMU-Proton 10.0-4 (2026-10-31)"
+   ],
    "build": {
     "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322",
     "source_archive": {
@@ -393,9 +406,63 @@
       },
       "source_date_epoch": 1789920000,
       "strip_debug": true
+     },
+     {
+      "name": "msi",
+      "source_directory": "wine",
+      "patches": [
+       {
+        "patch": "patches/wine/0004-msi-Rewrite-every-table-when-the-string-reference-wi.patch",
+        "sha256": "546f36d36bde32e021aa6b7e26cf98fc6aaf808fa2d6a7ce537b9c632431535f"
+       }
+      ],
+      "configure": [
+       "--enable-archs=i386,x86_64",
+       "--without-x",
+       "--without-wayland",
+       "--without-freetype",
+       "--without-vulkan",
+       "--without-gstreamer",
+       "--without-alsa",
+       "--without-pulse",
+       "--without-cups",
+       "--without-dbus",
+       "--without-gnutls",
+       "--without-sdl",
+       "--without-udev",
+       "--without-usb",
+       "--without-v4l2",
+       "--without-ffmpeg",
+       "--without-opencl",
+       "--without-pcap",
+       "--without-capi",
+       "--without-krb5",
+       "--without-netapi",
+       "--without-gphoto",
+       "--without-sane",
+       "--without-unwind",
+       "--without-fontconfig",
+       "--without-inotify",
+       "--without-gssapi",
+       "--without-oss",
+       "--without-xinerama"
+      ],
+      "targets": [
+       "dlls/msi/all"
+      ],
+      "files": {
+       "i386-windows/msi.dll": "dlls/msi/i386-windows/msi.dll",
+       "x86_64-windows/msi.dll": "dlls/msi/x86_64-windows/msi.dll"
+      },
+      "source_date_epoch": 1793404800,
+      "strip_debug": true
      }
     ],
     "notes": "The ole32 module keeps its debug information, which names the directory it was first built in; -fdebug-prefix-map reproduces that path so the bytes match."
+   },
+   "release": {
+    "url": "https://github.com/oikoaudio/plugg/releases/download/runtime-plugg-2/plugg-2-wine-modules.tar",
+    "sha256": "685fbea918e9555b5a6e8ccf226d9e0ab94726c501c53c5d8f57df0040334aa9"
    }
   }
  ]
