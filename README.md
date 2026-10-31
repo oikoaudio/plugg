@@ -26,11 +26,11 @@ Install a plug-in with the vendor's own Windows installer, and it shows up in yo
 
 ## Install
 
-Download the package for your distribution from [the latest release](https://github.com/oikoaudio/plugg/releases/latest) and install it:
+Download the package for your distribution from [the latest release](https://github.com/oikoaudio/plugg/releases/latest) and install it, with the version you downloaded in place of `<version>`:
 
-- Ubuntu 24.04 or newer, Debian 13 or newer: `sudo apt install ./plugg_0.1.0_amd64.deb`
-- Fedora 42 or newer: `sudo dnf install ./plugg-0.1.0-1.x86_64.rpm`
-- Arch and Arch-based systems (CachyOS, EndeavourOS and others): `sudo pacman -U ./plugg-0.1.0-1-x86_64.pkg.tar.zst`
+- Ubuntu 24.04 or newer, Debian 13 or newer: `sudo apt install ./plugg_<version>_amd64.deb`
+- Fedora 42 or newer: `sudo dnf install ./plugg-<version>-1.x86_64.rpm`
+- Arch and Arch-based systems (CachyOS, EndeavourOS and others): `sudo pacman -U ./plugg-<version>-1-x86_64.pkg.tar.zst`
 
 Then start Plugg from your applications menu, or run `plugg gui`. Plugg downloads its Proton runtime the first time it needs it and checks it by hash.
 
