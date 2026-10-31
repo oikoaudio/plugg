@@ -42,15 +42,13 @@ Drop in an EXE, MSI, or a Windows VST3, VST2 DLL or CLAP file. Leave any BIN fil
 
 ## iLok plug-ins
 
-iLok-licensed plug-ins share one Windows environment with PACE License Support, and iLok sees it as one computer. PACE needs two Wine fixes, which the `plugg-1` runtime carries:
+iLok-licensed plug-ins share one Windows environment with PACE License Support, and iLok sees it as one computer. PACE needs two Wine fixes, which Plugg's runtimes carry:
 
 ```sh
-plugg runtime assemble plugg-1
-plugg runtime select plugg-1
 plugg ilok create PACE.msi
 ```
 
-[iLok and PACE](docs/recipes/pace.md) covers adding vendors and activating. [The runtime page](docs/runtime.md) explains what `plugg-1` changes and how to rebuild it from source yourself.
+[iLok and PACE](docs/recipes/pace.md) covers adding vendors and activating, and which runtime to choose. [The runtime page](docs/runtime.md) explains what the runtimes change and how to rebuild them from source yourself.
 
 ## Recipes
 

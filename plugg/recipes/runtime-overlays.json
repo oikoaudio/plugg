@@ -245,12 +245,13 @@
    "not_yet_tested": [
     "A 32-bit plug-in editor closing (the ole32 guard exists for 64-bit only)",
     "The 32-bit unwinder, which has its own code and is not patched",
-    "iLok License Manager sign-in and activation on this runtime"
+    "Playing an iLok-activated plug-in on this runtime"
    ],
    "validated": [
     "Kontakt 8 Player 8.14.1 installs through Native Access in a fresh environment, activates, and plays in Bitwig (2026-10-31)",
     "scripts/test-runtime-patches.py: all five probes pass, and fail on stock UMU-Proton 10.0-4 (2026-10-31)",
-    "The unmodified PACE 6.0.1 MSI installs through ilok create in a fresh prefix, and its service runs with the same configuration as on plugg-1 (2026-10-31)"
+    "The unmodified PACE 6.0.1 MSI installs through ilok create in a fresh prefix, and its service runs with the same configuration as on plugg-1 (2026-10-31)",
+    "iLok License Manager sign-in and activation of Pulsar Audio W495, through a new library on the default runtime (2026-10-31)"
    ],
    "build": {
     "wine_revision": "b8fdff8e1f855b5276ec4ddca0f31b2792554322",

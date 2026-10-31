@@ -25,8 +25,7 @@ from . import core, helper_component, licensing, runtime_overlay
 
 #: PACE License Support 6.0.1, as UA Connect downloads it. The only version tested.
 PACE_SHA256 = '1db141190e1f06f58be6f8389b574fb4ba68c5dcc4be57ccaea90e5b33f0e6b8'
-#: The runtimes PACE has been installed on. plugg-1 is first because activation has only been
-#: tested on it.
+#: The runtimes PACE has been installed on. plugg-1 is first because it has the longer record.
 RUNTIMES = ('plugg-1', 'plugg-2')
 GROUPS = 'licensing-environments.json'
 LDSVC = 'Program Files (x86)/Common Files/PACE/Services/LicenseServices/LDSvc.exe'
@@ -63,8 +62,10 @@ def preflight(store, installer):
     if selected not in RUNTIMES:
         raise core.HostError('PACE needs the ' + RUNTIMES[0] + ' runtime. Run "plugg runtime assemble ' + RUNTIMES[0]
                              + '" and "plugg runtime select ' + RUNTIMES[0] + '" first.')
-    runtime_overlay.verify(runtime_overlay.overlay(selected),
-                           Path(store.root) / 'runtimes' / runtime_overlay.directory_name(runtime_overlay.overlay(selected)))
+    # create() assembles a selected runtime that is not there yet, as a first setup needs.
+    assembled = Path(store.root) / 'runtimes' / runtime_overlay.directory_name(runtime_overlay.overlay(selected))
+    if assembled.exists():
+        runtime_overlay.verify(runtime_overlay.overlay(selected), assembled)
     previous = current(store)
     if previous is not None and previous.is_dir():
         record = licensing.read(previous)

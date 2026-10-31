@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from plugg import core, helper_recipes, recipes, vendors, recipe_engine
+from plugg import core, helper_recipes, recipes, runtime_overlay, vendors, recipe_engine
 from test_core import fake_pe
 
 
@@ -14,6 +14,8 @@ class HelperRecipeTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.store = core.Store(self.root / 'store', self.root / 'published')
+        # These fixtures fake the runtime, so they use the base and not a selected overlay.
+        runtime_overlay.select_for_new_environments(self.store.root, None)
         self.directory = self.root / 'config/plugg/recipes'
         self.directory.mkdir(parents=True)
         environment = patch.dict('os.environ', {'XDG_CONFIG_HOME': str(self.root / 'config')})
