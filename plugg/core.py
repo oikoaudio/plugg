@@ -717,55 +717,6 @@ def safe_extract(archive: Path, destination: Path, check=lambda: None):
             tar.extract(member, destination, filter="data")
 
 
-def provision_wine(store: Store, report=lambda _: None, check=lambda: None):
-    target = store.root / "runtimes" / WINE["id"]
-    with lock(store.root / "runtime.lock"):
-        manifest = target / "runtime.json"
-        if manifest.exists():
-            data = json.loads(manifest.read_text())
-            binary = target / data["wine"]
-            if data["archive_sha256"] != WINE["sha256"] or not binary.is_file():
-                raise HostError("The managed runtime is damaged. Restore it before installing.")
-            return binary
-        cache = store.root / "downloads"
-        cache.mkdir(exist_ok=True)
-        archive = cache / (WINE["id"] + ".tar.xz")
-        if not archive.exists() or digest(archive) != WINE["sha256"]:
-            partial = archive.with_suffix(".part")
-            from . import artifacts
-            # GitHub serves release assets from a separate download host, so the
-            # runtime source names both; every redirect hop is checked again.
-            try:
-                with artifacts.open_verified(WINE["url"], artifacts.RUNTIME_RELEASES) as response, partial.open("wb") as out:
-                    total = int(response.headers.get("Content-Length", "0"))
-                    count = 0
-                    while chunk := response.read(1024 * 1024):
-                        check()
-                        count += len(chunk)
-                        if count > 512 * 1024**2:
-                            raise HostError("The runtime download exceeds its size limit.")
-                        out.write(chunk)
-                        report(f"Downloading Windows support · {count // 1048576} MB" + (f" of {total // 1048576} MB" if total else ""))
-                if digest(partial) != WINE["sha256"]:
-                    raise HostError("Runtime download verification failed. Please try again.")
-                os.replace(partial, archive)
-            finally:
-                partial.unlink(missing_ok=True)
-        check()
-        target.parent.mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix=".prepare-", dir=target.parent) as tmp:
-            stage = Path(tmp)
-            report("Unpacking Windows support")
-            safe_extract(archive, stage)
-            candidates = list(stage.glob("*/bin/wine"))
-            if len(candidates) != 1:
-                raise HostError("The runtime package has an unexpected layout.")
-            rel = str(candidates[0].relative_to(stage))
-            atomic_json(stage / "runtime.json", {"provider": "wine", "id": WINE["id"], "archive_sha256": WINE["sha256"], "wine": rel, "source": WINE["source"]})
-            os.rename(stage, target)
-        return target / rel
-
-
 def adopt_installed_helper(store, job):
     """Give a vendor's own app, left behind by its installer, a helper card.
 

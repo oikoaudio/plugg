@@ -5,14 +5,13 @@ from pathlib import Path
 import concurrent.futures
 import json
 import os
-import subprocess
 import sys
 import uuid
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from plugg import core
+from plugg import core, proton_session
 
 
 def main():
@@ -20,16 +19,16 @@ def main():
     root.mkdir(parents=True)
     store = core.Store(root / "library", root / "published")
     # Reuse the download cache, with independent prefixes for every test run.
-    cache = core.Store(ROOT / ".test-data")
-    wine = core.provision_wine(cache, lambda message: print(message, flush=True))
+    cache = ROOT / ".test-data" / "downloads"
+    cache.mkdir(parents=True, exist_ok=True)
+    (store.root / "downloads").symlink_to(cache)
     fixture = ROOT / "build/fixtures/Install-Test-Gain.exe"
     if not fixture.is_file():
         raise RuntimeError("Build the test installer with scripts/build-fixture.sh first")
     job = store.ingest(fixture)
     prefix = store.prefix(job)
     try:
-        with patch("plugg.core.provision_wine", return_value=wine):
-            core.work(store, job)
+        core.work(store, job)
         assert store.job(job)["status"] == "ready", store.job(job)
         plugin, = store.plugins()
         target = Path(plugin["publication"])
@@ -48,11 +47,11 @@ def main():
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             audio_results = list(pool.map(audio, range(2)))
         # Rescan must neither rerun the installer nor duplicate publication.
-        with patch("plugg.core.provision_wine", side_effect=AssertionError("rescan reprovisioned")):
+        with patch("plugg.recipes.provision", side_effect=AssertionError("rescan reprovisioned")):
             core.work(store, job, rescan=True)
         assert len(store.plugins()) == 1 and len(list(store.publication.iterdir())) == 1
         results = {"passed": True, "job": job, "installer_sha256": core.digest(fixture),
-                   "runtime": core.WINE, "bridge": json.loads((store.bridge()/"build.json").read_text()),
+                   "runtime": json.loads((prefix.parent/"session.json").read_text())["proton"], "bridge": json.loads((store.bridge()/"build.json").read_text()),
                    "audio_instances": audio_results, "blocks_per_instance": 1000,
                    "block_size": 128, "sample_rate": 48000, "rescan_idempotent": True,
                    "bitwig_tested": False, "vendor_plugins_tested": False}
@@ -60,9 +59,8 @@ def main():
         print("Integration passed:", root/"results.json")
     finally:
         # Only this newly created test prefix; no user Wine services are touched.
-        if prefix.exists():
-            subprocess.run([wine.parent/"wineserver", "-k"], env=core.runtime_env(prefix,wine),
-                           capture_output=True, timeout=10)
+        if (prefix.parent/"session.json").exists():
+            proton_session.stop_idle_session(prefix.parent/"session.json")
 
 
 if __name__ == "__main__":
