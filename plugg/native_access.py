@@ -73,7 +73,7 @@ def work(store,job_id,refresh=False):
                 with native_access_routing.active(directory/'native-access-protocol.json'), vendors.helper_placement('Native Access'):
                     child=subprocess.Popen([cfg['helper_launcher']],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
                     seen=False;absent=0
-                    report('running','Native Access is open. Browser sign-in returns to this setup automatically. Download location: C:\\Native Instruments Downloads.')
+                    report('running','Native Access is open. '+core.CLOSE_DAW+' Browser sign-in returns to this setup automatically. Download location: C:\\Native Instruments Downloads.')
                     while child.poll() is None:
                         # A failed compositor query must never be interpreted as a close.
                         if os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):

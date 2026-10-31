@@ -25,6 +25,7 @@ FAQ = (
          "or just its VST2 or CLAP, and it leaves your DAW. It stays out when Plugg checks that vendor again, "
          "until you tick it. Nothing is deleted."),
         ("How do I add a plug-in?",
+         "Close your DAW first, so that nothing has the files open while they change. "
          "Drop the .exe or .msi installer on the window, or a plug-in file: .vst3, a VST2 .dll or .clap. "
          "Or press Choose file… (Ctrl+O). Keep any .bin "
          "files beside the .exe. If the vendor's own app opens, install your products there and close it: "
@@ -57,7 +58,7 @@ FAQ = (
         ("A vendor's app will not close, or its row stays busy",
          "Some managers keep running with no window. Choose Force close its apps in the vendor's settings. "
          "It ends every Windows program in that environment, a licence manager sharing it included, and "
-         "refuses while your DAW is open, because the plug-ins run in the same place."),
+         "refuses while your DAW has Windows plug-ins loaded, because they run in the same place."),
         ("A plug-in crashes, or my DAW waits for it",
          "When a plug-in takes its Windows host down, Plugg ends the load within seconds, so your DAW sees a "
          "plug-in that failed rather than waiting forever. Try Troubleshoot…; if nothing there helps, "
