@@ -1,6 +1,6 @@
 # The plugg-1 runtime
 
-Every new environment runs on `plugg-1`, whether it comes from a recipe, a vendor helper, the iLok setup, a direct VST3 import or an installer Plugg has no recipe for. It is a copy of UMU-Proton 10.0-4 with seven Wine modules replaced by patched builds. The patches fix things that stop plug-ins and their installers on stock Proton:
+Every new environment runs on the runtime chosen with `plugg runtime select`, whether it comes from a recipe, a vendor helper, the iLok setup, a direct VST3 import or an installer Plugg has no recipe for. With none chosen, it runs on plain UMU-Proton 10.0-4. `plugg-1` is a copy of UMU-Proton 10.0-4 with seven Wine modules replaced by patched builds. The patches fix things that stop plug-ins and their installers on stock Proton:
 
 | Module | Patch | What it fixes |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ plugg runtime assemble plugg-2
 plugg runtime select plugg-2
 ```
 
-Kontakt 8 Player installs, activates and plays on it. Nobody has tested PACE or iLok on it, and `plugg ilok create` still requires `plugg-1`.
+Kontakt 8 Player installs, activates and plays on it. `plugg ilok create` accepts `plugg-1` or `plugg-2`. PACE 6.0.1 installs on `plugg-2` and its service runs, but nobody has signed in to iLok or activated a plug-in on it.
 
 Moving an existing environment to it keeps the prefix, the installed software and the machine identity. Only Wine modules change. A protected environment still asks first. Deactivate the plug-ins in an iLok environment before you move it.
 

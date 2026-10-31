@@ -1,4 +1,4 @@
-"""Create the shared iLok environment from scratch, on the plugg-1 runtime.
+"""Create the shared iLok environment from scratch, on a runtime with PACE's Wine fixes.
 
 One environment holds PACE and iLok License Manager for every iLok vendor, so
 the computer is one machine to iLok. This creates it fresh: the unmodified
@@ -25,7 +25,9 @@ from . import core, helper_component, licensing, runtime_overlay
 
 #: PACE License Support 6.0.1, as UA Connect downloads it. The only version tested.
 PACE_SHA256 = '1db141190e1f06f58be6f8389b574fb4ba68c5dcc4be57ccaea90e5b33f0e6b8'
-RUNTIME = 'plugg-1'
+#: The runtimes PACE has been installed on. plugg-1 is first because activation has only been
+#: tested on it.
+RUNTIMES = ('plugg-1', 'plugg-2')
 GROUPS = 'licensing-environments.json'
 LDSVC = 'Program Files (x86)/Common Files/PACE/Services/LicenseServices/LDSvc.exe'
 #: The Windows service LDSvc.exe runs as.
@@ -57,11 +59,12 @@ def preflight(store, installer):
         raise core.HostError('This is not the PACE installer that has been tested (PACE 6.0.1, SHA-256 '
                              + PACE_SHA256[:12] + '…). Other versions are not supported yet.')
     settings = json.loads((Path(store.root) / 'settings.json').read_text())
-    if settings.get(runtime_overlay.SETTING) != RUNTIME:
-        raise core.HostError('PACE needs the ' + RUNTIME + ' runtime. Run "plugg runtime assemble ' + RUNTIME
-                             + '" and "plugg runtime select ' + RUNTIME + '" first.')
-    runtime_overlay.verify(runtime_overlay.overlay(RUNTIME),
-                           Path(store.root) / 'runtimes' / runtime_overlay.directory_name(runtime_overlay.overlay(RUNTIME)))
+    selected = settings.get(runtime_overlay.SETTING)
+    if selected not in RUNTIMES:
+        raise core.HostError('PACE needs the ' + RUNTIMES[0] + ' runtime. Run "plugg runtime assemble ' + RUNTIMES[0]
+                             + '" and "plugg runtime select ' + RUNTIMES[0] + '" first.')
+    runtime_overlay.verify(runtime_overlay.overlay(selected),
+                           Path(store.root) / 'runtimes' / runtime_overlay.directory_name(runtime_overlay.overlay(selected)))
     previous = current(store)
     if previous is not None and previous.is_dir():
         record = licensing.read(previous)
@@ -73,20 +76,21 @@ def preflight(store, installer):
         from .proton_session import foreign_prefix_processes
         if foreign_prefix_processes(previous / 'prefix'):
             raise core.HostError('Programs are still running in the current iLok environment. Close them first.')
-    return {'installer': str(installer), 'runtime': RUNTIME,
+    return {'installer': str(installer), 'runtime': selected,
             'replaces': str(previous) if previous is not None else None}
 
 
 def create(store, installer, report=print, check=lambda: None):
     from . import recipes
     plan = preflight(store, installer)
+    selected = plan['runtime']
     job_id = store.ingest(Path(plan['installer']))
     directory = store.root / 'environments' / store.job(job_id)['env_id']
     prefix = directory / 'prefix'
     journal = directory.parent.parent / 'jobs' / job_id / 'ilok-setup.json'
 
     def stage(name, **extra):
-        core.atomic_json(journal, {'schema': 1, 'stage': name, 'runtime': RUNTIME, **extra})
+        core.atomic_json(journal, {'schema': 1, 'stage': name, 'runtime': selected, **extra})
         store.update(job_id, 'preparing' if name != 'complete' else 'ready', name.replace('-', ' ').capitalize())
 
     try:
@@ -117,13 +121,13 @@ def create(store, installer, report=print, check=lambda: None):
                 launcher = helper_component.configure(prefix, full, MANAGER)
                 core.atomic_json(directory / 'environment.json', {
                     'id': directory.name, 'recipe': 'managed-helper', 'recipe_reference': 'plugg.ilok@1',
-                    'display_name': 'iLok', 'vendor': 'PACE', 'runtime': 'UMU-Proton-10.0-4 (' + RUNTIME + ')',
+                    'display_name': 'iLok', 'vendor': 'PACE', 'runtime': 'UMU-Proton-10.0-4 (' + selected + ')',
                     'helper_job': job_id, 'helper_launcher': str(launcher), 'ilok_launcher': str(launcher),
                     'session_launcher': str(directory / 'launch-plugin'), 'licensing_group': 'ilok',
                     'lifecycle': 'persistent', 'helper_owns_runtime': True, 'automatic_updates': False,
                     'sandbox': False})
                 licensing.protect_declared(directory, DECLARATION)
-                _record_group(store, directory, plan['replaces'])
+                _record_group(store, directory, plan['replaces'], selected)
                 for _ in range(60):
                     from .proton_session import foreign_prefix_processes
                     if not foreign_prefix_processes(prefix):
@@ -137,12 +141,12 @@ def create(store, installer, report=print, check=lambda: None):
     except Exception as exc:
         store.update(job_id, 'failed', str(exc))
         raise
-    return {'environment': str(directory), 'job': job_id, 'runtime': RUNTIME,
+    return {'environment': str(directory), 'job': job_id, 'runtime': selected,
             'machine_identity_is_this_computer': licensing.is_this_computer(directory),
             'replaced': plan['replaces']}
 
 
-def _record_group(store, directory, replaced):
+def _record_group(store, directory, replaced, runtime):
     data = groups(store)
     entries = data.setdefault('groups', {})
     history = entries.get('ilok', {}).get('previous', [])
@@ -150,7 +154,7 @@ def _record_group(store, directory, replaced):
         history = [*history, {**{k: v for k, v in entries['ilok'].items() if k != 'previous'},
                               'replaced_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}]
     entries['ilok'] = {'environment': directory.name, 'prefix': str(directory / 'prefix'), 'status': 'ready',
-                       'vendors': [], 'preserve_identity': True, 'runtime': RUNTIME, 'previous': history}
+                       'vendors': [], 'preserve_identity': True, 'runtime': runtime, 'previous': history}
     data['schema'] = 1
     core.atomic_json(Path(store.root) / GROUPS, data)
 
