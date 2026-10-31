@@ -48,6 +48,17 @@ class SessionConfigurationTest(unittest.TestCase):
             self.save(cfg)
             self.assertEqual(session.configuration(self.path, verify_manager=True), cfg)
 
+    def test_session_starts_in_its_own_folder_not_the_callers(self):
+        # A host may remove its folder when it ends, and the session outlives that host.
+        self.save(self.cfg)
+        with tempfile.TemporaryDirectory() as ipc, \
+                patch.object(session, 'ipc_directory', return_value=Path(ipc)), \
+                patch.object(session, 'ping', side_effect=[False, True]), \
+                patch.object(session, 'foreign_prefix_processes', return_value=[]), \
+                patch.object(session.subprocess, 'Popen') as start:
+            session.ensure_session(self.path)
+        self.assertEqual(start.call_args.kwargs['cwd'], self.path.resolve().parent)
+
     def test_non_executable_runtime_is_rejected(self):
         self.executable.chmod(0o600)
         self.save(self.cfg)

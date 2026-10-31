@@ -358,7 +358,9 @@ def ensure_session(config_path):
         if overrides:env['WINEDLLOVERRIDES']=overrides
         log=config_path.parent/'session.log'
         with log.open('ab') as out:
-            proc=subprocess.Popen([cfg['runtime_entry'],'--verb=run','--','/usr/bin/python3',str(Path(__file__).resolve()),'serve',str(endpoint),cfg['proton'],str(cfg.get('idle_seconds',300)),str(config_path)],env=env,stdout=out,stderr=out,start_new_session=True)
+            # Not the caller's folder: every DAW shares this session and it outlives the host that
+            # started it, which may remove its folder. Proton cannot start from a folder that has gone.
+            proc=subprocess.Popen([cfg['runtime_entry'],'--verb=run','--','/usr/bin/python3',str(Path(__file__).resolve()),'serve',str(endpoint),cfg['proton'],str(cfg.get('idle_seconds',300)),str(config_path)],env=env,stdout=out,stderr=out,start_new_session=True,cwd=config_path.parent)
         for _ in range(150):
             if ping(endpoint):return endpoint
             if proc.poll() is not None:raise RuntimeError('Runtime session failed to start; see session.log')
