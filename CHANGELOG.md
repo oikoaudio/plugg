@@ -8,6 +8,7 @@ Each release's full notes are in [packaging/release-notes](packaging/release-not
 - A plug-in no longer fails to load because the host that started its environment's session has ended and its folder has gone. Existing environments need `plugg environment update-launcher`.
 - Closing Native Access no longer fails with "Another runtime is still using this vendor environment" while Wine is exiting.
 - `plugg ilok create` accepts `plugg-2`. Sign-in and activation are not tested on it yet.
+- Plugg detects a DAW by the Windows plug-ins it has loaded, not by its name, so any DAW is covered and an idle DAW no longer blocks anything. The drop area shows a note while plug-ins are loaded.
 
 ## 0.2.2
 
