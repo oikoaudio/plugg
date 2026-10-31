@@ -17,7 +17,7 @@ plugg ilok plan PACE.msi          # checks only
 plugg ilok create PACE.msi        # builds the iLok environment
 ```
 
-`ilok create` makes a new prefix on the `plugg-1` runtime and gives it a machine identity derived from this computer. It runs the MSI with `msiexec /qn` and records iLok License Manager as the environment's manager. It refuses an untested PACE version, a library that has not selected `plugg-1`, and an existing iLok environment that still records activations or has programs running. An old environment stays on disk, and `licensing-environments.json` lists it under `previous`.
+`ilok create` makes a new prefix on the selected runtime, `plugg-1` or `plugg-2`, and gives it a machine identity derived from this computer. It runs the MSI with `msiexec /qn` and records iLok License Manager as the environment's manager. It refuses an untested PACE version, a library that has not selected `plugg-1`, and an existing iLok environment that still records activations or has programs running. An old environment stays on disk, and `licensing-environments.json` lists it under `previous`.
 
 Then add vendors to it:
 
@@ -66,9 +66,9 @@ The fixtures in [diagnostics/msi-version](../../diagnostics/msi-version/) and [d
 
 ## What has been checked
 
-1. Clean install in a fresh prefix with the unmodified MSI on `plugg-1`. Done. The service is registered with its failure actions stored as Windows keeps them. On the stock runtime the same MSI rolls back.
+1. Clean install in a fresh prefix with the unmodified MSI on `plugg-1`, and on `plugg-2` through `ilok create`. Done. The service is registered with its failure actions stored as Windows keeps them. On the stock runtime the same MSI rolls back.
 2. Service configuration without removing any vendor check. Done, for installation.
-3. The PACE service starts, iLok License Manager signs in and activates. Done.
+3. The PACE service starts, iLok License Manager signs in and activates. Done on `plugg-1`. On `plugg-2` the service runs, and sign-in and activation are not tested.
 4. UA Connect recognises PACE 6.0.1. Done.
 5. An activated plug-in through a service restart, a reboot and a saved project. Partly. Plug-ins open and play in Bitwig. Reboot persistence and project recall are not recorded yet.
 6. Mono instead of Microsoft .NET. Not tested.

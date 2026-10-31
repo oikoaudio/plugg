@@ -23,9 +23,9 @@ class PreflightTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def select_runtime(self):
+    def select_runtime(self, name='plugg-1'):
         settings = self.store.root / 'settings.json'
-        core.atomic_json(settings, {**json.loads(settings.read_text()), runtime_overlay.SETTING: 'plugg-1'})
+        core.atomic_json(settings, {**json.loads(settings.read_text()), runtime_overlay.SETTING: name})
 
     def environments(self):
         return sorted(path.name for path in (self.store.root / 'environments').glob('*'))
@@ -39,6 +39,13 @@ class PreflightTests(unittest.TestCase):
     def test_the_patched_runtime_must_be_selected(self):
         with self.assertRaisesRegex(core.HostError, 'runtime select plugg-1'):
             ilok_setup.preflight(self.store, self.msi)
+
+    def test_each_runtime_with_the_pace_fixes_is_accepted(self):
+        for name in ('plugg-1', 'plugg-2'):
+            self.select_runtime(name)
+            with patch.object(runtime_overlay, 'verify') as verify:
+                self.assertEqual(ilok_setup.preflight(self.store, self.msi)['runtime'], name)
+            self.assertEqual(verify.call_args.args[0]['name'], name)
 
     def test_an_environment_that_still_records_activations_blocks_replacement(self):
         self.select_runtime()
@@ -62,9 +69,10 @@ class PreflightTests(unittest.TestCase):
         core.atomic_json(self.store.root / ilok_setup.GROUPS,
                          {'schema': 1, 'groups': {'ilok': {'environment': 'old', 'vendors': ['Softube']}}})
         new = self.store.root / 'environments/new'
-        ilok_setup._record_group(self.store, new, str(self.store.root / 'environments/old'))
+        ilok_setup._record_group(self.store, new, str(self.store.root / 'environments/old'), 'plugg-2')
         entry = ilok_setup.groups(self.store)['groups']['ilok']
         self.assertEqual(entry['environment'], 'new')
+        self.assertEqual(entry['runtime'], 'plugg-2')
         self.assertEqual(entry['previous'][0]['environment'], 'old')
         self.assertEqual(entry['previous'][0]['vendors'], ['Softube'])
         self.assertEqual(ilok_setup.current(self.store), new)
