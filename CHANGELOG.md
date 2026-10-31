@@ -2,6 +2,12 @@
 
 Each release's full notes are in [packaging/release-notes](packaging/release-notes/) and on the [releases page](https://github.com/oikoaudio/plugg/releases). The [ROADMAP](ROADMAP.md) lists what works, what comes next and what this project does not claim.
 
+## 0.3.0
+
+- New libraries use the `plugg-2` runtime. Plugg downloads and assembles it during setup, so Kontakt 8 and `plugg ilok create` need no runtime commands. If the download fails, setup stops with an error. Existing libraries keep what they have.
+- iLok sign-in and activation work on `plugg-2`, tested with one plug-in. Nobody has played an activated plug-in on it yet.
+- `plugg prepare` sets up the runtime that environments use. It used to download a Wine build no new environment uses, and it failed on an empty cache.
+
 ## 0.2.3
 
 - Kontakt 8 installs on the new `plugg-2` runtime, which fixes a Wine bug that damaged the installer's large MSI. Native Access used to report success with nothing installed.

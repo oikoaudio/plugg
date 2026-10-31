@@ -22,7 +22,7 @@ plugg runtime assemble plugg-1    # downloads the patched Wine modules, checks t
 plugg runtime select plugg-1      # new environments use it
 ```
 
-`ilok create` makes a new prefix on the selected runtime, `plugg-1` or `plugg-2`, and gives it a machine identity derived from this computer. It runs the MSI with `msiexec /qn` and records iLok License Manager as the environment's manager. It refuses an untested PACE version, a library that has not selected `plugg-1`, and an existing iLok environment that still records activations or has programs running. An old environment stays on disk, and `licensing-environments.json` lists it under `previous`.
+`ilok create` makes a new prefix on the selected runtime, `plugg-1` or `plugg-2`, and gives it a machine identity derived from this computer. It runs the MSI with `msiexec /qn` and records iLok License Manager as the environment's manager. It refuses an untested PACE version, a library that has selected neither runtime, and an existing iLok environment that still records activations or has programs running. An old environment stays on disk, and `licensing-environments.json` lists it under `previous`.
 
 Then add vendors to it:
 
