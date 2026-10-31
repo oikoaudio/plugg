@@ -389,9 +389,12 @@ def stop_idle_session(config_path):
         if applications(Path(cfg['prefix'])):
             raise RuntimeError('Close this vendor’s plug-ins and Helper before managing installations.')
         if not ping(endpoint):
-            if foreign_prefix_processes(cfg['prefix']):
-                raise RuntimeError('Another runtime is still using this vendor environment.')
-            return
+            # `wineserver -k` returns before its processes have gone, so a server
+            # stopped a moment ago looks like one that is still in use.
+            for _ in range(150):
+                if not foreign_prefix_processes(cfg['prefix']):return
+                time.sleep(.1)
+            raise RuntimeError('Another runtime is still using this vendor environment.')
         with socket.socket(socket.AF_UNIX) as conn:
             conn.connect(str(endpoint))
             pid,uid,_=struct.unpack('3i',conn.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12))

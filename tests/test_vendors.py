@@ -45,9 +45,19 @@ class VendorTests(unittest.TestCase):
         from plugg import proton_session
         config=self.root/'session.json';config.write_text('{}')
         ipc=self.root/'ipc';ipc.mkdir()
-        with patch('plugg.proton_session.configuration',return_value={'prefix':str(self.prefix),'proton':'/unused'}), patch('plugg.proton_session.ipc_directory',return_value=ipc), patch('plugg.vendors.applications',return_value=[]), patch('plugg.proton_session.ping',return_value=False), patch('plugg.proton_session.foreign_prefix_processes',return_value=[123]), patch('plugg.proton_session.os.kill') as kill:
+        with patch('plugg.proton_session.configuration',return_value={'prefix':str(self.prefix),'proton':'/unused'}), patch('plugg.proton_session.ipc_directory',return_value=ipc), patch('plugg.vendors.applications',return_value=[]), patch('plugg.proton_session.ping',return_value=False), patch('plugg.proton_session.foreign_prefix_processes',return_value=[123]), patch('plugg.proton_session.time.sleep'), patch('plugg.proton_session.os.kill') as kill:
             with self.assertRaisesRegex(RuntimeError,'Another runtime'):
                 proton_session.stop_idle_session(config)
+            kill.assert_not_called()
+
+    def test_idle_session_stop_waits_for_a_server_that_is_exiting(self):
+        from plugg import proton_session
+        config=self.root/'session.json';config.write_text('{}')
+        ipc=self.root/'ipc';ipc.mkdir()
+        exiting=[[123,124],[123],[]]
+        with patch('plugg.proton_session.configuration',return_value={'prefix':str(self.prefix),'proton':'/unused'}), patch('plugg.proton_session.ipc_directory',return_value=ipc), patch('plugg.vendors.applications',return_value=[]), patch('plugg.proton_session.ping',return_value=False), patch('plugg.proton_session.foreign_prefix_processes',side_effect=exiting), patch('plugg.proton_session.time.sleep') as wait, patch('plugg.proton_session.os.kill') as kill:
+            proton_session.stop_idle_session(config)
+            self.assertEqual(wait.call_count,2)
             kill.assert_not_called()
 
     def test_initial_placement_rule_is_installed_before_launch_and_disabled(self):
