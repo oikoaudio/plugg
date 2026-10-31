@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from plugg import core, licensing, recipes, runtime_overlay as overlay
+from plugg.__main__ import main as plugg_main
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -278,6 +279,22 @@ class DefaultRuntimeTests(unittest.TestCase):
         with patch.object(overlay, 'download_modules', side_effect=OSError('Network is unreachable')), \
                 self.assertRaisesRegex(core.HostError, 'Could not download the plugg-2 runtime.*Check your connection'):
             overlay.ensure_selected(self.store, self.base)
+
+
+class PrepareCommandTests(unittest.TestCase):
+    def test_prepare_sets_up_the_runtime_new_environments_use(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            argv = ['plugg', '--data', str(root / 'library'), '--publish-dir', str(root / 'published'), 'prepare']
+            output = io.StringIO()
+            with patch('sys.argv', argv), patch.object(core.Store, 'bridge'), \
+                    patch.object(recipes, 'provision', return_value=root / 'runtime') as provision, \
+                    patch.object(overlay, 'proton_for_new_environment', return_value=root / 'selected') as selected, \
+                    contextlib.redirect_stdout(output):
+                self.assertEqual(plugg_main(), 0)
+            provision.assert_called_once()
+            self.assertEqual(selected.call_args.args[1], root / 'runtime/UMU-Proton-10.0-4')
+            self.assertEqual(output.getvalue().strip(), str(root / 'selected'))
 
 
 class DraftRuntimeTests(unittest.TestCase):

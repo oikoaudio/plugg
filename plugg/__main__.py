@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 
-from .core import HostError, Store, doctor, provision_wine, work
+from .core import HostError, Store, doctor, work
 
 
 def parse_product(text):
@@ -56,7 +56,7 @@ def main():
     commands.add_parser("gui")
     commands.add_parser("doctor")
     commands.add_parser("list")
-    commands.add_parser("prepare")
+    commands.add_parser('prepare', help='Download and set up the runtime new environments use')
     softube_join = commands.add_parser('softube-join', help='Set up Softube in an existing shared iLok environment')
     softube_join.add_argument('installer', type=Path)
     softube_join.add_argument('--environment', type=Path, required=True)
@@ -388,8 +388,10 @@ def main():
         elif args.command == "list":
             print(json.dumps({"jobs": store.jobs(), "plugins": store.plugins()}, indent=2))
         elif args.command == "prepare":
+            from . import recipes, runtime_overlay
             store.bridge()
-            print(provision_wine(store, lambda x: print(x, flush=True)))
+            runtime = recipes.provision(store, lambda x: print(x, flush=True), lambda: None)
+            print(runtime_overlay.proton_for_new_environment(store.root, runtime / 'UMU-Proton-10.0-4'))
         elif args.command == "install":
             job = store.ingest(args.installer)
             if args.background:
