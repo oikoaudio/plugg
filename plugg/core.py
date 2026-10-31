@@ -74,6 +74,12 @@ WINE = {
 }
 
 
+#: Plugg can only detect a DAW that has plug-ins loaded, so helpers and Help say this
+#: whichever DAW someone uses, and the drop area adds DAW_IN_USE when it detects one.
+CLOSE_DAW = 'Close your DAW before installing or updating plug-ins.'
+DAW_IN_USE = 'Your DAW has Windows plug-ins loaded. Close it before installing or updating plug-ins.'
+
+
 class HostError(Exception):
     pass
 

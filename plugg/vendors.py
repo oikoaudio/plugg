@@ -694,7 +694,7 @@ def work(store, job_id, refresh=False):
                 report('opening', 'Opening Helper…')
                 with helper_placement(), subprocess.Popen([cfg['helper_launcher']], stdout=subprocess.DEVNULL,
                                       stderr=subprocess.DEVNULL) as child:
-                    report('running', 'Helper is open. Close it when installation is finished; the library will refresh automatically.')
+                    report('running', 'Helper is open. ' + core.CLOSE_DAW + ' Close Helper when installation is finished; the library will refresh automatically.')
                     handled = set()
                     while True:
                         warning = float_helper(store.prefix(job_id), handled)

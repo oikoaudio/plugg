@@ -17,7 +17,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gtk, Gdk, Gio, GLib, Pango
 
-from .core import TERMINAL, doctor
+from .core import DAW_IN_USE, TERMINAL, doctor
 from . import formats, vendors, standalone
 
 
@@ -133,6 +133,9 @@ class Manager(Gtk.Application):
         self.drop_note = label('', 'running-note', True)
         self.drop_note.set_visible(False)
         text.append(self.drop_note)
+        self.daw_note = label(DAW_IN_USE, 'running-note', True)
+        self.daw_note.set_visible(False)
+        text.append(self.daw_note)
         drop.append(text)
         choose = Gtk.Button(label="Choose file…")
         choose.add_css_class("suggested-action")
@@ -246,9 +249,26 @@ class Manager(Gtk.Application):
         if self.tab == 'recipes':
             self.load_recipes()
         GLib.timeout_add(700, self.refresh)
+        self.watch_daw()
         self.window.present()
         if os.environ.get("PLUGG_UI_SMOKE"):
             GLib.timeout_add(int(os.environ.get('PLUGG_UI_SMOKE_MS', '1800')), self.smoke_done)
+
+    def watch_daw(self):
+        """Show the drop area's note while a DAW has plug-ins loaded.
+
+        Looking takes a full walk of every process's memory map, about 30 ms with
+        650 processes, so it runs on its own thread and not with each refresh.
+        """
+        import threading
+        import time
+        from .ua_connect import plugin_hosts
+
+        def task():
+            while True:
+                GLib.idle_add(self.daw_note.set_visible, bool(plugin_hosts()))
+                time.sleep(3)
+        threading.Thread(target=task, daemon=True).start()
 
     def save_interface_state(self):
         from .core import atomic_json

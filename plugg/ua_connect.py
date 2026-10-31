@@ -36,20 +36,28 @@ def configure(directory, *, allow_electron_no_sandbox=False):
     core.write_module_launcher(launcher, 'plugg.ua_connect', directory)
 
 
-def require_idle_desktop():
-    # Keep this prototype conservative, including zombie Windows main threads
-    # whose surviving workers are not visible through the leader's cmdline.
-    for process in Path('/proc').iterdir():
+def plugin_hosts(proc=Path('/proc')):
+    """This user's processes with a bridged Windows plug-in loaded, in any DAW.
+
+    A host cannot load a published plug-in without mapping the bridge library,
+    so this needs no list of DAW names, and a DAW's plug-in sandbox counts. A
+    DAW that has loaded none has nothing an environment could take down.
+    """
+    hosts = []
+    for process in proc.iterdir():
         if not process.name.isdigit():
             continue
         try:
-            if process.stat().st_uid != os.getuid():
-                continue
-            first = (process / 'cmdline').read_bytes().split(b'\0')[0].lower()
+            if process.stat().st_uid == os.getuid() and b'libyabridge' in (process / 'maps').read_bytes():
+                hosts.append(int(process.name))
         except OSError:
             continue
-        if b'bitwig' in first or b'reaper' in first:
-            raise core.HostError('Close your DAW before opening a vendor helper for installation or updates.')
+    return hosts
+
+
+def require_idle_desktop():
+    if plugin_hosts():
+        raise core.HostError('Close your DAW first. It has Windows plug-ins loaded.')
 
 
 # These services can outlive both the DAW and UA Connect. Unknown applications

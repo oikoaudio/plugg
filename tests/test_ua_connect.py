@@ -8,6 +8,37 @@ from unittest.mock import patch
 from plugg import core, ua_connect
 
 
+class PluginHostTests(unittest.TestCase):
+    def proc(self, root, processes):
+        for pid, maps in processes.items():
+            (root / pid).mkdir()
+            (root / pid / 'maps').write_text(maps)
+        (root / 'self').mkdir()
+        return root
+
+    def test_any_host_with_the_bridge_mapped_counts_whatever_it_is_called(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = self.proc(Path(tmp), {
+                '10': '7f00 r-xp /opt/aww/lib/libaww.so\n7f01 r-xp /home/a/plugg/libyabridge-vst3.so\n',
+                '11': '7f00 r-xp /usr/lib/libc.so.6\n'})
+            self.assertEqual(ua_connect.plugin_hosts(proc), [10])
+
+    def test_a_daw_with_no_plugins_loaded_does_not_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = self.proc(Path(tmp), {'10': '7f00 r-xp /opt/bitwig-studio/bin/BitwigStudio\n'})
+            self.assertEqual(ua_connect.plugin_hosts(proc), [])
+
+    def test_unreadable_process_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / '10').mkdir()
+            self.assertEqual(ua_connect.plugin_hosts(Path(tmp)), [])
+
+    def test_refuses_while_a_host_has_plugins_loaded(self):
+        with patch.object(ua_connect, 'plugin_hosts', return_value=[10]), \
+             self.assertRaisesRegex(core.HostError, 'Close your DAW'):
+            ua_connect.require_idle_desktop()
+
+
 class UAConnectTests(unittest.TestCase):
     def test_missing_consent_does_not_modify_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
