@@ -1,0 +1,75 @@
+From: Plugg <noreply@local>
+Date: Sat, 31 Oct 2026 12:00:00 +0000
+Subject: [PATCH] msi: Rewrite every table when the string reference width
+ changes.
+
+msi_save_string_table() switches a database to 3-byte string references when
+the capacity of the string pool passes 0xffff, but MSI_CommitTables() saves
+only the tables in db->tables. Tables nobody has opened stay in the file with
+2-byte references under a pool that declares 3-byte ones, and the next open
+fails: reading _Tables reports "Table size is invalid", every view fails to
+parse, and MsiInstallProduct returns without running an action.
+
+The width follows the capacity and not the number of strings, and capacity
+grows by half each time, so a database with about 43,700 strings crosses the
+limit when it gains one string. Kontakt 8's InstallAware setup opens its MSI
+and rewrites it before MsiInstallProductA. Its pool of 57,160 strings became
+a capacity of 85,741, _Columns and the other cached tables were saved wider,
+and _Tables and the rest were not.
+
+Load the remaining tables while they can still be read with the old width,
+and record the new width once they are saved.
+
+  wine revision  b8fdff8e1f855b5276ec4ddca0f31b2792554322
+---
+--- a/dlls/msi/table.c
++++ b/dlls/msi/table.c
+@@ -2900,6 +2900,24 @@
+     return ERROR_SUCCESS;
+ }
+ 
++static UINT load_all_tables( MSIDATABASE *db )
++{
++    MSITABLE *tables, *table;
++    const WCHAR *name;
++    UINT i, r;
++
++    if ((r = get_table( db, L"_Tables", &tables ))) return r;
++
++    for (i = 0; i < tables->row_count; i++)
++    {
++        UINT id = read_table_int( tables->data, i, 0, LONG_STR_BYTES );
++
++        if (!(name = msi_string_lookup( db->strings, id, NULL ))) return ERROR_FUNCTION_FAILED;
++        if ((r = get_table( db, name, &table ))) return r;
++    }
++    return ERROR_SUCCESS;
++}
++
+ UINT MSI_CommitTables( MSIDATABASE *db )
+ {
+     UINT r, bytes_per_strref;
+@@ -2915,6 +2933,15 @@
+         return r;
+     }
+ 
++    /* Every table in the file must use the width the string pool declares, but
++     * only cached tables are saved below, so load the others while they can
++     * still be read with the old width. */
++    if (bytes_per_strref != db->bytes_per_strref && (r = load_all_tables( db )))
++    {
++        WARN("failed to load tables r=%08x\n",r);
++        return r;
++    }
++
+     LIST_FOR_EACH_ENTRY( table, &db->tables, MSITABLE, entry )
+     {
+         r = save_table( db, table, bytes_per_strref );
+@@ -2925,6 +2952,7 @@
+             return r;
+         }
+     }
++    db->bytes_per_strref = bytes_per_strref;
+ 
+     hr = IStorage_Commit( db->storage, 0 );
+     if (FAILED( hr ))

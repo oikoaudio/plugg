@@ -12,6 +12,7 @@ Native Instruments **partly works** on the maintainer's system (Bitwig, Hyprland
 | Massive X | 1.7.1 (R0) | Working in Bitwig and finds its presets (the maintainer's report, 11 September). The factory library of 720 `.nksf` presets installs. Project recall is unchecked. |
 | Reaktor 6 and Reaktor 6 FX | 6.5.0 | Factory discovery and publication only. Playback, browsing and project recall are untested. |
 | Super 8 | 2.1.0 (R26) | Factory discovery and publication only. Playback, browsing and project recall are untested. |
+| Kontakt 8 Player | 8.14.1 | Needs the `plugg-2` runtime. See [Kontakt 8](#kontakt-8). Opens registered and plays Noire in Bitwig. Project recall and third-party libraries are untested. |
 
 Massive X's preset browser did not work under an earlier plain Wine/yabridge setup. Under Plugg it finds its presets.
 
@@ -32,6 +33,14 @@ Native Access signs in through the system browser, which returns a `native-acces
 - Native Access's download location picker cannot create a new folder. The recipe creates `C:\Native Instruments Downloads` in advance.
 - Closing Native Access triggers discovery. Its NTKDaemon background service keeps running after the window closes. Plugg stops this prefix's Wine session, and only this one, before it discovers new VST3s through the managed plug-in session.
 - NTKDaemon has to run as a Windows service, started in the same launch as Native Access. See [the recipe](../recipes/native-instruments.md#automated-service-component).
+
+## Kontakt 8
+
+On `plugg-1` and earlier, Native Access reports that Kontakt 8 installed and then offers **Install** again. No Kontakt 8 file exists. The installer runs for about 75 seconds and exits normally. It leaves an uninstall entry in the registry and a 4 MB MSI in `C:\windows\Installer`. Every NI product exits with code 100 here, including the ones that install, so the code proves nothing. The daemon log shows `Unable to roll forward installation state for Kontakt 8` followed by `InstallationSucceeded`.
+
+The installer edits its MSI before it runs it, and Wine damages the file when it saves that edit. [The runtime notes](../runtime.md#plugg-2) explain why. Environments on `plugg-2` install Kontakt 8 with its own unmodified installer, and Native Access then activates it. It needs no other component, because the installer brings its own Microsoft Visual C++ runtime.
+
+[ni-wine](https://github.com/selimbucher/native-instruments) reports that the same installer hangs under Wine 11, and replaces the MSI step with a shim that copies the files itself. `plugg-2` needs no shim, and the hang did not happen on it.
 
 ## Known issues
 
