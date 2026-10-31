@@ -4,13 +4,13 @@ Plugg is a developer preview. It works on the maintainer's machine with the vend
 
 ## What works today
 
-- A managed Windows environment per vendor, all on one runtime (`plugg-1`: UMU-Proton 10.0-4 with Plugg's Wine fixes) and a patched yabridge build, independent of the system's Wine and yabridge.
+- A managed Windows environment per vendor, on UMU-Proton 10.0-4 with Plugg's Wine fixes (`plugg-2` in a new library) and a patched yabridge build, independent of the system's Wine and yabridge.
 - Packages for Ubuntu, Debian, Fedora and Arch in each release, built and install-tested by the release workflow.
 - Windows VST3 discovery and publication as native Linux VST3 bundles, with the original class identities.
 - Drag-and-drop installer intake, background installation and cancellation. Plugg rescans automatically when a vendor helper closes.
 - Direct import of exact Windows VST3 files and bundles, with the pinned Microsoft runtime each one needs.
 - Automated setup of a fresh environment from a recipe for recognized helper installers, on a persistent Proton session per vendor.
-- iLok plug-ins in one shared environment on the `plugg-1` runtime, created with the unmodified PACE installer. See [iLok and PACE](docs/recipes/pace.md).
+- iLok plug-ins in one shared environment on the `plugg-1` or `plugg-2` runtime, created with the unmodified PACE installer. See [iLok and PACE](docs/recipes/pace.md).
 - Data-only TOML recipes with exact revisions and reusable components. Plugg validates a recipe before use and records its provenance after.
 - Capability reports and tier ceilings for shared recipes, enforced by CI.
 - Protection for environments that hold activations. Plugg records the products and an identity baseline, refuses identity-changing operations without explicit acknowledgement, and takes small recovery points.
@@ -79,7 +79,7 @@ The next step is a short test: build the bridge with `-Dbitbridge=true`, build a
 
 ## Known hard problems
 
-**PACE and iLok.** `plugg ilok create` installs the unmodified PACE MSI on the `plugg-1` runtime, which carries source fixes for the two Wine gaps that stopped it. Activation works. Reboots, PACE updates and more vendors are still untested, and setup is command-line only. The app has no guided flow for it yet. Recipes can't provision PACE. See [iLok and PACE](docs/recipes/pace.md) and [the runtime](docs/runtime.md).
+**PACE and iLok.** `plugg ilok create` installs the unmodified PACE MSI on the `plugg-1` or `plugg-2` runtime. Both carry source fixes for the two Wine gaps that stopped it. Activation works. Reboots, PACE updates and more vendors are still untested, and setup is command-line only. The app has no guided flow for it yet. Recipes can't provision PACE. See [iLok and PACE](docs/recipes/pace.md) and [the runtime](docs/runtime.md).
 
 **Building Windows code with the packager's flags.** Every bridged plug-in died while initialising on 2026-09-20, and `makepkg` had built the Windows host with this machine's `CFLAGS`, `-march=native` among them. A host compiled for anything above the x86-64 baseline overflows its main thread's stack inside the plug-in's `initialize`. The same source built with yabridge's own flags loads. The bridge build now ignores the environment's compiler flags and records what it used ([the diagnosis](diagnostics/host-stack/README.md)). Wine 10.0 could not even report the overflow ([the unwinder note](diagnostics/collided-unwind/README.md)). Nobody else runs the bridge the way Plugg does, so faults there are found by measuring, one variable at a time.
 
