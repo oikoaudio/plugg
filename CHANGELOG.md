@@ -2,6 +2,13 @@
 
 Each release's full notes are in [packaging/release-notes](packaging/release-notes/) and on the [releases page](https://github.com/oikoaudio/plugg/releases). The [ROADMAP](ROADMAP.md) lists what works, what comes next and what this project does not claim.
 
+## 0.2.3
+
+- Kontakt 8 installs on the new `plugg-2` runtime, which fixes a Wine bug that damaged the installer's large MSI. Native Access used to report success with nothing installed.
+- A plug-in no longer fails to load because the host that started its environment's session has ended and its folder has gone. Existing environments need `plugg environment update-launcher`.
+- Closing Native Access no longer fails with "Another runtime is still using this vendor environment" while Wine is exiting.
+- `plugg ilok create` accepts `plugg-2`. Sign-in and activation are not tested on it yet.
+
 ## 0.2.2
 
 - Arturia Software Center no longer crashes while it synchronizes licences. 0.2.1's workaround for Wine's UI Automation did not take effect for the Software Center.
