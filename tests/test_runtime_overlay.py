@@ -216,6 +216,70 @@ if __name__ == '__main__':
     unittest.main()
 
 
+class DefaultRuntimeTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.store = core.Store(self.root / 'library', self.root / 'published')
+        self.base = self.root / 'base'
+        self.target = self.store.root / 'runtimes' / overlay.directory_name(overlay.overlay(overlay.DEFAULT))
+        (self.store.root / 'runtimes').mkdir()
+
+    def settings(self):
+        return json.loads((self.store.root / 'settings.json').read_text())
+
+    def test_the_default_is_a_published_runtime(self):
+        spec = overlay.overlay(overlay.DEFAULT)
+        self.assertNotIn('draft', spec)
+        self.assertTrue(spec['release']['url'].startswith('https://github.com/oikoaudio/plugg/releases/'))
+
+    def test_a_new_library_selects_the_default(self):
+        self.assertEqual(self.settings()[overlay.SETTING], overlay.DEFAULT)
+
+    def test_an_existing_library_keeps_what_it_has(self):
+        for saved in ({}, {overlay.SETTING: 'plugg-1'}):
+            library = self.root / ('existing' + str(len(saved)))
+            library.mkdir()
+            contents = {'publication': str(self.root / 'published'), 'schema': 1, **saved}
+            (library / 'settings.json').write_text(json.dumps(contents))
+            core.Store(library)
+            self.assertEqual(json.loads((library / 'settings.json').read_text()), contents)
+
+    def test_the_selected_runtime_is_assembled_when_it_is_missing(self):
+        with patch.object(overlay, 'download_modules') as download, patch.object(overlay, 'assemble') as assemble:
+            self.assertEqual(overlay.ensure_selected(self.store, self.base), self.target)
+        download.assert_called_once()
+        self.assertEqual(assemble.call_args.args[0]['name'], overlay.DEFAULT)
+        self.assertEqual(assemble.call_args.args[1], self.base)
+
+    def test_a_runtime_that_is_there_is_not_fetched_again(self):
+        self.target.mkdir()
+        with patch.object(overlay, 'download_modules') as download:
+            overlay.ensure_selected(self.store, self.base)
+        download.assert_not_called()
+
+    def test_a_library_with_nothing_selected_stays_on_the_base(self):
+        overlay.select_for_new_environments(self.store.root, None)
+        with patch.object(overlay, 'download_modules') as download:
+            self.assertIsNone(overlay.ensure_selected(self.store, self.base))
+        download.assert_not_called()
+
+    def test_a_failed_download_stops_setup_and_does_not_fall_back(self):
+        with patch.object(overlay, 'download_modules', side_effect=core.HostError('no network')), \
+                patch.object(overlay, 'assemble') as assemble, \
+                self.assertRaisesRegex(core.HostError, 'no network'):
+            overlay.ensure_selected(self.store, self.base)
+        assemble.assert_not_called()
+        self.assertEqual(list((self.store.root / 'runtimes').iterdir()), [])
+        self.assertEqual(self.settings()[overlay.SETTING], overlay.DEFAULT)
+
+    def test_a_network_failure_says_what_failed_and_what_to_do(self):
+        with patch.object(overlay, 'download_modules', side_effect=OSError('Network is unreachable')), \
+                self.assertRaisesRegex(core.HostError, 'Could not download the plugg-2 runtime.*Check your connection'):
+            overlay.ensure_selected(self.store, self.base)
+
+
 class DraftRuntimeTests(unittest.TestCase):
     """A runtime whose modules have not been built yet is described, not usable."""
 

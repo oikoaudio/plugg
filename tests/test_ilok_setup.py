@@ -37,15 +37,21 @@ class PreflightTests(unittest.TestCase):
             ilok_setup.preflight(self.store, other)
 
     def test_the_patched_runtime_must_be_selected(self):
+        runtime_overlay.select_for_new_environments(self.store.root, None)
         with self.assertRaisesRegex(core.HostError, 'runtime select plugg-1'):
             ilok_setup.preflight(self.store, self.msi)
 
     def test_each_runtime_with_the_pace_fixes_is_accepted(self):
         for name in ('plugg-1', 'plugg-2'):
             self.select_runtime(name)
+            (self.store.root / 'runtimes' / runtime_overlay.directory_name(runtime_overlay.overlay(name))).mkdir(parents=True)
             with patch.object(runtime_overlay, 'verify') as verify:
                 self.assertEqual(ilok_setup.preflight(self.store, self.msi)['runtime'], name)
             self.assertEqual(verify.call_args.args[0]['name'], name)
+
+    def test_a_first_setup_does_not_need_the_runtime_assembled_yet(self):
+        plan = ilok_setup.preflight(self.store, self.msi)
+        self.assertEqual(plan['runtime'], runtime_overlay.DEFAULT)
 
     def test_an_environment_that_still_records_activations_blocks_replacement(self):
         self.select_runtime()

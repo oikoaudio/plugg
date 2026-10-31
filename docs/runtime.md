@@ -1,6 +1,8 @@
-# The plugg-1 runtime
+# Plugg's runtimes
 
-Every new environment runs on the runtime chosen with `plugg runtime select`, whether it comes from a recipe, a vendor helper, the iLok setup, a direct VST3 import or an installer Plugg has no recipe for. With none chosen, it runs on plain UMU-Proton 10.0-4. `plugg-1` is a copy of UMU-Proton 10.0-4 with seven Wine modules replaced by patched builds. The patches fix things that stop plug-ins and their installers on stock Proton:
+A new library uses `plugg-2`. Plugg downloads and assembles it the first time it needs a runtime, and setup stops with an error if the download fails. A library made before 0.3.0 keeps what it had: the runtime you selected, or plain UMU-Proton 10.0-4 if you selected none.
+
+Every new environment in a library runs on its selected runtime, whether it comes from a recipe, a vendor helper, the iLok setup, a direct VST3 import or an installer Plugg has no recipe for. `plugg-1` is a copy of UMU-Proton 10.0-4 with seven Wine modules replaced by patched builds. The patches fix things that stop plug-ins and their installers on stock Proton:
 
 | Module | Patch | What it fixes |
 | --- | --- | --- |
@@ -12,7 +14,9 @@ Every new environment runs on the runtime chosen with `plugg runtime select`, wh
 
 Everything else is the unchanged UMU-Proton build. Plugg hard-links the unchanged files, so the copy costs a few megabytes.
 
-## Getting it
+## Choosing another runtime
+
+To use `plugg-1`, or to give a library made before 0.3.0 a patched runtime:
 
 ```sh
 plugg runtime assemble plugg-1
@@ -57,14 +61,9 @@ That fix is for crash reporting. It does not fix plug-ins. The plug-in failures 
 
 The `msi.dll` patch fixes a Wine bug in saving large MSI databases. An MSI stores references to its strings in 2 or 3 bytes, and every table must use the same width. Wine picks the width from the capacity of the string pool, which grows by half each time, so a database of about 43,700 strings crosses the limit when it gains one string. Wine then saves only the tables it has open, and nothing can read the file after that. Kontakt 8's installer edits its MSI before it installs, so it hits this. `MsiInstallProduct` returns without running an action, the installer exits normally and Native Access reports success with nothing installed. See [the Native Instruments notes](compatibility/native-instruments.md#kontakt-8) and [the diagnosis](../diagnostics/msi-string-width/README.md). The patch is not in upstream Wine yet.
 
-`python3 scripts/build-runtime-overlay.py plugg-2 --container docker` rebuilds its modules byte for byte from source. To use it for new environments:
+`python3 scripts/build-runtime-overlay.py plugg-2 --container docker` rebuilds its modules byte for byte from source.
 
-```sh
-plugg runtime assemble plugg-2
-plugg runtime select plugg-2
-```
-
-Kontakt 8 Player installs, activates and plays on it. `plugg ilok create` accepts `plugg-1` or `plugg-2`. PACE 6.0.1 installs on `plugg-2` and its service runs, but nobody has signed in to iLok or activated a plug-in on it.
+Kontakt 8 Player installs, activates and plays on it. `plugg ilok create` accepts `plugg-1` or `plugg-2`. PACE 6.0.1 installs on `plugg-2`, its service runs, and iLok sign-in and activation work. Nobody has played an iLok-activated plug-in on it yet.
 
 Moving an existing environment to it keeps the prefix, the installed software and the machine identity. Only Wine modules change. A protected environment still asks first. Deactivate the plug-ins in an iLok environment before you move it.
 

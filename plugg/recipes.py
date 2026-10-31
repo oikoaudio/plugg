@@ -35,6 +35,15 @@ def recognized(installer_hash):
 
 
 def provision(store, report, check):
+    """The managed Proton runtime, with the runtime selected for new environments assembled."""
+    from . import runtime_overlay
+    target=provision_base(store,report,check)
+    with core.lock(store.root/'proton-provision.lock'):
+        runtime_overlay.ensure_selected(store,target/'UMU-Proton-10.0-4',report,check)
+    return target
+
+
+def provision_base(store, report, check):
     spec=recipe();identity=hashlib.sha256(json.dumps(spec['runtimes'],sort_keys=True).encode()).hexdigest()[:16]
     target=store.root/'runtimes'/('proton-'+identity)
     markers=('UMU-Proton-10.0-4/proton','umu/umu-run','runtime/umu/steamrt3/_v2-entry-point')

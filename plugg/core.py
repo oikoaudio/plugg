@@ -278,7 +278,9 @@ class Store:
             from . import bridge_bundle
             self.bridge_selection = bridge_bundle.inspect(bridge_dir) if bridge_dir else None
             self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-            saved = {"publication": str(self.publication), "schema": 1}
+            from . import runtime_overlay
+            saved = {"publication": str(self.publication), "schema": 1,
+                     runtime_overlay.SETTING: runtime_overlay.DEFAULT}
             if self.bridge_selection:
                 saved["bridge"] = self.bridge_selection
             atomic_json(settings, saved)

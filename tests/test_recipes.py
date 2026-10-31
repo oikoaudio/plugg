@@ -5,7 +5,7 @@ import hashlib
 import json
 import unittest
 from unittest.mock import patch
-from plugg import artifacts,core,recipes
+from plugg import artifacts,core,recipes,runtime_overlay
 from test_core import fake_pe
 from webfixture import serve
 
@@ -65,6 +65,7 @@ class RecipeTests(unittest.TestCase):
 
 
     def test_reused_runtime_rejects_modified_entry_points(self):
+        runtime_overlay.select_for_new_environments(self.store.root,None)
         assets=recipes.recipe()['runtimes']
         identity=hashlib.sha256(json.dumps(assets,sort_keys=True).encode()).hexdigest()[:16]
         target=self.store.root/'runtimes'/('proton-'+identity)

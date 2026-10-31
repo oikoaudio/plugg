@@ -28,6 +28,8 @@ from . import artifacts, core
 SPEC = Path(__file__).resolve().parent / 'recipes' / 'runtime-overlays.json'
 MANIFEST = 'plugg-build.json'
 SETTING = 'new_environment_runtime'
+#: What a new library selects. Existing libraries keep what they have, selected or not.
+DEFAULT = 'plugg-2'
 WINE_LIB = Path('files/lib/wine')
 
 
@@ -246,6 +248,29 @@ def proton_for_new_environment(store_root, base_proton):
     spec = overlay(name)
     target = Path(store_root) / 'runtimes' / directory_name(spec)
     verify(spec, target)
+    return target
+
+
+def ensure_selected(store, base_proton, report=print, check=lambda: None):
+    """Assemble the runtime selected for new environments if it is not there yet.
+
+    A failed download stops the setup. Falling back to the plain base would give
+    an environment that seems to work and lacks the fixes the library selected.
+    """
+    name = _settings(store.root).get(SETTING)
+    if not name:
+        return None
+    spec = overlay(name)
+    runtimes = Path(store.root) / 'runtimes'
+    target = runtimes / directory_name(spec)
+    if not target.exists():
+        with tempfile.TemporaryDirectory(dir=runtimes, prefix='.modules-' + name + '-') as modules:
+            try:
+                download_modules(store, spec, modules, report, check)
+            except OSError as error:
+                raise core.HostError('Could not download the ' + name + ' runtime Plugg needs (' + str(error)
+                                     + '). Check your connection and try again.') from error
+            assemble(spec, base_proton, modules, runtimes)
     return target
 
 
