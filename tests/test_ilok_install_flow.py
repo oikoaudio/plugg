@@ -39,6 +39,21 @@ class IlokInstallFlowTests(unittest.TestCase):
         self.assertEqual(result['waiting'], ['Waiting'])
         self.assertEqual(len(result['failures']), 1)
 
+    def test_a_load_waits_for_the_activation_window_it_opened_and_closes_it_after(self):
+        self.plugin('Licensed')
+        programs = [[(10, 'PACEEdenExperienceProxy.exe')],  # open before the load: not ours
+                    [(10, 'PACEEdenExperienceProxy.exe'), (11, 'PACEEdenExperienceProxy.exe')],
+                    [(10, 'PACEEdenExperienceProxy.exe'), (11, 'PACEEdenExperienceProxy.exe')]]
+
+        def load(*args, activation):
+            self.assertTrue(activation())
+            raise core.HostError('needs activation')
+        with patch('plugg.vendors.running_programs', side_effect=programs), \
+                patch('plugg.core.probe', side_effect=load), patch('plugg.vendors.os.kill') as kill:
+            result = vendors.refresh_library(self.store, self.job)
+        kill.assert_called_once_with(11, vendors.signal.SIGTERM)
+        self.assertEqual(len(result['failures']), 1)
+
     def test_a_full_refresh_loads_everything_waiting(self):
         self.plugin('One')
         self.plugin('Two')

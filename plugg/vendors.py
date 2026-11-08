@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import shutil
+import signal
 import re
 import sys
 import time
@@ -328,6 +329,44 @@ def running_programs(prefix, pids=None):
     return found
 
 
+#: The program PACE runs to show its activation window. It is a process of its
+#: own, so it outlives a plug-in load that ends while the window is open.
+ACTIVATION_WINDOWS = ('paceedenexperienceproxy.exe',)
+
+
+class ActivationWatch:
+    """Activation windows a plug-in load opens in a prefix.
+
+    Windows that were already open before the load are someone else's and are
+    neither waited for nor closed. Asking costs a walk of /proc, so the answer
+    is refreshed at most once a second.
+    """
+
+    def __init__(self, prefix):
+        self.prefix = prefix
+        self.before = set(self.windows())
+        self.checked = None
+        self.open = False
+
+    def windows(self):
+        return [pid for pid, name in running_programs(self.prefix) if name.lower() in ACTIVATION_WINDOWS]
+
+    def __call__(self):
+        now = time.monotonic()
+        if self.checked is None or now - self.checked >= 1:
+            self.checked = now
+            self.open = bool(set(self.windows()) - self.before)
+        return self.open
+
+    def close_leftovers(self):
+        """End activation windows the load opened and left behind."""
+        for pid in set(self.windows()) - self.before:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+
+
 def program_names(prefix, pids=None):
     """What a person would recognise in a list of what is about to be ended."""
     return sorted({name for _, name in running_programs(prefix, pids)})
@@ -481,7 +520,14 @@ def refresh_library(store, job_id, *, probe_only=None):
         try:
             if item['machine'] != 0x8664:
                 raise core.HostError('Only 64-bit VST3 plug-ins are supported.')
-            metadata = core.probe(store, item['path'], job_id, item['format'])
+            # A licensed plug-in's first load may open an activation window.
+            # The check waits while the person answers it, and closes any the
+            # load leaves open, since nothing could act on them afterwards.
+            watch = ActivationWatch(store.prefix(job_id))
+            try:
+                metadata = core.probe(store, item['path'], job_id, item['format'], activation=watch)
+            finally:
+                watch.close_leftovers()
             if core.digest(item['path']) != item['hash']:
                 raise core.HostError('Installation is still changing. Close the Helper and refresh again.')
             core.publish(store, item, job_id, metadata)
@@ -551,7 +597,9 @@ def finish_installation(store, job_id, *, busy=None, before_scan=None, after_sca
         time.sleep(1)
     else:
         raise core.HostError('Installation has not settled. Close installer windows, then refresh the library.')
-    report('scanning', 'Checking installed plug-ins…')
+    report('scanning', 'Checking installed plug-ins… If one asks for activation, answer it: activate, '
+           'start a trial or quit. Plugg waits.' if _cfg_group(directory) == 'ilok' else
+           'Checking installed plug-ins…')
     # probe() checks the job cancellation flag; old cancelled runs must not
     # prevent this explicitly requested vendor operation.
     with store.db() as db:
