@@ -764,15 +764,25 @@ def create_launcher(prefix: Path, wine: Path):
     (prefix / ".plugg-runtime").write_text(str(script) + "\n")
 
 
-def run_process(args, env, log: Path, check=lambda: None, timeout=3600, cwd=None):
-    """No shell, bounded runtime, a process group private to this operation."""
+def run_process(args, env, log: Path, check=lambda: None, timeout=3600, cwd=None, paused=None, pause_limit=0):
+    """No shell, bounded runtime, a process group private to this operation.
+
+    paused, when given, says whether the process is waiting for a person, such
+    as an activation window it opened. That time does not count against
+    timeout, up to pause_limit seconds in all.
+    """
     with log.open("ab", buffering=0) as out:
         proc = subprocess.Popen([str(x) for x in args], env=env, stdout=out, stderr=out, start_new_session=True, cwd=cwd)
-        started = time.monotonic()
+        started = last = time.monotonic()
+        held = 0.0
         try:
             while proc.poll() is None:
                 check()
-                if time.monotonic() - started > timeout:
+                now = time.monotonic()
+                if paused is not None and held < pause_limit and paused():
+                    held = min(pause_limit, held + now - last)
+                last = now
+                if now - started - held > timeout:
                     raise HostError("This operation took too long. See installation details.")
                 time.sleep(0.15)
             return proc.returncode
@@ -841,7 +851,20 @@ SCAN_REFUSALS = {
 }
 
 
-def probe(store: Store, module: Path, job_id: str, kind="vst3"):
+#: How long a plug-in's discovery check may take to load it.
+PROBE_TIMEOUT = 45
+#: How long a discovery check waits, beyond that, for a person to answer an
+#: activation window the plug-in opened. Activating or starting a trial means
+#: signing in, so it is not counted as the plug-in hanging.
+ACTIVATION_WAIT = 30 * 60
+
+
+def probe(store: Store, module: Path, job_id: str, kind="vst3", activation=None):
+    """Load a plug-in once in a disposable host and return what it reports.
+
+    activation, when given, says whether an activation window is open; the
+    check then waits for the person instead of ending the load.
+    """
     scanroot = store.root / "scans"
     scanroot.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(dir=scanroot) as tmp:
@@ -852,7 +875,8 @@ def probe(store: Store, module: Path, job_id: str, kind="vst3"):
         env = os.environ.copy()
         env.pop("WINEPREFIX", None)
         flag = [] if kind == "vst3" else ["--" + kind]
-        rc = run_process([store.bridge() / "plugg-scan", *flag, native, output], env, log, lambda: store.cancelled(job_id), timeout=45)
+        rc = run_process([store.bridge() / "plugg-scan", *flag, native, output], env, log, lambda: store.cancelled(job_id),
+                         timeout=PROBE_TIMEOUT, paused=activation, pause_limit=ACTIVATION_WAIT)
         if rc in SCAN_REFUSALS:
             raise HostError(SCAN_REFUSALS[rc])
         if rc != 0 or not output.exists():

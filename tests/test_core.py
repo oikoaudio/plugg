@@ -123,6 +123,16 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(core.HostError):
             core.run_process(['python3','-c','import time;time.sleep(60)'],os.environ.copy(),self.root/'log',timeout=0.1)
 
+    def test_time_spent_waiting_for_a_person_does_not_count(self):
+        rc=core.run_process(['python3','-c','import time;time.sleep(0.6)'],os.environ.copy(),self.root/'log',
+                            timeout=0.2,paused=lambda:True,pause_limit=5)
+        self.assertEqual(rc,0)
+
+    def test_waiting_for_a_person_is_bounded(self):
+        with self.assertRaises(core.HostError):
+            core.run_process(['python3','-c','import time;time.sleep(60)'],os.environ.copy(),self.root/'log',
+                             timeout=0.1,paused=lambda:True,pause_limit=0.2)
+
     def test_cancel_persists_and_terminal_job_is_not_restarted(self):
         job=self.store.ingest(fake_pe(self.root/'x.exe'))
         self.store.cancel(job)

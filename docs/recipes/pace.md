@@ -42,6 +42,8 @@ plugg ilok install SpaceBlender5_5.5.5.19885_64.exe EchoBoyJr5_5.5.5.19885_64.ex
 
 Activation prompts don't pile up. After an install, Plugg loads only the plug-ins that install added or changed, and each new product may ask for activation once. It doesn't reload plug-ins from earlier installs that are still waiting, and closing UA Connect or Softube Central doesn't reload them either.
 
+Some products, Soundtoys among them, ask from inside the plug-in through PACE's activation window. While that window is open, Plugg waits for up to 30 minutes, so you can sign in, activate, start a trial or quit. If the load ends with the window still open, Plugg closes it.
+
 When you're ready, run `plugg ilok open` or press **Open iLok** on the card. Activate in iLok License Manager and close it. Plugg then loads every waiting plug-in and publishes the ones that now work. UA Connect and Softube Central have their own cards under the vendor's name, marked as living in the shared iLok environment. `ilok open ua-connect` and `ilok open softube` open them from the command line.
 
 ## Keeping the activations

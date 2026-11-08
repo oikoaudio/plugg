@@ -144,7 +144,7 @@ class VendorTests(unittest.TestCase):
 
     def test_module_changing_during_probe_is_not_published(self):
         path=self.installed()
-        def change(*args):
+        def change(*args, **kwargs):
             with path.open('ab') as f:f.write(b'update still running')
             return self.metadata
         with patch('plugg.core.probe',side_effect=change):
