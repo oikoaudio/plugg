@@ -18,6 +18,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 import json
 import os
+import re
 from pathlib import Path
 import time
 
@@ -47,6 +48,32 @@ def current(store):
     """The environment directory the library records as its iLok environment, if any."""
     entry = groups(store).get('groups', {}).get('ilok')
     return Path(store.root) / 'environments' / entry['environment'] if entry else None
+
+
+def _words(name):
+    return re.findall(r'[a-z0-9]+', (name or '').casefold())
+
+
+def suggested_vendor(store, installer):
+    """The iLok environment's name for an installer's vendor, if it already holds that vendor.
+
+    The installer's CompanyName is a hint, not proof: a vendor can sell
+    products with and without iLok. It is enough to ask, never to decide.
+    "Neural DSP Technologies" matches a recorded "Neural DSP", so the recorded
+    name has to begin the company's name, word for word.
+    """
+    from . import pe_version
+    directory = current(store)
+    if directory is None or not directory.is_dir():
+        return None
+    company = _words(pe_version.version_info(installer).get('CompanyName'))
+    if not company:
+        return None
+    for vendor in groups(store)['groups']['ilok'].get('vendors', []):
+        words = _words(vendor)
+        if words and company[:len(words)] == words:
+            return vendor
+    return None
 
 
 def preflight(store, installer):

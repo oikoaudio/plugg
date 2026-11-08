@@ -38,6 +38,10 @@ plugg ilok install SpaceBlender5_5.5.5.19885_64.exe EchoBoyJr5_5.5.5.19885_64.ex
 
 `ilok install` runs the installers one after another, each in its own window, and reports whether PACE's files changed.
 
+In the app, drop the installer as usual. If the installer names a vendor the iLok environment already holds, Plugg asks whether it goes there or into an environment of its own. Other installers are not asked about. `plugg install` stops with the same question and names both commands. Add `--own-environment` to install it on its own anyway.
+
+A vendor new to the iLok environment is caught after the install. Plug-ins that PACE protects carry its wrapper, which Plugg recognises in the file without loading it. Plugg doesn't load them in an environment without PACE. The card says they use iLok and offers **Install in iLok environment**, which runs the same installer there and dismisses the first attempt. The environment that attempt made is listed under cleanup. Nothing in it can have been activated, because it has no PACE.
+
 ## Activating
 
 Activation prompts don't pile up. After an install, Plugg loads only the plug-ins that install added or changed, and each new product may ask for activation once. It doesn't reload plug-ins from earlier installs that are still waiting, and closing UA Connect or Softube Central doesn't reload them either.

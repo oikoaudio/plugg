@@ -1094,7 +1094,7 @@ class Manager(Gtk.Application):
                 accepted = True
         return accepted
 
-    def install(self, path, replace=False):
+    def install(self, path, replace=False, own=False):
         """Take the file in, and say so before anything slow begins.
 
         Copying an installer and preparing an environment take a while, and
@@ -1105,7 +1105,7 @@ class Manager(Gtk.Application):
         announces itself immediately rather than once it has something to show.
         """
         import threading
-        from .core import DuplicateInstaller, SharedEnvironmentInstaller
+        from .core import DuplicateInstaller, IlokVendorInstaller, SharedEnvironmentInstaller
         path = Path(path)
         key = str(path)
         if key in self.pending:
@@ -1116,10 +1116,12 @@ class Manager(Gtk.Application):
 
         def task():
             try:
-                job = self.store.ingest(path, replace=replace)
+                job = self.store.ingest(path, replace=replace, own_environment=own)
                 self.store.start(job)
             except SharedEnvironmentInstaller as exc:
                 GLib.idle_add(self.offer_join, path, exc)
+            except IlokVendorInstaller as exc:
+                GLib.idle_add(self.offer_ilok, path, exc, replace)
             except DuplicateInstaller as exc:
                 if exc.replaceable:
                     GLib.idle_add(self.offer_replace, path, str(exc))
@@ -1183,6 +1185,95 @@ class Manager(Gtk.Application):
             finally:
                 GLib.idle_add(self.intake_finished, key)
         threading.Thread(target=task, daemon=False).start()
+
+    def offer_ilok(self, path, suggestion, replace=False):
+        """An installer from a vendor the iLok environment holds: ask where it goes.
+
+        Asked only for vendors already there. The vendor's name is a hint, not
+        proof, so the person decides; a product that turns out to use iLok
+        after all is caught after the install.
+        """
+        vendor = suggestion.vendor
+        dialog = Gtk.AlertDialog(
+            message='Install ' + Path(path).stem + ' in your iLok environment?',
+            detail=(suggestion.name + ' is from ' + vendor + ', and your iLok environment already holds '
+                    + vendor + '. Products licensed through iLok need PACE, which only that environment '
+                    'has. In an environment of their own they cannot be activated.\n\n'
+                    'Choose Own environment if this product does not use iLok. If it does after all, '
+                    'Plugg says so once it is installed.'),
+            buttons=['Cancel', 'Own environment', 'iLok environment'], cancel_button=0, default_button=2)
+
+        def chosen(source, result):
+            try:
+                choice = source.choose_finish(result)
+            except GLib.Error:
+                return
+            if choice == 1:
+                self.install(path, replace=replace, own=True)
+            elif choice == 2:
+                self.install_into_ilok(path, vendor)
+        dialog.choose(self.window, None, chosen)
+        return False
+
+    def install_into_ilok(self, path, vendor=None, done=None):
+        """Run an installer in the iLok environment, as "plugg ilok install" does.
+
+        done runs after a successful install, so the caller can tidy up.
+        """
+        import threading
+        from . import core
+        path = Path(path)
+        key = 'ilok:' + str(path)
+        if key in self.pending:
+            return
+        self.pending[key] = 'ilok:' + path.stem
+        self.refresh()
+
+        def task():
+            command = core.plugg_command('--data', self.store.root, 'ilok', 'install', path)
+            if vendor:
+                command += ['--vendor', vendor]
+            try:
+                finished = subprocess.run(command, cwd=self.store.root, capture_output=True, text=True)
+                if finished.returncode:
+                    reason = [line for line in (finished.stderr or finished.stdout).splitlines() if line.strip()]
+                    GLib.idle_add(self.message, 'Could not install ' + path.stem,
+                                  reason[-1] if reason else 'The install stopped with code '
+                                  + str(finished.returncode) + '.')
+                    return
+                try:
+                    waiting = json.loads(finished.stdout).get('waiting_for_activation')
+                except ValueError:
+                    waiting = None
+                GLib.idle_add(self.message, path.stem + ' is in your iLok environment',
+                              'If a plug-in still needs activating, press Open iLok on the iLok card and '
+                              'activate it there. Closing iLok License Manager adds what then loads to your DAW.'
+                              if waiting else 'Your DAW may need a rescan.')
+                if done:
+                    GLib.idle_add(done)
+            except Exception as exc:
+                GLib.idle_add(self.message, 'Could not install ' + path.stem, str(exc))
+            finally:
+                GLib.idle_add(self.intake_finished, key)
+        threading.Thread(target=task, daemon=False).start()
+
+    def ilok_move(self, job):
+        """The vendor to record, when an installation's plug-ins turned out to need iLok.
+
+        None when there is nothing to move, or nowhere to move it: no iLok
+        environment, or no kept installer to run there.
+        """
+        from . import ilok_setup
+        try:
+            scan = json.loads((self.store.root / 'jobs' / job['id'] / 'scan-result.json').read_text())
+        except (OSError, ValueError):
+            return None
+        installer = Path(job['installer'] or '')
+        environment = ilok_setup.current(self.store)
+        if not scan.get('ilok') or environment is None or not environment.is_dir() \
+                or installer.suffix.lower() not in ('.exe', '.msi') or not installer.is_file():
+            return None
+        return ilok_setup.suggested_vendor(self.store, installer) or scan.get('vendor') or ''
 
     def offer_replace(self, path, detail):
         """The same file again usually means "do that one over", so offer it."""
@@ -2058,6 +2149,9 @@ class Manager(Gtk.Application):
             for name in arriving:
                 if name.startswith('join:'):
                     self.activity.append(self.busy_row('Adding ' + name[5:], 'Joining the iLok environment. This takes a few minutes.'))
+                elif name.startswith('ilok:'):
+                    self.activity.append(self.busy_row('Installing ' + name[5:], 'In the iLok environment. The '
+                                                       'installer opens in its own window.'))
                 else:
                     self.activity.append(self.busy_row('Adding ' + name, 'Copying the file into your library…'))
                 working += 1
@@ -2099,6 +2193,13 @@ class Manager(Gtk.Application):
                     text.append(label(line, 'status', True))
                 row.append(text)
                 controls = []
+                vendor = self.ilok_move(job)
+                if vendor is not None:
+                    controls.append(('Install in iLok environment', 'Run the same installer in the iLok '
+                                     'environment, where PACE is, then dismiss this attempt. The environment '
+                                     'it made is listed under cleanup.',
+                                     lambda _, j=job, v=vendor: self.install_into_ilok(
+                                         Path(j['installer']), v or None, done=lambda: self.discard_job(j['id']))))
                 if self.installer_left_apps(job):
                     controls.append(('Choose app…', 'The installer added programs but no plug-ins. Choose the '
                                      'one you install products with, and it gets a place in the library.',

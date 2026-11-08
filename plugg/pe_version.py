@@ -109,6 +109,48 @@ def _read(data):
     return _strings(bytes(data[start:start + length]))
 
 
+#: Sections PACE's copy protection adds to a binary it wraps. A plug-in with
+#: all three is licensed through iLok and cannot be activated without PACE.
+PACE_SECTIONS = frozenset({'.proxy', '.mfrt', '.oldrel'})
+
+
+def section_names(path):
+    """The names in a PE file's section table; an empty set for anything else."""
+    module = module_of(path)
+    if module is None:
+        return set()
+    try:
+        size = module.stat().st_size
+        if not 64 <= size <= LIMIT:
+            return set()
+        with module.open('rb') as handle, mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            return _section_names(data)
+    except (OSError, ValueError, Malformed, struct.error):
+        return set()
+
+
+def pace_wrapped(path):
+    """Whether a plug-in is wrapped by PACE, so it needs iLok and PACE to load."""
+    return PACE_SECTIONS <= section_names(path)
+
+
+def _section_names(data):
+    if data[:2] != b'MZ':
+        return set()
+    pe = _unpack('<I', data, 60)[0]
+    if bytes(data[pe:pe + 4]) != b'PE\0\0':
+        return set()
+    count, optional_size = _unpack('<H', data, pe + 6)[0], _unpack('<H', data, pe + 20)[0]
+    table = pe + 24 + optional_size
+    names = set()
+    for index in range(min(count, 96)):
+        start = table + index * 40
+        if start + 8 > len(data):
+            raise Malformed('section table past the end of the file')
+        names.add(bytes(data[start:start + 8]).rstrip(b'\0').decode('latin-1'))
+    return names
+
+
 def exports(path):
     """The names a DLL exports; an empty set when it exports none or is not a PE file.
 
