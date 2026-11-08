@@ -118,6 +118,20 @@ class SharedEnvironmentInstaller(HostError):
         self.environment = environment
 
 
+class IlokVendorInstaller(HostError):
+    """An installer from a vendor the iLok environment already holds.
+
+    Not proof that it needs iLok, so nothing is decided here: the caller asks,
+    and installs it in its own environment only when told to.
+    """
+
+    def __init__(self, message, name, vendor, environment):
+        super().__init__(message)
+        self.name = name
+        self.vendor = vendor
+        self.environment = environment
+
+
 #: Installers reviewed for joining the shared iLok environment, by SHA-256.
 def shared_environment_installers():
     from . import softube_setup, ua_setup
@@ -439,7 +453,12 @@ class Store:
             shutil.rmtree(directory, ignore_errors=True)
         return {'job': job_id, 'environment': job['env_id']}
 
-    def ingest(self, source: Path, replace=False):
+    def ingest(self, source: Path, replace=False, own_environment=False):
+        """Take an installer or plug-in file into the library as a new job.
+
+        own_environment confirms that an installer from a vendor the iLok
+        environment holds should still get an environment of its own.
+        """
         from . import formats
         if source.suffix.lower() in formats.IMPORT_SUFFIXES:
             from .standalone import ingest
@@ -458,6 +477,16 @@ class Store:
                                     '"plugg ilok create PACE.msi", then add ' + name + ' again.')
                 raise SharedEnvironmentInstaller(name + ' goes into your iLok environment, next to PACE.',
                                                  name, recipe, environment)
+            if not own_environment:
+                from . import ilok_setup
+                vendor = ilok_setup.suggested_vendor(self, source)
+                if vendor:
+                    raise IlokVendorInstaller(
+                        source.name + ' is from ' + vendor + ', and your iLok environment already holds '
+                        + vendor + '. Install it there with "plugg ilok install ' + shlex.quote(str(source))
+                        + ' --vendor ' + shlex.quote(vendor) + '", or in an environment of its own with '
+                        '"plugg install --own-environment ' + shlex.quote(str(source)) + '".',
+                        source.name, vendor, ilok_setup.current(self))
         job_id = uuid.uuid4().hex
         directory = self.root / "jobs" / job_id
         directory.mkdir(parents=True, mode=0o700)
@@ -1283,18 +1312,31 @@ def adopt_current_bridge(store: Store, apply=False):
 
 
 def scan_and_publish(store: Store, job_id):
-    from . import formats
+    from . import formats, pe_version
     skipped = kept_out(store)
     items = [item for item in discover(store.prefix(job_id), formats.enabled(store.root))
              if plugin_identity(job_id, item["path"]) not in skipped]
     failures = []
+    ilok = []
+    vendor = None
     count = 0
+    try:
+        config = store.prefix(job_id).parent / "environment.json"
+        has_pace = json.loads(config.read_text()).get("licensing_group") == "ilok"
+    except (HostError, OSError, ValueError):
+        has_pace = False
     for item in items:
         store.cancelled(job_id)
         store.update(job_id, "scanning", "Checking " + item["name"])
         try:
             if item["machine"] != 0x8664:
                 raise HostError("32-bit plug-ins are outside this prototype's support.")
+            if not has_pace and pe_version.pace_wrapped(item["path"]):
+                # Licensed through iLok. This environment has no PACE, so the
+                # plug-in cannot load here, and trying only opens PACE's error.
+                ilok.append(item["name"])
+                vendor = vendor or pe_version.version_info(item["path"]).get("CompanyName")
+                continue
             metadata = probe(store, item["path"], job_id, item["format"])
             publish(store, item, job_id, metadata)
             count += 1
@@ -1303,14 +1345,33 @@ def scan_and_publish(store: Store, job_id):
         except (HostError, ValueError) as exc:
             failures.append(item["name"] + ": " + str(exc))
     result = {"published": count, "failures": failures}
+    if ilok:
+        result.update(ilok=sorted(set(ilok)), vendor=vendor)
     atomic_json(store.root / "jobs" / job_id / "scan-result.json", result)
-    if failures:
+    if ilok:
+        store.update(job_id, "needs_attention", needs_ilok(store, sorted(set(ilok)), count))
+    elif failures:
         store.update(job_id, "needs_attention", f"{count} plug-in modules published; {len(failures)} need attention. " + failures[0])
     elif not count:
         store.update(job_id, "needs_attention", nothing_found(store, job_id))
     else:
         store.update(job_id, "ready", f"{count} plug-in modules published. Open Bitwig to discover them.")
     return result
+
+
+def needs_ilok(store: Store, names, published=0):
+    """Say that what an installation added needs the iLok environment."""
+    from . import ilok_setup
+    one = len(names) == 1
+    subject = names[0] + " uses iLok, so it needs" if one else f"{len(names)} plug-ins use iLok, so they need"
+    message = subject + " the iLok environment, where PACE is. "
+    if published:
+        message += f"{published} other plug-in module{'s' if published != 1 else ''} published. "
+    environment = ilok_setup.current(store)
+    if environment is None or not environment.is_dir():
+        return message + ('This library has no iLok environment yet. Create it with '
+                          '"plugg ilok create PACE.msi", then install this there.')
+    return message + "Install " + ("it" if one else "them") + " there instead."
 
 
 def nothing_found(store: Store, job_id):
@@ -1335,7 +1396,7 @@ def finish_scan(store: Store, job):
     """
     scan = scan_and_publish(store, job["id"])
     helper, candidates = adopt_installed_helper(store, job)
-    if scan["published"] or scan["failures"]:
+    if scan["published"] or scan["failures"] or scan.get("ilok"):
         return
     if helper:
         helper_installed(store, job["id"], helper["helper"]["name"])

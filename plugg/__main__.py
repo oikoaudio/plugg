@@ -68,6 +68,8 @@ def main():
     install = commands.add_parser("install")
     install.add_argument("installer", type=Path)
     install.add_argument("--background", action="store_true")
+    install.add_argument("--own-environment", action="store_true",
+                         help="Give it an environment of its own even when its vendor is in the iLok environment")
     worker = commands.add_parser("worker")
     worker.add_argument("job")
     worker.add_argument("--rescan", action="store_true")
@@ -393,7 +395,7 @@ def main():
             runtime = recipes.provision(store, lambda x: print(x, flush=True), lambda: None)
             print(runtime_overlay.proton_for_new_environment(store.root, runtime / 'UMU-Proton-10.0-4'))
         elif args.command == "install":
-            job = store.ingest(args.installer)
+            job = store.ingest(args.installer, own_environment=args.own_environment)
             if args.background:
                 store.start(job)
             else:
